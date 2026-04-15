@@ -14,7 +14,7 @@ export default function Home() {
     rows.length > 0 ? rows[rows.length - 1].date : new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="min-h-screen">
       <DashboardHeader dataAsOf={latestDate} />
       <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6">
         <IndexTabs historicalData={rows} />
