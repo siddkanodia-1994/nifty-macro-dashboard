@@ -10,10 +10,6 @@ import type {
   ControlLines,
 } from "./types";
 
-// ─── Module-level memoization cache for fixed control lines ──────────────────
-// Control lines are computed from the FULL dataset once and never change.
-const controlLinesCache = new Map<string, ControlLines | null>();
-
 // ─── Basic statistics ─────────────────────────────────────────────────────────
 
 export function mean(values: number[]): number {
@@ -85,41 +81,33 @@ export function filterByWindow(rows: HistoricalRow[], window: TimeWindow): Histo
   });
 }
 
-// ─── Control lines (fixed — computed from ALL data) ───────────────────────────
+// ─── Control lines — computed from the selected window ───────────────────────
 
 /**
- * Computes and caches mean ± 1σ/2σ from the FULL historical dataset.
- * Returns null if there are fewer than 10 data points.
+ * Computes Mean ± 1σ/2σ from the currently selected window rows.
+ * Called with windowRows (not full dataset) so bands update whenever
+ * the user switches time window or metric.
+ * React's useMemo in IndexPanel handles caching — no module-level cache needed.
+ * Returns null if fewer than 10 data points.
  */
 export function computeControlLines(
-  allRows: HistoricalRow[],
+  rows: HistoricalRow[],
   indexKey: IndexKey,
   metric: MetricKey
 ): ControlLines | null {
-  const cacheKey = `${indexKey}_${metric}`;
-  if (controlLinesCache.has(cacheKey)) {
-    return controlLinesCache.get(cacheKey) ?? null;
-  }
-
-  const values = extractValues(allRows, indexKey, metric);
-  if (values.length < 10) {
-    controlLinesCache.set(cacheKey, null);
-    return null;
-  }
+  const values = extractValues(rows, indexKey, metric);
+  if (values.length < 10) return null;
 
   const m = mean(values);
   const sd = stdDev(values);
 
-  const lines: ControlLines = {
+  return {
     mean:     m,
     sd1Upper: m + sd,
     sd1Lower: m - sd,
     sd2Upper: m + 2 * sd,
     sd2Lower: m - 2 * sd,
   };
-
-  controlLinesCache.set(cacheKey, lines);
-  return lines;
 }
 
 // ─── Windowed statistics ──────────────────────────────────────────────────────

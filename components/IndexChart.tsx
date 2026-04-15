@@ -59,18 +59,22 @@ export function IndexChart({ data, metric, controlLines, showControlLines }: Ind
   const maxVal = Math.max(...values);
   const pad = (maxVal - minVal) * 0.08 || Math.abs(maxVal) * 0.05 || 1;
 
-  // Y-axis domain is data-driven only — control lines clip naturally if outside range.
-  // Never extend the domain for control lines: doing so compresses the data into a
-  // thin strip when the current values are far from the historical mean (e.g. bull run).
-  const domainMin = minVal - pad;
-  const domainMax = maxVal + pad;
+  // Y-axis: start from data range, then always extend to fit all 5 control lines.
+  // Control lines are now window-based (close to the data), so expansion is small.
+  let domainMin = minVal - pad;
+  let domainMax = maxVal + pad;
+  if (showControlLines && controlLines) {
+    domainMin = Math.min(domainMin, controlLines.sd2Lower - pad);
+    domainMax = Math.max(domainMax, controlLines.sd2Upper + pad);
+  }
 
   // X-axis: target ~6 evenly-spaced ticks; never 0 (Recharts shows ALL ticks when interval=0)
   const tickInterval = Math.max(1, Math.floor(data.length / 6));
 
-  // KEY: use actual data min/max so the chart remounts whenever metric OR window changes
-  // (different value ranges), but NOT when control lines are toggled (no scale change needed).
-  const chartKey = `${metric}-${minVal.toFixed(2)}-${maxVal.toFixed(2)}-${data.length}`;
+  // KEY: include control-line mean so Recharts remounts (rescales Y-axis) whenever
+  // the window changes (new mean) or the metric changes (different value range).
+  // Also include showControlLines so domain changes on toggle trigger a remount.
+  const chartKey = `${metric}-${minVal.toFixed(2)}-${maxVal.toFixed(2)}-${data.length}-${controlLines?.mean.toFixed(2) ?? "x"}-${showControlLines}`;
 
   return (
     <ResponsiveContainer key={chartKey} width="100%" height={320}>

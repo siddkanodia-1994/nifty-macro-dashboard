@@ -53,10 +53,10 @@ export function IndexPanel({
     [historicalData, timeWindow]
   );
 
-  // Fixed control lines from ALL data (memoized by indexKey + chartMetric)
+  // Control lines from the selected window — recalculate when window or metric changes
   const controlLines = useMemo(
-    () => computeControlLines(historicalData, indexKey, chartMetric),
-    [historicalData, indexKey, chartMetric]
+    () => computeControlLines(windowRows, indexKey, chartMetric),
+    [windowRows, indexKey, chartMetric]
   );
 
   // Stats for all metrics in selected window
