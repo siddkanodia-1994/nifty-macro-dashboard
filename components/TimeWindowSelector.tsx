@@ -19,7 +19,7 @@ export function TimeWindowSelector({ value, onChange }: TimeWindowSelectorProps)
             "px-3 py-1 rounded-md text-xs font-medium transition-colors",
             value === w
               ? "bg-zinc-900 text-white"
-              : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100"
+              : "text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100"
           )}
         >
           {w}

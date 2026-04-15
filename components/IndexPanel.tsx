@@ -99,7 +99,7 @@ export function IndexPanel({
                     "px-3 py-1 rounded-md text-xs font-medium transition-colors",
                     chartMetric === key
                       ? "bg-blue-600 text-white"
-                      : "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100"
+                      : "text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100"
                   )}
                 >
                   {label}
@@ -115,8 +115,8 @@ export function IndexPanel({
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium border transition-colors",
                   showControlLines
-                    ? "border-zinc-300 bg-zinc-50 text-zinc-700"
-                    : "border-zinc-200 text-zinc-400 hover:text-zinc-600"
+                    ? "border-zinc-300 bg-zinc-50 text-zinc-800"
+                    : "border-zinc-200 text-zinc-600 hover:text-zinc-800"
                 )}
                 title="Toggle control lines (Mean ± 1σ/2σ)"
               >

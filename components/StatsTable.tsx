@@ -15,7 +15,7 @@ export function StatsTable({ stats, timeWindow }: StatsTableProps) {
   return (
     <Card className="bg-white border border-zinc-200 shadow-sm">
       <CardHeader className="pb-2 pt-4 px-5">
-        <CardTitle className="text-sm font-semibold text-zinc-700">
+        <CardTitle className="text-sm font-semibold text-zinc-900">
           Statistics — {timeWindow} Window
         </CardTitle>
       </CardHeader>
@@ -27,7 +27,7 @@ export function StatsTable({ stats, timeWindow }: StatsTableProps) {
                 {["Metric", "Mean", "Std Dev", "Current", "Z-Score", "Percentile"].map((h) => (
                   <th
                     key={h}
-                    className="px-5 py-2 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide whitespace-nowrap"
+                    className="px-5 py-2 text-left text-xs font-medium text-zinc-700 uppercase tracking-wide whitespace-nowrap"
                   >
                     {h}
                   </th>
@@ -45,13 +45,13 @@ export function StatsTable({ stats, timeWindow }: StatsTableProps) {
                       i === METRICS.length - 1 && "border-b-0"
                     )}
                   >
-                    <td className="px-5 py-2.5 font-medium text-zinc-700 whitespace-nowrap">
+                    <td className="px-5 py-2.5 font-medium text-zinc-900 whitespace-nowrap">
                       {METRIC_LABELS[metric]}
                     </td>
-                    <td className="px-5 py-2.5 text-zinc-600 tabular-nums">
+                    <td className="px-5 py-2.5 text-zinc-800 tabular-nums">
                       {s ? formatMetric(metric, s.mean) : "—"}
                     </td>
-                    <td className="px-5 py-2.5 text-zinc-600 tabular-nums">
+                    <td className="px-5 py-2.5 text-zinc-800 tabular-nums">
                       {s ? formatMetric(metric, s.sd) : "—"}
                     </td>
                     <td className="px-5 py-2.5 font-semibold text-zinc-900 tabular-nums">
@@ -60,7 +60,7 @@ export function StatsTable({ stats, timeWindow }: StatsTableProps) {
                     <td className={cn("px-5 py-2.5 font-medium tabular-nums", zScoreColor(s?.zScore ?? null))}>
                       {s ? formatZScore(s.zScore) : "—"}
                     </td>
-                    <td className="px-5 py-2.5 text-zinc-600 tabular-nums">
+                    <td className="px-5 py-2.5 text-zinc-800 tabular-nums">
                       {s ? formatPercentile(s.percentile) : "—"}
                     </td>
                   </tr>

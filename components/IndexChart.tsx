@@ -85,7 +85,7 @@ export function IndexChart({ data, metric, controlLines, showControlLines }: Ind
           dataKey="date"
           tickFormatter={formatDateShort}
           interval={tickInterval}
-          tick={{ fontSize: 11, fill: "#a1a1aa" }}
+          tick={{ fontSize: 11, fill: "#52525b" }}
           axisLine={false}
           tickLine={false}
         />
@@ -93,7 +93,7 @@ export function IndexChart({ data, metric, controlLines, showControlLines }: Ind
         <YAxis
           domain={[domainMin, domainMax]}
           allowDataOverflow={false}
-          tick={{ fontSize: 11, fill: "#a1a1aa" }}
+          tick={{ fontSize: 11, fill: "#52525b" }}
           axisLine={false}
           tickLine={false}
           width={60}

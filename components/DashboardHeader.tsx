@@ -18,7 +18,7 @@ export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
             <h1 className="text-base font-semibold text-zinc-900 leading-tight">
               Nifty Macro Dashboard
             </h1>
-            <p className="text-xs text-zinc-500 leading-tight hidden sm:block">
+            <p className="text-xs text-zinc-700 leading-tight hidden sm:block">
               NSE India Index Valuations
             </p>
           </div>
@@ -26,9 +26,9 @@ export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
 
         {/* Data freshness badge */}
         <div className="flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-1.5">
-          <Calendar className="h-3.5 w-3.5 text-zinc-500 flex-shrink-0" />
-          <span className="text-xs text-zinc-600">
-            <span className="text-zinc-400 mr-1 hidden sm:inline">Data as of</span>
+          <Calendar className="h-3.5 w-3.5 text-zinc-700 flex-shrink-0" />
+          <span className="text-xs text-zinc-800">
+            <span className="text-zinc-600 mr-1 hidden sm:inline">Data as of</span>
             <span className="font-medium">{formatDate(dataAsOf)}</span>
           </span>
         </div>

@@ -30,7 +30,7 @@ export function MetricCard({ label, metric, stats }: MetricCardProps) {
     <Card className="bg-white border border-zinc-200 shadow-sm hover:shadow-md transition-shadow">
       <CardContent className="p-4">
         {/* Label */}
-        <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide mb-3">
+        <p className="text-xs font-medium text-zinc-700 uppercase tracking-wide mb-3">
           {label}
         </p>
 
@@ -47,12 +47,12 @@ export function MetricCard({ label, metric, stats }: MetricCardProps) {
             ) : isNegative ? (
               <TrendingDown className="h-3 w-3 text-emerald-500" />
             ) : (
-              <Minus className="h-3 w-3 text-zinc-400" />
+              <Minus className="h-3 w-3 text-zinc-600" />
             )}
             <span
               className={cn(
                 "text-xs font-medium",
-                isPositive ? "text-red-500" : isNegative ? "text-emerald-600" : "text-zinc-400"
+                isPositive ? "text-red-500" : isNegative ? "text-emerald-600" : "text-zinc-600"
               )}
             >
               {changePct >= 0 ? "+" : ""}
@@ -63,7 +63,7 @@ export function MetricCard({ label, metric, stats }: MetricCardProps) {
 
         {/* Mean */}
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-100">
-          <span className="text-xs text-zinc-400">
+          <span className="text-xs text-zinc-600">
             Mean: {formatMetric(metric, stats?.mean ?? null)}
           </span>
           {zScore != null && (
@@ -75,7 +75,7 @@ export function MetricCard({ label, metric, stats }: MetricCardProps) {
 
         {/* Percentile badge */}
         {pct != null && (
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-zinc-600 mt-1">
             {formatPercentile(pct)} percentile
           </p>
         )}

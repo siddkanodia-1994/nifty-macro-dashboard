@@ -24,7 +24,7 @@ export function IndexTabs({ historicalData }: IndexTabsProps) {
           <TabsTrigger
             key={meta.key}
             value={meta.key}
-            className="flex-1 rounded-lg px-4 py-2 text-xs font-medium data-active:bg-zinc-900 data-active:text-white text-zinc-500 hover:text-zinc-800 transition-colors"
+            className="flex-1 rounded-lg px-4 py-2 text-xs font-medium data-active:bg-zinc-900 data-active:text-white text-zinc-700 hover:text-zinc-900 transition-colors"
           >
             <span className="hidden sm:inline">{meta.label}</span>
             <span className="sm:hidden">{meta.shortLabel}</span>
