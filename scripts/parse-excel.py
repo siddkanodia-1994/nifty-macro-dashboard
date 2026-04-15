@@ -52,6 +52,14 @@ INDEX_MAP = {
         "date_col": 65, "close_col": 66, "pb_col": 67, "pe_col": 68,
         "display": "Nifty Smallcap 250",
     },
+    "NIFTY_MICROCAP_250": {
+        "date_col": 33, "close_col": 34, "pb_col": 35, "pe_col": 36,
+        "display": "Nifty Microcap 250",
+    },
+    "NIFTY_PSU_BANK": {
+        "date_col": 49, "close_col": 50, "pb_col": 51, "pe_col": 52,
+        "display": "NIFTY PSU BANK",
+    },
 }
 
 DATA_START_ROW = 5  # 1-indexed row where actual data begins

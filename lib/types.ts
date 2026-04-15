@@ -5,7 +5,9 @@ export type IndexKey =
   | "NIFTY_BANK"
   | "NIFTY_MIDCAP_150"
   | "NIFTY_SMALLCAP_250"
-  | "NIFTY_IT";
+  | "NIFTY_IT"
+  | "NIFTY_PSU_BANK"
+  | "NIFTY_MICROCAP_250";
 
 // ─── Metric Keys ─────────────────────────────────────────────────────────────
 
@@ -34,6 +36,8 @@ export interface HistoricalRow {
   NIFTY_MIDCAP_150: IndexMetrics;
   NIFTY_SMALLCAP_250: IndexMetrics;
   NIFTY_IT: IndexMetrics;
+  NIFTY_PSU_BANK: IndexMetrics;
+  NIFTY_MICROCAP_250: IndexMetrics;
 }
 
 // ─── Statistics over a selected window ───────────────────────────────────────

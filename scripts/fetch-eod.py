@@ -45,6 +45,8 @@ NIFTYINDICES_NAMES: dict[str, str] = {
     "NIFTY_IT":           "NIFTY IT",
     "NIFTY_MIDCAP_150":   "Nifty Midcap 150",
     "NIFTY_SMALLCAP_250": "Nifty Smallcap 250",
+    "NIFTY_PSU_BANK":     "Nifty PSU Bank",
+    "NIFTY_MICROCAP_250": "Nifty Microcap 250",
 }
 
 HEADERS = {
