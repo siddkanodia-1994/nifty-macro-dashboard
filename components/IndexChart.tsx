@@ -53,13 +53,13 @@ export function IndexChart({ data, metric, controlLines, showControlLines }: Ind
     );
   }
 
-  // Determine Y-axis domain with a 5% padding
+  // Determine Y-axis domain with 8% padding
   const values = data.map((d) => d.value);
   const minVal = Math.min(...values);
   const maxVal = Math.max(...values);
-  const pad = (maxVal - minVal) * 0.08;
+  const pad = (maxVal - minVal) * 0.08 || Math.abs(maxVal) * 0.05 || 1;
 
-  // Extend domain to include control lines if shown
+  // Extend domain to include control lines when visible
   let domainMin = minVal - pad;
   let domainMax = maxVal + pad;
   if (showControlLines && controlLines) {
@@ -67,11 +67,16 @@ export function IndexChart({ data, metric, controlLines, showControlLines }: Ind
     domainMax = Math.max(domainMax, controlLines.sd2Upper + pad);
   }
 
-  // X-axis tick spacing: show ~6 ticks regardless of window size
+  // X-axis: target ~6 evenly-spaced ticks; never 0 (Recharts shows ALL ticks when interval=0)
   const tickInterval = Math.max(1, Math.floor(data.length / 6));
 
+  // KEY: encode every variable that affects the chart's scale so Recharts
+  // fully remounts (and resets its internal scale state) on any change.
+  // Without this, switching metric or window leaves stale Y-axis ranges.
+  const chartKey = `${metric}-${data.length}-${domainMin.toFixed(2)}-${domainMax.toFixed(2)}-${showControlLines}`;
+
   return (
-    <ResponsiveContainer width="100%" height={320}>
+    <ResponsiveContainer key={chartKey} width="100%" height={320}>
       <ComposedChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 8 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false} />
 
@@ -86,11 +91,17 @@ export function IndexChart({ data, metric, controlLines, showControlLines }: Ind
 
         <YAxis
           domain={[domainMin, domainMax]}
+          allowDataOverflow={false}
           tick={{ fontSize: 11, fill: "#a1a1aa" }}
           axisLine={false}
           tickLine={false}
-          width={55}
-          tickFormatter={(v: number) => v.toFixed(1)}
+          width={60}
+          tickFormatter={(v: number) => {
+            // Format large numbers (Price, Implied EPS/BV) compactly
+            if (Math.abs(v) >= 10000) return (v / 1000).toFixed(1) + "k";
+            if (Math.abs(v) >= 1000) return v.toFixed(0);
+            return v.toFixed(2);
+          }}
         />
 
         <Tooltip content={<CustomTooltip />} />
