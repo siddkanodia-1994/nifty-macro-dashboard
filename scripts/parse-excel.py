@@ -170,11 +170,26 @@ def main():
 
         result.append(entry)
 
+    # Merge with any existing data in historical.json so that rows added by
+    # fetch-eod.py are never overwritten.  Only dates absent from the existing
+    # file are imported from Excel; existing rows are always preserved as-is.
+    existing: list[dict] = []
+    if os.path.exists(output_path):
+        with open(output_path) as f:
+            try:
+                existing = json.load(f)
+            except (json.JSONDecodeError, ValueError):
+                existing = []
+
+    existing_dates = {r["date"] for r in existing}
+    new_from_excel = [r for r in result if r["date"] not in existing_dates]
+    merged = existing + new_from_excel
+
     # Sort by date ascending, deduplicate
-    result.sort(key=lambda r: r["date"])
+    merged.sort(key=lambda r: r["date"])
     seen = set()
     deduped = []
-    for r in result:
+    for r in merged:
         if r["date"] not in seen:
             seen.add(r["date"])
             deduped.append(r)
@@ -183,7 +198,7 @@ def main():
     with open(output_path, "w") as f:
         json.dump(deduped, f, indent=2)
 
-    print(f"Written {len(deduped)} rows ({skipped} skipped) → {output_path}")
+    print(f"Written {len(deduped)} rows ({skipped} skipped, {len(new_from_excel)} new from Excel, {len(existing)} preserved) → {output_path}")
     if deduped:
         print(f"Date range: {deduped[0]['date']} → {deduped[-1]['date']}")
         # Spot-check last row
