@@ -10,9 +10,10 @@ interface MetricCardProps {
   label: string;
   metric: MetricKey;
   stats: WindowStats | null;
+  isLive?: boolean;
 }
 
-export function MetricCard({ label, metric, stats }: MetricCardProps) {
+export function MetricCard({ label, metric, stats, isLive = false }: MetricCardProps) {
   const current = stats?.current ?? null;
   const zScore  = stats?.zScore  ?? null;
   const pct     = stats?.percentile ?? null;
@@ -29,10 +30,21 @@ export function MetricCard({ label, metric, stats }: MetricCardProps) {
   return (
     <Card className="bg-white border border-zinc-200 shadow-sm hover:shadow-md transition-shadow">
       <CardContent className="p-4">
-        {/* Label */}
-        <p className="text-xs font-medium text-zinc-700 uppercase tracking-wide mb-3">
-          {label}
-        </p>
+        {/* Label + LIVE badge */}
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-medium text-zinc-700 uppercase tracking-wide">
+            {label}
+          </p>
+          {isLive && (
+            <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              LIVE
+            </span>
+          )}
+        </div>
 
         {/* Current value */}
         <p className="text-2xl font-semibold text-zinc-900 mb-1 leading-none">

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { IndexPanel } from "@/components/IndexPanel";
 import { INDEX_META } from "@/lib/utils";
+import { isMarketOpen } from "@/lib/marketHours";
 import type { HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
 
 interface IndexTabsProps {
@@ -13,6 +14,33 @@ interface IndexTabsProps {
 export function IndexTabs({ historicalData }: IndexTabsProps) {
   const [activeTab, setActiveTab]   = useState<IndexKey>("NIFTY_50");
   const [timeWindow, setTimeWindow] = useState<TimeWindow>("1Y");
+  const [liveData, setLiveData]     = useState<Partial<Record<IndexKey, number>> | null>(null);
+
+  const fetchLive = useCallback(async () => {
+    if (!isMarketOpen()) return;
+    try {
+      const res = await fetch("/api/live-prices");
+      if (!res.ok) return;
+      const json = await res.json();
+      if (!json.marketOpen) return;
+      // Extract only numeric prices keyed by IndexKey
+      const prices: Partial<Record<IndexKey, number>> = {};
+      for (const meta of INDEX_META) {
+        const val = json[meta.key];
+        if (typeof val === "number") prices[meta.key] = val;
+      }
+      setLiveData(prices);
+    } catch {
+      // Network error — keep last known live data
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isMarketOpen()) return;
+    fetchLive();
+    const id = setInterval(fetchLive, 60_000);
+    return () => clearInterval(id);
+  }, [fetchLive]);
 
   return (
     <Tabs
@@ -44,6 +72,7 @@ export function IndexTabs({ historicalData }: IndexTabsProps) {
             historicalData={historicalData}
             timeWindow={timeWindow}
             onTimeWindowChange={setTimeWindow}
+            liveClose={liveData?.[meta.key] ?? null}
           />
         </TabsContent>
       ))}

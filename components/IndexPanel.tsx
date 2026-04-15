@@ -22,6 +22,7 @@ interface IndexPanelProps {
   historicalData: HistoricalRow[];
   timeWindow: TimeWindow;
   onTimeWindowChange: (w: TimeWindow) => void;
+  liveClose?: number | null;
 }
 
 const CHART_METRICS: { key: MetricKey; label: string }[] = [
@@ -37,6 +38,7 @@ export function IndexPanel({
   historicalData,
   timeWindow,
   onTimeWindowChange,
+  liveClose = null,
 }: IndexPanelProps) {
   const [showControlLines, setShowControlLines] = useState(true);
   const [chartMetric, setChartMetric] = useState<MetricKey>("pe");
@@ -46,6 +48,20 @@ export function IndexPanel({
     if (historicalData.length === 0) return null;
     return historicalData[historicalData.length - 1][indexKey];
   }, [historicalData, indexKey]);
+
+  // Override with live close price during market hours
+  const effectiveMetrics = useMemo(() => {
+    if (!liveClose || !currentMetrics) return currentMetrics;
+    const prevImpliedEPS = currentMetrics.impliedEPS;
+    const prevImpliedBV  = currentMetrics.impliedBV;
+    return {
+      close:      liveClose,
+      pe:         prevImpliedEPS ? Math.round((liveClose / prevImpliedEPS) * 100) / 100 : currentMetrics.pe,
+      pb:         prevImpliedBV  ? Math.round((liveClose / prevImpliedBV)  * 100) / 100 : currentMetrics.pb,
+      impliedEPS: prevImpliedEPS,
+      impliedBV:  prevImpliedBV,
+    };
+  }, [liveClose, currentMetrics]);
 
   // Windowed rows for stats table & chart
   const windowRows = useMemo(
@@ -59,10 +75,10 @@ export function IndexPanel({
     [windowRows, indexKey, chartMetric]
   );
 
-  // Stats for all metrics in selected window
+  // Stats for all metrics in selected window (use live-adjusted metrics if available)
   const indexStats = useMemo(
-    () => computeIndexStats(windowRows, indexKey, currentMetrics),
-    [windowRows, indexKey, currentMetrics]
+    () => computeIndexStats(windowRows, indexKey, effectiveMetrics),
+    [windowRows, indexKey, effectiveMetrics]
   );
 
   // Chart data for selected metric in selected window
@@ -81,6 +97,7 @@ export function IndexPanel({
             label={METRIC_LABELS[m]}
             metric={m}
             stats={indexStats[m]}
+            isLive={m === "close" && liveClose != null}
           />
         ))}
       </div>

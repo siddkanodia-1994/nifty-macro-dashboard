@@ -1,4 +1,8 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { formatDate } from "@/lib/utils";
+import { isMarketOpen } from "@/lib/marketHours";
 import { BarChart3, Calendar } from "lucide-react";
 
 interface DashboardHeaderProps {
@@ -6,6 +10,15 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
+  const [live, setLive] = useState(false);
+
+  useEffect(() => {
+    // Check once on mount, then every minute
+    setLive(isMarketOpen());
+    const id = setInterval(() => setLive(isMarketOpen()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <header className="sticky top-0 z-50 border-b border-zinc-200 bg-white/90 backdrop-blur-md">
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -24,13 +37,24 @@ export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
           </div>
         </div>
 
-        {/* Data freshness badge */}
-        <div className="flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-1.5">
-          <Calendar className="h-3.5 w-3.5 text-zinc-700 flex-shrink-0" />
-          <span className="text-xs text-zinc-800">
-            <span className="text-zinc-600 mr-1 hidden sm:inline">Data as of</span>
-            <span className="font-medium">{formatDate(dataAsOf)}</span>
-          </span>
+        {/* Right side: LIVE badge + data freshness */}
+        <div className="flex items-center gap-2">
+          {live && (
+            <span className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-emerald-700">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              LIVE
+            </span>
+          )}
+          <div className="flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-1.5">
+            <Calendar className="h-3.5 w-3.5 text-zinc-700 flex-shrink-0" />
+            <span className="text-xs text-zinc-800">
+              <span className="text-zinc-600 mr-1 hidden sm:inline">Data as of</span>
+              <span className="font-medium">{formatDate(dataAsOf)}</span>
+            </span>
+          </div>
         </div>
       </div>
     </header>

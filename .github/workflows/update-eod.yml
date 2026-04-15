@@ -2,9 +2,9 @@ name: Update EOD Data
 
 on:
   schedule:
-    # 10:30 UTC = 4:00 PM IST, Monday–Friday
-    # NSE closes at 3:30 PM IST; 4:00 PM gives time for data to publish
-    - cron: "30 10 * * 1-5"
+    # 12:30 UTC = 6:00 PM IST, Monday–Friday
+    # NSE closes at 3:30 PM IST; 6:00 PM gives time for official EOD data to publish
+    - cron: "30 12 * * 1-5"
   workflow_dispatch:
     inputs:
       date:
@@ -27,16 +27,35 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
-        run: pip install requests
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            playwright-chromium-${{ runner.os }}-
 
-      - name: Fetch EOD data from niftyindices.com
+      - name: Install Python dependencies
+        run: pip install playwright
+
+      - name: Install Playwright Chromium
+        run: playwright install chromium --with-deps
+
+      - name: Fetch EOD Daily Snapshot from niftyindices.com
         run: |
           if [ -n "${{ github.event.inputs.date }}" ]; then
             python scripts/fetch-eod.py --date "${{ github.event.inputs.date }}"
           else
             python scripts/fetch-eod.py
           fi
+
+      - name: Upload debug screenshot on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-error-screenshot
+          path: /tmp/niftyindices_error.png
+          if-no-files-found: ignore
 
       - name: Commit and push if data changed
         run: |
