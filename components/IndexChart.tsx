@@ -50,24 +50,24 @@ function CustomTooltip({ active, payload, label, controlLines, showControlLines,
       {showLevels && (
         <div className="border-t border-zinc-100 pt-2 space-y-1">
           <div className="flex justify-between gap-4">
-            <span style={{ color: "#ef4444" }} className="font-medium">+2σ</span>
-            <span style={{ color: "#ef4444" }} className="font-medium">{fmt(controlLines.sd2Upper)}</span>
+            <span style={{ color: "#b91c1c" }} className="font-semibold">+2σ</span>
+            <span style={{ color: "#b91c1c" }} className="font-semibold">{fmt(controlLines.sd2Upper)}</span>
           </div>
           <div className="flex justify-between gap-4">
-            <span style={{ color: "#f59e0b" }} className="font-medium">+1σ</span>
-            <span style={{ color: "#f59e0b" }} className="font-medium">{fmt(controlLines.sd1Upper)}</span>
+            <span style={{ color: "#b45309" }} className="font-semibold">+1σ</span>
+            <span style={{ color: "#b45309" }} className="font-semibold">{fmt(controlLines.sd1Upper)}</span>
           </div>
           <div className="flex justify-between gap-4">
-            <span style={{ color: "#6b7280" }} className="font-medium">Mean</span>
-            <span style={{ color: "#6b7280" }} className="font-medium">{fmt(controlLines.mean)}</span>
+            <span style={{ color: "#1f2937" }} className="font-semibold">Mean</span>
+            <span style={{ color: "#1f2937" }} className="font-semibold">{fmt(controlLines.mean)}</span>
           </div>
           <div className="flex justify-between gap-4">
-            <span style={{ color: "#f59e0b" }} className="font-medium">−1σ</span>
-            <span style={{ color: "#f59e0b" }} className="font-medium">{fmt(controlLines.sd1Lower)}</span>
+            <span style={{ color: "#b45309" }} className="font-semibold">−1σ</span>
+            <span style={{ color: "#b45309" }} className="font-semibold">{fmt(controlLines.sd1Lower)}</span>
           </div>
           <div className="flex justify-between gap-4">
-            <span style={{ color: "#ef4444" }} className="font-medium">−2σ</span>
-            <span style={{ color: "#ef4444" }} className="font-medium">{fmt(controlLines.sd2Lower)}</span>
+            <span style={{ color: "#b91c1c" }} className="font-semibold">−2σ</span>
+            <span style={{ color: "#b91c1c" }} className="font-semibold">{fmt(controlLines.sd2Lower)}</span>
           </div>
         </div>
       )}
