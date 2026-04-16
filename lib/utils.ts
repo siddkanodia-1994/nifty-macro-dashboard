@@ -99,6 +99,12 @@ export function formatPercent(n: number | null | undefined): string {
   return sign + n.toFixed(2) + "%";
 }
 
+/** Plain percentage without sign prefix — for displaying yields, spreads, etc. */
+export function formatPct(n: number | null | undefined, decimals = 2): string {
+  if (n == null) return "—";
+  return n.toFixed(decimals) + "%";
+}
+
 export function formatDate(iso: string): string {
   const [y, m, d] = iso.split("-");
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];

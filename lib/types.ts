@@ -81,3 +81,14 @@ export interface IndexMeta {
   label: string;
   shortLabel: string;
 }
+
+// ─── BY-EY Spread data (one row of byey.json) ────────────────────────────────
+
+export interface BYEYRow {
+  date: string;          // "YYYY-MM-DD"
+  close: number | null;
+  pe: number | null;
+  ey: number | null;        // Earnings Yield, decimal (e.g. 0.0476)
+  bondYield: number | null; // decimal (e.g. 0.0690)
+  spread: number | null;    // bondYield − ey, decimal (e.g. 0.0217)
+}

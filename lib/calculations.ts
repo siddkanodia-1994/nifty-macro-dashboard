@@ -1,5 +1,6 @@
 import { subMonths, subYears, parseISO, isAfter, isEqual } from "date-fns";
 import type {
+  BYEYRow,
   HistoricalRow,
   IndexKey,
   IndexMetrics,
@@ -178,5 +179,99 @@ export function buildChartData(
     .map((r) => ({
       date:  r.date,
       value: r[indexKey][metric] as number,
+    }));
+}
+
+// ─── BY-EY Spread calculations ────────────────────────────────────────────────
+
+/** Filters BYEYRow[] to the selected time window (mirrors filterByWindow). */
+export function filterBYEYByWindow(rows: BYEYRow[], window: TimeWindow): BYEYRow[] {
+  if (window === "ALL") return rows;
+
+  const now = rows.length > 0 ? parseISO(rows[rows.length - 1].date) : new Date();
+  let cutoff: Date;
+  switch (window) {
+    case "3M": cutoff = subMonths(now, 3);  break;
+    case "6M": cutoff = subMonths(now, 6);  break;
+    case "1Y": cutoff = subYears(now, 1);   break;
+    case "2Y": cutoff = subYears(now, 2);   break;
+    case "3Y": cutoff = subYears(now, 3);   break;
+    case "5Y": cutoff = subYears(now, 5);   break;
+    default:   return rows;
+  }
+
+  return rows.filter((r) => {
+    const d = parseISO(r.date);
+    return isAfter(d, cutoff) || isEqual(d, cutoff);
+  });
+}
+
+/**
+ * Computes Mean ± 1σ/2σ for the BY-EY spread within the provided rows.
+ * Values are in %-points (spread × 100) for display consistency with the chart.
+ * Returns null if fewer than 10 non-null spread points.
+ */
+export function computeBYEYControlLines(rows: BYEYRow[]): ControlLines | null {
+  const values = rows
+    .map((r) => r.spread)
+    .filter((v): v is number => v != null && isFinite(v))
+    .map((v) => v * 100);
+
+  if (values.length < 10) return null;
+
+  const m  = mean(values);
+  const sd = stdDev(values);
+
+  return {
+    mean:     m,
+    sd1Upper: m + sd,
+    sd1Lower: m - sd,
+    sd2Upper: m + 2 * sd,
+    sd2Lower: m - 2 * sd,
+  };
+}
+
+/**
+ * Computes window statistics for the BY-EY spread.
+ * `currentSpread` should be the raw decimal value (e.g. 0.0217);
+ * internally it is converted to %-points (×100) to match chart display.
+ */
+export function computeBYEYWindowStats(
+  rows: BYEYRow[],
+  currentSpread: number | null
+): WindowStats | null {
+  const values = rows
+    .map((r) => r.spread)
+    .filter((v): v is number => v != null && isFinite(v))
+    .map((v) => v * 100);
+
+  if (values.length === 0) return null;
+
+  const m  = mean(values);
+  const sd = stdDev(values);
+  const cur = currentSpread != null ? currentSpread * 100 : null;
+
+  return {
+    mean: m,
+    sd,
+    current: cur,
+    zScore:     cur != null ? zScore(cur, m, sd) : null,
+    percentile: cur != null ? percentileRank(cur, values) : null,
+    min: Math.min(...values),
+    max: Math.max(...values),
+    count: values.length,
+  };
+}
+
+/**
+ * Builds chart data for the BY-EY spread.
+ * Values are multiplied by 100 so the chart displays %-points (e.g. 2.17).
+ */
+export function buildBYEYChartData(rows: BYEYRow[]): ChartPoint[] {
+  return rows
+    .filter((r) => r.spread != null)
+    .map((r) => ({
+      date:  r.date,
+      value: (r.spread as number) * 100,
     }));
 }

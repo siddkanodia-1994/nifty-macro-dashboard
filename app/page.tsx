@@ -1,13 +1,15 @@
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { IndexTabs } from "@/components/IndexTabs";
-import type { HistoricalRow } from "@/lib/types";
+import type { BYEYRow, HistoricalRow } from "@/lib/types";
 
-// Static import: Next.js bundles historical.json at build time.
-// Vercel redeploys whenever GitHub Actions pushes an updated JSON.
+// Static imports: Next.js bundles JSON at build time.
+// Vercel redeploys whenever GitHub Actions pushes updated data.
 import historicalData from "@/data/historical.json";
+import byeyRaw from "@/data/byey.json";
 
 export default function Home() {
-  const rows = historicalData as HistoricalRow[];
+  const rows     = historicalData as HistoricalRow[];
+  const byeyData = byeyRaw as BYEYRow[];
 
   // Last row's date shown in the header as "Data as of"
   const latestDate =
@@ -17,7 +19,7 @@ export default function Home() {
     <div className="min-h-screen">
       <DashboardHeader dataAsOf={latestDate} />
       <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6">
-        <IndexTabs historicalData={rows} />
+        <IndexTabs historicalData={rows} byeyData={byeyData} />
       </main>
     </div>
   );

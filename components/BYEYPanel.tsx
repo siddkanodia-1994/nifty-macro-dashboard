@@ -1,0 +1,231 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard } from "@/components/MetricCard";
+import { IndexChart } from "@/components/IndexChart";
+import { TimeWindowSelector } from "@/components/TimeWindowSelector";
+import {
+  filterBYEYByWindow,
+  computeBYEYControlLines,
+  computeBYEYWindowStats,
+  buildBYEYChartData,
+} from "@/lib/calculations";
+import { formatPct, formatRatio, formatZScore, formatPercentile, zScoreColor, zScoreBgColor, cn } from "@/lib/utils";
+import type { BYEYRow, HistoricalRow, TimeWindow } from "@/lib/types";
+import { Eye, EyeOff } from "lucide-react";
+
+interface BYEYPanelProps {
+  byeyData: BYEYRow[];
+  historicalData: HistoricalRow[];  // for lastRow.NIFTY_50.impliedEPS → live PE
+  timeWindow: TimeWindow;
+  onTimeWindowChange: (w: TimeWindow) => void;
+  liveNifty50Close: number | null;
+  liveBondYield: number | null;     // decimal (e.g. 0.0687)
+}
+
+export function BYEYPanel({
+  byeyData,
+  historicalData,
+  timeWindow,
+  onTimeWindowChange,
+  liveNifty50Close,
+  liveBondYield,
+}: BYEYPanelProps) {
+  const [showControlLines, setShowControlLines] = useState(true);
+
+  // Last row from BY-EY data (most recent historical point)
+  const lastByeyRow = byeyData[byeyData.length - 1] ?? null;
+
+  // Implied EPS from latest historical row for live PE derivation
+  const prevImpliedEPS = useMemo(() => {
+    if (historicalData.length === 0) return null;
+    return historicalData[historicalData.length - 1].NIFTY_50.impliedEPS;
+  }, [historicalData]);
+
+  // Live derived values
+  const livePE = liveNifty50Close && prevImpliedEPS
+    ? liveNifty50Close / prevImpliedEPS
+    : null;
+  const liveEY     = livePE ? 1 / livePE : null;
+  const liveSpread = liveBondYield != null && liveEY != null
+    ? liveBondYield - liveEY
+    : null;
+
+  // Current values (live when available, else last historical)
+  const currentSpread    = liveSpread    ?? lastByeyRow?.spread    ?? null;
+  const currentPE        = livePE        ?? lastByeyRow?.pe        ?? null;
+  const currentBondYield = liveBondYield ?? lastByeyRow?.bondYield ?? null;
+  const currentEY        = liveEY        ?? lastByeyRow?.ey        ?? null;
+
+  const isLive = liveNifty50Close != null && liveBondYield != null;
+
+  // Window-filtered data
+  const windowRows = useMemo(
+    () => filterBYEYByWindow(byeyData, timeWindow),
+    [byeyData, timeWindow]
+  );
+
+  // Control lines + stats for spread (in %-points)
+  const controlLines = useMemo(
+    () => computeBYEYControlLines(windowRows),
+    [windowRows]
+  );
+
+  const spreadStats = useMemo(
+    () => computeBYEYWindowStats(windowRows, currentSpread),
+    [windowRows, currentSpread]
+  );
+
+  // Chart data for selected window
+  const chartData = useMemo(
+    () => buildBYEYChartData(windowRows),
+    [windowRows]
+  );
+
+  // Append live spread point to chart if available and not already today
+  const liveChartData = useMemo(() => {
+    if (liveSpread == null) return chartData;
+    const todayISO = new Date().toISOString().slice(0, 10);
+    if (chartData.length > 0 && chartData[chartData.length - 1].date === todayISO) {
+      return chartData;
+    }
+    return [...chartData, { date: todayISO, value: liveSpread * 100 }];
+  }, [chartData, liveSpread]);
+
+  const spreadFmt = (v: number | null) => formatPct(v);
+  const peFmt     = (v: number | null) => formatRatio(v);
+
+  return (
+    <div className="space-y-5 pt-2">
+      {/* ── Metric cards row ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* BY-EY Spread % — full stats */}
+        <MetricCard
+          label="BY-EY Spread"
+          metric="pe"
+          stats={spreadStats}
+          isLive={isLive}
+          valueFormatter={spreadFmt}
+        />
+
+        {/* Nifty 50 P/E — current value only */}
+        <MetricCard
+          label="Nifty 50 P/E"
+          metric="pe"
+          stats={null}
+          value={currentPE}
+          isLive={liveNifty50Close != null}
+          valueFormatter={peFmt}
+        />
+
+        {/* India 10Y Bond Yield % — current value only */}
+        <MetricCard
+          label="India 10Y Yield"
+          metric="pe"
+          stats={null}
+          value={currentBondYield != null ? currentBondYield * 100 : null}
+          isLive={liveBondYield != null}
+          valueFormatter={spreadFmt}
+        />
+
+        {/* Earnings Yield % — current value only */}
+        <MetricCard
+          label="Earnings Yield"
+          metric="pe"
+          stats={null}
+          value={currentEY != null ? currentEY * 100 : null}
+          isLive={isLive}
+          valueFormatter={spreadFmt}
+        />
+      </div>
+
+      {/* ── Chart card ── */}
+      <Card className="bg-white border border-zinc-200 shadow-sm">
+        <CardHeader className="px-5 pt-4 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+            <p className="text-sm font-medium text-zinc-700">BY-EY Spread (%)</p>
+
+            <div className="flex items-center gap-3">
+              <TimeWindowSelector value={timeWindow} onChange={onTimeWindowChange} />
+              <button
+                onClick={() => setShowControlLines((v) => !v)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium border transition-colors",
+                  showControlLines
+                    ? "border-zinc-300 bg-zinc-50 text-zinc-800"
+                    : "border-zinc-200 text-zinc-600 hover:text-zinc-800"
+                )}
+                title="Toggle control lines (Mean ± 1σ/2σ)"
+              >
+                {showControlLines ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                Control Lines
+              </button>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="px-2 pb-4">
+          <IndexChart
+            data={liveChartData}
+            metric="pe"
+            controlLines={controlLines}
+            showControlLines={showControlLines}
+            valueFormatter={(v) => v.toFixed(2) + "%"}
+          />
+        </CardContent>
+      </Card>
+
+      {/* ── Spread statistics row ── */}
+      {spreadStats && (
+        <Card className="bg-white border border-zinc-200 shadow-sm">
+          <CardHeader className="pb-2 pt-4 px-5">
+            <CardTitle className="text-sm font-semibold text-zinc-900">
+              Spread Statistics — {timeWindow} Window
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-0 pb-2">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-100">
+                    {["Metric", "Mean", "Std Dev", "Current", "Z-Score", "Percentile"].map((h) => (
+                      <th
+                        key={h}
+                        className="px-5 py-2 text-left text-xs font-medium text-zinc-700 uppercase tracking-wide whitespace-nowrap"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="hover:bg-zinc-50/70 transition-colors">
+                    <td className="px-5 py-2.5 font-medium text-zinc-900 whitespace-nowrap">
+                      BY-EY Spread
+                    </td>
+                    <td className="px-5 py-2.5 text-zinc-800 tabular-nums">
+                      {formatPct(spreadStats.mean)}
+                    </td>
+                    <td className="px-5 py-2.5 text-zinc-800 tabular-nums">
+                      {formatPct(spreadStats.sd)}
+                    </td>
+                    <td className="px-5 py-2.5 font-semibold text-zinc-900 tabular-nums">
+                      {formatPct(spreadStats.current)}
+                    </td>
+                    <td className={cn("px-5 py-2.5 font-medium tabular-nums", zScoreColor(spreadStats.zScore))}>
+                      {formatZScore(spreadStats.zScore)}
+                    </td>
+                    <td className="px-5 py-2.5 text-zinc-800 tabular-nums">
+                      {formatPercentile(spreadStats.percentile)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

@@ -19,6 +19,8 @@ interface IndexChartProps {
   metric: MetricKey;
   controlLines: ControlLines | null;
   showControlLines: boolean;
+  /** Override the default formatMetric formatter for tooltip and Y-axis labels */
+  valueFormatter?: (v: number) => string;
 }
 
 interface TooltipEntry {
@@ -32,12 +34,13 @@ interface CustomTooltipProps {
   controlLines?: ControlLines | null;
   showControlLines?: boolean;
   metric?: MetricKey;
+  valueFormatter?: (v: number) => string;
 }
 
-function CustomTooltip({ active, payload, label, controlLines, showControlLines, metric }: CustomTooltipProps) {
+function CustomTooltip({ active, payload, label, controlLines, showControlLines, metric, valueFormatter }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
   const value = payload[0]?.value;
-  const fmt = (v: number) => metric ? formatMetric(metric, v) : v.toFixed(2);
+  const fmt = (v: number) => valueFormatter ? valueFormatter(v) : metric ? formatMetric(metric, v) : v.toFixed(2);
 
   const showLevels = showControlLines && controlLines;
 
@@ -75,7 +78,7 @@ function CustomTooltip({ active, payload, label, controlLines, showControlLines,
   );
 }
 
-export function IndexChart({ data, metric, controlLines, showControlLines }: IndexChartProps) {
+export function IndexChart({ data, metric, controlLines, showControlLines, valueFormatter }: IndexChartProps) {
   if (data.length === 0) {
     return (
       <div className="h-72 flex items-center justify-center text-zinc-400 text-sm">
@@ -129,6 +132,7 @@ export function IndexChart({ data, metric, controlLines, showControlLines }: Ind
           tickLine={false}
           width={60}
           tickFormatter={(v: number) => {
+            if (valueFormatter) return valueFormatter(v);
             // Format large numbers (Price, Implied EPS/BV) compactly
             if (Math.abs(v) >= 10000) return (v / 1000).toFixed(1) + "k";
             if (Math.abs(v) >= 1000) return v.toFixed(0);
@@ -142,6 +146,7 @@ export function IndexChart({ data, metric, controlLines, showControlLines }: Ind
               controlLines={controlLines}
               showControlLines={showControlLines}
               metric={metric}
+              valueFormatter={valueFormatter}
             />
           }
         />

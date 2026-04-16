@@ -11,10 +11,14 @@ interface MetricCardProps {
   metric: MetricKey;
   stats: WindowStats | null;
   isLive?: boolean;
+  /** Override stats.current — use when showing a derived value without full stats */
+  value?: number | null;
+  /** Override formatMetric for both current value and mean display */
+  valueFormatter?: (v: number | null) => string;
 }
 
-export function MetricCard({ label, metric, stats, isLive = false }: MetricCardProps) {
-  const current = stats?.current ?? null;
+export function MetricCard({ label, metric, stats, isLive = false, value, valueFormatter }: MetricCardProps) {
+  const current = (value !== undefined ? value : stats?.current) ?? null;
   const zScore  = stats?.zScore  ?? null;
   const pct     = stats?.percentile ?? null;
 
@@ -48,7 +52,7 @@ export function MetricCard({ label, metric, stats, isLive = false }: MetricCardP
 
         {/* Current value */}
         <p className="text-2xl font-semibold text-zinc-900 mb-1 leading-none">
-          {formatMetric(metric, current)}
+          {valueFormatter ? valueFormatter(current) : formatMetric(metric, current)}
         </p>
 
         {/* Change vs mean */}
@@ -76,7 +80,7 @@ export function MetricCard({ label, metric, stats, isLive = false }: MetricCardP
         {/* Mean */}
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-100">
           <span className="text-xs text-[#1d3557]">
-            Mean: {formatMetric(metric, stats?.mean ?? null)}
+            Mean: {valueFormatter ? valueFormatter(stats?.mean ?? null) : formatMetric(metric, stats?.mean ?? null)}
           </span>
           {zScore != null && (
             <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded", zScoreBgColor(zScore))}>
