@@ -47,9 +47,14 @@ export function BYEYPanel({
   const livePE = liveNifty50Close && prevImpliedEPS
     ? liveNifty50Close / prevImpliedEPS
     : null;
-  const liveEY     = livePE ? 1 / livePE : null;
-  const liveSpread = liveBondYield != null && liveEY != null
-    ? liveBondYield - liveEY
+  const liveEY = livePE ? 1 / livePE : null;
+
+  // For live spread: use live bond yield when available; fall back to latest daily value.
+  // Bond yield changes only a few basis points intraday — the spread is effectively live
+  // because it updates every 60s as PE changes.
+  const effectiveLiveBondYield = liveBondYield ?? lastByeyRow?.bondYield ?? null;
+  const liveSpread = liveEY != null && effectiveLiveBondYield != null
+    ? effectiveLiveBondYield - liveEY
     : null;
 
   // Current values (live when available, else last historical)
@@ -58,7 +63,10 @@ export function BYEYPanel({
   const currentBondYield = liveBondYield ?? lastByeyRow?.bondYield ?? null;
   const currentEY        = liveEY        ?? lastByeyRow?.ey        ?? null;
 
-  const isLive = liveNifty50Close != null && liveBondYield != null;
+  // PE/EY/Spread are live when Nifty price is live (EY = 1/PE tracks live price).
+  // Bond yield uses daily EOD data — no LIVE badge on that card.
+  const isPELive        = liveNifty50Close != null;
+  const isSpreadLive    = isPELive && effectiveLiveBondYield != null;
 
   // Window-filtered data
   const windowRows = useMemo(
@@ -105,7 +113,7 @@ export function BYEYPanel({
           label="BY-EY Spread"
           metric="pe"
           stats={spreadStats}
-          isLive={isLive}
+          isLive={isSpreadLive}
           valueFormatter={spreadFmt}
         />
 
@@ -115,27 +123,27 @@ export function BYEYPanel({
           metric="pe"
           stats={null}
           value={currentPE}
-          isLive={liveNifty50Close != null}
+          isLive={isPELive}
           valueFormatter={peFmt}
         />
 
-        {/* India 10Y Bond Yield % — current value only */}
+        {/* India 10Y Bond Yield % — daily EOD value, no LIVE badge */}
         <MetricCard
           label="India 10Y Yield"
           metric="pe"
           stats={null}
           value={currentBondYield != null ? currentBondYield * 100 : null}
-          isLive={liveBondYield != null}
+          isLive={false}
           valueFormatter={spreadFmt}
         />
 
-        {/* Earnings Yield % — current value only */}
+        {/* Earnings Yield % — live (derived from live PE) */}
         <MetricCard
           label="Earnings Yield"
           metric="pe"
           stats={null}
           value={currentEY != null ? currentEY * 100 : null}
-          isLive={isLive}
+          isLive={isPELive}
           valueFormatter={spreadFmt}
         />
       </div>
