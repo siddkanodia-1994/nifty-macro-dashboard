@@ -34,9 +34,6 @@ async function fetchPrice(symbol: string): Promise<number | null> {
   }
 }
 
-// India 10Y Government Bond Yield — Yahoo Finance returns value as % (e.g. 6.87)
-const BOND_YIELD_SYMBOL = "IN10YT=RR";
-
 export async function GET() {
   const now = new Date();
   const marketOpen = isMarketOpen(now);
@@ -51,30 +48,26 @@ export async function GET() {
     );
   }
 
-  // Fetch all 7 indices + bond yield in parallel
+  // Fetch all 7 index prices in parallel
   const entries = Object.entries(YAHOO_SYMBOLS) as [IndexKey, string][];
-  const [results, bondYieldRaw] = await Promise.all([
-    Promise.all(
-      entries.map(async ([key, symbol]) => {
-        const price = await fetchPrice(symbol);
-        return [key, price] as const;
-      })
-    ),
-    fetchPrice(BOND_YIELD_SYMBOL),
-  ]);
+  const results = await Promise.all(
+    entries.map(async ([key, symbol]) => {
+      const price = await fetchPrice(symbol);
+      return [key, price] as const;
+    })
+  );
 
   const prices: Partial<Record<IndexKey, number | null>> = {};
   for (const [key, price] of results) {
     prices[key] = price;
   }
 
-  // Yahoo returns bond yield as a percentage (e.g. 6.87) — convert to decimal (0.0687)
-  const bondYield = bondYieldRaw != null ? bondYieldRaw / 100 : null;
-
   const asOf = now.toISOString();
 
+  // bondYield: no reliable real-time source available via HTTP — BYEYPanel falls back
+  // to the latest value from byey.json (updated daily by fetch-byey.py CI job)
   return NextResponse.json(
-    { ...prices, bondYield, marketOpen: true, asOf },
+    { ...prices, bondYield: null, marketOpen: true, asOf },
     { headers: { "Cache-Control": "no-store" } }
   );
 }
