@@ -97,7 +97,7 @@ export function IndexPanel({
             label={METRIC_LABELS[m]}
             metric={m}
             stats={indexStats[m]}
-            isLive={m === "close" && liveClose != null}
+            isLive={(m === "close" || m === "pe" || m === "pb") && liveClose != null}
           />
         ))}
       </div>
