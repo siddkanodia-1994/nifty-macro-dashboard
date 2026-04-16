@@ -10,7 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { formatDateShort } from "@/lib/utils";
+import { formatDateShort, formatMetric } from "@/lib/utils";
 import type { ChartPoint } from "@/lib/calculations";
 import type { ControlLines, MetricKey } from "@/lib/types";
 
@@ -29,16 +29,47 @@ interface CustomTooltipProps {
   active?: boolean;
   payload?: TooltipEntry[];
   label?: string;
+  controlLines?: ControlLines | null;
+  showControlLines?: boolean;
+  metric?: MetricKey;
 }
 
-function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+function CustomTooltip({ active, payload, label, controlLines, showControlLines, metric }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
   const value = payload[0]?.value;
+  const fmt = (v: number) => metric ? formatMetric(metric, v) : v.toFixed(2);
+
+  const showLevels = showControlLines && controlLines;
+
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg shadow-lg px-3 py-2 text-xs">
-      <p className="font-medium text-zinc-700 mb-1">{label}</p>
+    <div className="bg-white border border-zinc-200 rounded-lg shadow-lg px-3 py-2.5 text-xs min-w-[140px]">
+      <p className="font-medium text-zinc-500 mb-1.5">{label}</p>
       {value != null && (
-        <p className="text-zinc-900 font-semibold">{value.toFixed(2)}</p>
+        <p className="text-zinc-900 font-bold text-sm mb-2">{fmt(value)}</p>
+      )}
+      {showLevels && (
+        <div className="border-t border-zinc-100 pt-2 space-y-1">
+          <div className="flex justify-between gap-4">
+            <span style={{ color: "#ef4444" }} className="font-medium">+2σ</span>
+            <span style={{ color: "#ef4444" }} className="font-medium">{fmt(controlLines.sd2Upper)}</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span style={{ color: "#f59e0b" }} className="font-medium">+1σ</span>
+            <span style={{ color: "#f59e0b" }} className="font-medium">{fmt(controlLines.sd1Upper)}</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span style={{ color: "#6b7280" }} className="font-medium">Mean</span>
+            <span style={{ color: "#6b7280" }} className="font-medium">{fmt(controlLines.mean)}</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span style={{ color: "#f59e0b" }} className="font-medium">−1σ</span>
+            <span style={{ color: "#f59e0b" }} className="font-medium">{fmt(controlLines.sd1Lower)}</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span style={{ color: "#ef4444" }} className="font-medium">−2σ</span>
+            <span style={{ color: "#ef4444" }} className="font-medium">{fmt(controlLines.sd2Lower)}</span>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -105,7 +136,15 @@ export function IndexChart({ data, metric, controlLines, showControlLines }: Ind
           }}
         />
 
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip
+          content={
+            <CustomTooltip
+              controlLines={controlLines}
+              showControlLines={showControlLines}
+              metric={metric}
+            />
+          }
+        />
 
         {/* Main price/metric line */}
         <Line
