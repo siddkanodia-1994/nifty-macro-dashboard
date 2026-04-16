@@ -51,8 +51,14 @@ export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
           <div className="flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-1.5">
             <Calendar className="h-3.5 w-3.5 text-zinc-700 flex-shrink-0" />
             <span className="text-xs text-zinc-800">
-              <span className="text-zinc-600 mr-1 hidden sm:inline">Data as of</span>
-              <span className="font-medium">{formatDate(dataAsOf)}</span>
+              <span className="text-zinc-600 mr-1 hidden sm:inline">
+                {live ? "Live as of" : "Data as of"}
+              </span>
+              <span className="font-medium">
+                {live
+                  ? formatDate(new Date().toISOString().slice(0, 10))
+                  : formatDate(dataAsOf)}
+              </span>
             </span>
           </div>
         </div>

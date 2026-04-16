@@ -87,6 +87,23 @@ export function IndexPanel({
     [windowRows, indexKey, chartMetric]
   );
 
+  // Append today's live point to the chart for metrics derived from live close
+  const LIVE_METRICS: MetricKey[] = ["close", "pe", "pb"];
+  const liveChartData = useMemo(() => {
+    if (!liveClose || !effectiveMetrics || !LIVE_METRICS.includes(chartMetric)) {
+      return chartData;
+    }
+    const todayISO = new Date().toISOString().slice(0, 10);
+    // Don't duplicate if the last historical point is already today
+    if (chartData.length > 0 && chartData[chartData.length - 1].date === todayISO) {
+      return chartData;
+    }
+    const liveValue = effectiveMetrics[chartMetric];
+    if (liveValue == null) return chartData;
+    return [...chartData, { date: todayISO, value: liveValue }];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartData, liveClose, effectiveMetrics, chartMetric]);
+
   return (
     <div className="space-y-5 pt-2">
       {/* ── Metric cards row ── */}
@@ -146,7 +163,7 @@ export function IndexPanel({
 
         <CardContent className="px-2 pb-4">
           <IndexChart
-            data={chartData}
+            data={liveChartData}
             metric={chartMetric}
             controlLines={controlLines}
             showControlLines={showControlLines}
