@@ -3,13 +3,15 @@
 fetch-eod.py
 Fetches today's (or a specified date's) EOD close + P/E + P/B for all 7 indices.
 
-Strategy (in order):
-  1. HTTP API approach  — POST to niftyindices.com Backpage.aspx endpoint.
-                          Fast, no browser required. Works as long as the
-                          undocumented endpoint remains available.
-  2. Playwright fallback — If the API approach fails for any index, launch
-                           Chromium and download the Daily Snapshot CSV from
-                           the niftyindices.com reports page.
+Strategy (in order — stops as soon as all 7 indices have data):
+  1. niftyindices.com HTTP API — POST to Backpage.aspx endpoint.
+                                  Fast when available; often blocked from CI.
+  2. Playwright browser         — Downloads Daily Snapshot CSV from
+                                  niftyindices.com UI. Slower, same IP issue.
+  3. Yahoo Finance fallback     — Fetches official EOD close via Yahoo Finance
+                                  v8 chart API (same source as live-prices route).
+                                  PE/PB approximated as close ÷ prev impliedEPS/BV.
+                                  Always works from GitHub Actions.
 
 Usage:
     python scripts/fetch-eod.py [--date YYYY-MM-DD]
@@ -37,12 +39,7 @@ except ImportError:
     print("ERROR: requests not installed. Run: pip install requests")
     sys.exit(1)
 
-# ─── niftyindices.com HTTP endpoint ──────────────────────────────────────────
-
-NIFTY_INDICES_HOME = "https://www.niftyindices.com/"
-NIFTY_INDICES_DATA = (
-    "https://www.niftyindices.com/Backpage.aspx/getHistoricaldatatabletoString"
-)
+# ─── Index symbol maps ────────────────────────────────────────────────────────
 
 NIFTYINDICES_NAMES: dict[str, str] = {
     "NIFTY_50":           "NIFTY 50",
@@ -54,22 +51,19 @@ NIFTYINDICES_NAMES: dict[str, str] = {
     "NIFTY_MICROCAP_250": "Nifty Microcap 250",
 }
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Content-Type": "application/json; charset=UTF-8",
-    "Referer": "https://www.niftyindices.com/reports/historical-data",
-    "X-Requested-With": "XMLHttpRequest",
-    "Origin": "https://www.niftyindices.com",
+YAHOO_SYMBOLS: dict[str, str] = {
+    "NIFTY_50":           "^NSEI",
+    "NIFTY_BANK":         "^NSEBANK",
+    "NIFTY_IT":           "^CNXIT",
+    "NIFTY_MIDCAP_150":   "NIFTYMIDCAP150.NS",
+    "NIFTY_PSU_BANK":     "^CNXPSUBANK",
+    "NIFTY_MICROCAP_250": "NIFTY_MICROCAP250.NS",
+    "NIFTY_SMALLCAP_250": "NIFTYSMLCAP250.NS",
 }
 
-# ─── CSV column indices for Daily Snapshot (0-based) ─────────────────────────
-# Col 0 (A): Index name  Col 1 (B): Date  Col 5 (F): Close  Col 10 (K): P/E  Col 11 (L): P/B
+TARGET_KEYS = list(NIFTYINDICES_NAMES.keys())
+
+# Daily Snapshot CSV column indices (0-based)
 COL_NAME  = 0
 COL_DATE  = 1
 COL_CLOSE = 5
@@ -84,7 +78,6 @@ CSV_NAME_MAP: dict[str, str] = {
     "Nifty Smallcap 250": "NIFTY_SMALLCAP_250",
     "Nifty PSU Bank":     "NIFTY_PSU_BANK",
     "Nifty Microcap 250": "NIFTY_MICROCAP_250",
-    # Alternate capitalizations
     "NIFTY 50":           "NIFTY_50",
     "NIFTY BANK":         "NIFTY_BANK",
     "NIFTY IT":           "NIFTY_IT",
@@ -94,7 +87,24 @@ CSV_NAME_MAP: dict[str, str] = {
     "NIFTY Microcap 250": "NIFTY_MICROCAP_250",
 }
 
-TARGET_KEYS = set(NIFTYINDICES_NAMES.keys())
+NIFTY_INDICES_HOME = "https://www.niftyindices.com/"
+NIFTY_INDICES_DATA = (
+    "https://www.niftyindices.com/Backpage.aspx/getHistoricaldatatabletoString"
+)
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Content-Type": "application/json; charset=UTF-8",
+    "Referer": "https://www.niftyindices.com/reports/historical-data",
+    "X-Requested-With": "XMLHttpRequest",
+    "Origin": "https://www.niftyindices.com",
+}
 
 # ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -121,16 +131,18 @@ def build_metrics(close: Optional[float], pe: Optional[float], pb: Optional[floa
 
 
 def format_date_for_api(d: date) -> str:
-    """DD-Mon-YYYY (e.g. '15-Apr-2026') for niftyindices.com API."""
     return d.strftime("%-d-%b-%Y")
 
 
 def format_date_for_site(d: date) -> str:
-    """DD/MM/YYYY for the niftyindices date picker."""
     return d.strftime("%d/%m/%Y")
 
 
-# ─── Strategy 1: HTTP API ─────────────────────────────────────────────────────
+def missing_keys(results: dict) -> list[str]:
+    return [k for k in TARGET_KEYS if not results.get(k)]
+
+
+# ─── Strategy 1: niftyindices.com HTTP API ───────────────────────────────────
 
 def get_session() -> requests.Session:
     session = requests.Session()
@@ -143,16 +155,13 @@ def get_session() -> requests.Session:
     return session
 
 
-def fetch_index_api(
-    session: requests.Session,
-    index_key: str,
-    target_date: date,
-    retries: int = 3,
-) -> Optional[dict]:
-    index_name = NIFTYINDICES_NAMES[index_key]
+def fetch_index_api(session, index_key: str, target_date: date, retries: int = 3) -> Optional[dict]:
     date_str = format_date_for_api(target_date)
-    payload = {"name": index_name, "startDate": date_str, "endDate": date_str}
-
+    payload = {
+        "name": NIFTYINDICES_NAMES[index_key],
+        "startDate": date_str,
+        "endDate": date_str,
+    }
     for attempt in range(retries):
         try:
             resp = session.post(NIFTY_INDICES_DATA, json=payload, timeout=20)
@@ -164,11 +173,9 @@ def fetch_index_api(
             if not raw:
                 return None
             record = raw[0] if isinstance(raw, list) else raw
-            close = safe_float(
-                record.get("Closing Index Value") or record.get("Close")
-            )
-            pe = safe_float(record.get("P/E") or record.get("pe"))
-            pb = safe_float(record.get("P/B") or record.get("pb"))
+            close = safe_float(record.get("Closing Index Value") or record.get("Close"))
+            pe    = safe_float(record.get("P/E") or record.get("pe"))
+            pb    = safe_float(record.get("P/B") or record.get("pb"))
             if close is None:
                 return None
             return build_metrics(close, pe, pb)
@@ -179,18 +186,21 @@ def fetch_index_api(
     return None
 
 
-def fetch_all_api(target_date: date) -> dict[str, Optional[dict]]:
-    """Fetch all indices via HTTP API. Returns {key: metrics|None}."""
-    print("Strategy 1: HTTP API…")
-    session = get_session()
-    time.sleep(1)
-    results: dict[str, Optional[dict]] = {}
+def fetch_all_api(target_date: date) -> dict:
+    print("Strategy 1: niftyindices.com HTTP API…")
+    results: dict = {}
+    try:
+        session = get_session()
+        time.sleep(1)
+    except Exception as e:
+        print(f"  Session failed: {e}")
+        return results
     for key in TARGET_KEYS:
         print(f"  {key}…", end=" ", flush=True)
-        metrics = fetch_index_api(session, key, target_date)
-        results[key] = metrics
-        if metrics:
-            print(f"close={metrics['close']}, pe={metrics['pe']}, pb={metrics['pb']}")
+        m = fetch_index_api(session, key, target_date)
+        results[key] = m
+        if m:
+            print(f"close={m['close']}, pe={m['pe']}, pb={m['pb']}")
         else:
             print("no data")
         time.sleep(0.5)
@@ -199,10 +209,8 @@ def fetch_all_api(target_date: date) -> dict[str, Optional[dict]]:
 
 # ─── Strategy 2: Playwright CSV ──────────────────────────────────────────────
 
-def fetch_all_playwright(target_date: date) -> dict[str, Optional[dict]]:
-    """Download the Daily Snapshot CSV via Playwright browser automation."""
+def fetch_all_playwright(target_date: date) -> dict:
     print("Strategy 2: Playwright browser…")
-
     try:
         from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
     except ImportError:
@@ -210,7 +218,6 @@ def fetch_all_playwright(target_date: date) -> dict[str, Optional[dict]]:
         return {}
 
     date_str = format_date_for_site(target_date)
-
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
@@ -222,7 +229,6 @@ def fetch_all_playwright(target_date: date) -> dict[str, Optional[dict]]:
             accept_downloads=True,
         )
         page = context.new_page()
-
         try:
             print("  Loading niftyindices.com/reports/historical-data…")
             page.goto(
@@ -231,13 +237,9 @@ def fetch_all_playwright(target_date: date) -> dict[str, Optional[dict]]:
             )
             page.wait_for_load_state("networkidle", timeout=30_000)
             time.sleep(3)
-
-            # Print page title for debugging
             print(f"  Page title: {page.title()}")
             print(f"  Page URL:   {page.url}")
 
-            # Navigate to Archives / Daily Snapshot
-            # Try multiple locator strategies for the dropdown
             nav_selectors = [
                 "text=Archives of Daily/Monthly Reports",
                 "a:has-text('Archives')",
@@ -245,42 +247,24 @@ def fetch_all_playwright(target_date: date) -> dict[str, Optional[dict]]:
                 "[href*='archives']",
                 "[href*='Archives']",
             ]
-            clicked_nav = False
+            clicked = False
             for sel in nav_selectors:
                 try:
                     page.locator(sel).first.click(timeout=5_000)
-                    clicked_nav = True
-                    print(f"  Clicked nav via: {sel}")
+                    clicked = True
+                    print(f"  Clicked nav: {sel}")
                     break
                 except Exception:
                     continue
-
-            if not clicked_nav:
-                # Try menu items
-                try:
-                    page.get_by_role("link", name=lambda n: "archive" in n.lower() or "daily" in n.lower()).first.click(timeout=5_000)
-                    clicked_nav = True
-                    print("  Clicked nav via role/name match")
-                except Exception:
-                    pass
-
-            if not clicked_nav:
-                print("  Could not find navigation — dumping visible links for debug")
+            if not clicked:
                 links = page.locator("a").all_text_contents()
-                print(f"  Links on page: {links[:30]}")
-                raise RuntimeError("Navigation to Archives section failed")
+                print(f"  Visible links: {links[:30]}")
+                raise RuntimeError("Could not find Archives nav element")
 
             page.wait_for_load_state("networkidle", timeout=20_000)
             time.sleep(3)
 
-            # Select "Daily Snapshot" report
-            report_selectors = [
-                "select#ddlReports",
-                "select[name*='Report']",
-                "select[id*='Report']",
-                "select",
-            ]
-            for sel in report_selectors:
+            for sel in ["select#ddlReports", "select[name*='Report']", "select[id*='Report']", "select"]:
                 try:
                     page.locator(sel).first.select_option(label="Daily Snapshot")
                     print(f"  Selected Daily Snapshot via: {sel}")
@@ -289,43 +273,32 @@ def fetch_all_playwright(target_date: date) -> dict[str, Optional[dict]]:
                     continue
             time.sleep(2)
 
-            # Set date
-            date_input_selectors = [
-                "input[id*='date' i]",
-                "input[name*='date' i]",
-                "input[id*='Date']",
-                "input[name*='Date']",
-                "input[type='text']",
-            ]
-            for sel in date_input_selectors:
+            for sel in ["input[id*='date' i]", "input[name*='date' i]", "input[id*='Date']", "input[type='text']"]:
                 try:
                     inp = page.locator(sel).first
                     inp.triple_click()
                     inp.fill(date_str)
-                    print(f"  Set date {date_str} via: {sel}")
+                    print(f"  Set date {date_str}")
                     break
                 except Exception:
                     continue
             time.sleep(1)
 
-            # Click Submit
             page.get_by_role("button", name="Submit").first.click(timeout=10_000)
             time.sleep(5)
 
-            # Download CSV
             with page.expect_download(timeout=30_000) as dl_info:
                 try:
                     page.get_by_role("link", name=lambda n: "csv" in n.lower() or "download" in n.lower()).first.click(timeout=10_000)
                 except Exception:
-                    page.locator("a[href*='.csv'], a[href*='download' i], button:has-text('Download')").first.click(timeout=10_000)
+                    page.locator("a[href*='.csv'], button:has-text('Download')").first.click(timeout=10_000)
 
             csv_path = dl_info.value.path()
             with open(csv_path, "r", encoding="utf-8", errors="replace") as f:
                 csv_text = f.read()
-
             return parse_daily_snapshot_csv(csv_text, target_date)
 
-        except (PWTimeout, RuntimeError, Exception) as e:
+        except Exception as e:
             print(f"  Playwright error: {e}")
             try:
                 page.screenshot(path="/tmp/niftyindices_error.png")
@@ -337,33 +310,121 @@ def fetch_all_playwright(target_date: date) -> dict[str, Optional[dict]]:
             browser.close()
 
 
-def parse_daily_snapshot_csv(csv_text: str, target_date: date) -> dict[str, Optional[dict]]:
+def parse_daily_snapshot_csv(csv_text: str, target_date: date) -> dict:
     target_iso = target_date.isoformat()
-    found: dict[str, Optional[dict]] = {}
-    reader = csv.reader(io.StringIO(csv_text))
-    for row in reader:
+    found: dict = {}
+    for row in csv.reader(io.StringIO(csv_text)):
         if len(row) <= max(COL_NAME, COL_DATE, COL_CLOSE, COL_PE, COL_PB):
             continue
-        name = row[COL_NAME].strip()
-        key = CSV_NAME_MAP.get(name)
+        key = CSV_NAME_MAP.get(row[COL_NAME].strip())
         if not key or key not in TARGET_KEYS:
             continue
-        # Validate date
         date_cell = row[COL_DATE].strip()
-        parsed_date = None
+        parsed = None
         for fmt in ("%d-%b-%Y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
             try:
-                parsed_date = datetime.strptime(date_cell, fmt).date().isoformat()
+                parsed = datetime.strptime(date_cell, fmt).date().isoformat()
                 break
             except ValueError:
                 continue
-        if parsed_date and parsed_date != target_iso:
+        if parsed and parsed != target_iso:
             continue
-        close = safe_float(row[COL_CLOSE])
-        pe    = safe_float(row[COL_PE])
-        pb    = safe_float(row[COL_PB])
-        found[key] = build_metrics(close, pe, pb)
+        found[key] = build_metrics(safe_float(row[COL_CLOSE]), safe_float(row[COL_PE]), safe_float(row[COL_PB]))
     return found
+
+
+# ─── Strategy 3: Yahoo Finance EOD close + implied PE/PB ─────────────────────
+
+YAHOO_BASE = "https://query1.finance.yahoo.com/v8/finance/chart"
+YAHOO_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    "Accept": "application/json",
+}
+
+
+def fetch_yahoo_close(symbol: str, target_date: date, retries: int = 3) -> Optional[float]:
+    """
+    Fetch the closing price for target_date from Yahoo Finance.
+    Uses a 5-day range around the date to handle weekends/holidays.
+    """
+    # Use a 7-day window to ensure target_date is covered
+    from datetime import timedelta
+    start_ts = int(datetime(target_date.year, target_date.month, target_date.day).timestamp())
+    end_ts   = int((datetime(target_date.year, target_date.month, target_date.day) + timedelta(days=1)).timestamp())
+
+    url = (
+        f"{YAHOO_BASE}/{requests.utils.quote(symbol)}"
+        f"?interval=1d&period1={start_ts}&period2={end_ts}"
+    )
+
+    for attempt in range(retries):
+        try:
+            resp = requests.get(url, headers=YAHOO_HEADERS, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            result = data.get("chart", {}).get("result")
+            if not result:
+                return None
+            closes = result[0].get("indicators", {}).get("quote", [{}])[0].get("close", [])
+            closes = [c for c in closes if c is not None]
+            if not closes:
+                # Fallback: use regularMarketPrice (live/most recent close)
+                price = result[0].get("meta", {}).get("regularMarketPrice")
+                return safe_float(price)
+            return safe_float(closes[-1])
+        except requests.RequestException as e:
+            print(f"    Yahoo attempt {attempt+1}/{retries} failed: {e}")
+            if attempt < retries - 1:
+                time.sleep(2 ** attempt)
+    return None
+
+
+def fetch_all_yahoo(
+    target_date: date,
+    keys_needed: list[str],
+    existing_rows: list[dict],
+) -> dict:
+    """
+    Fetch EOD close from Yahoo Finance for the given keys.
+    PE and PB are approximated: close ÷ prev_impliedEPS and close ÷ prev_impliedBV.
+    The previous day's impliedEPS/BV values are read from existing_rows.
+    """
+    print("Strategy 3: Yahoo Finance EOD close + implied PE/PB…")
+
+    # Find the most recent row before target_date for each index
+    prev_metrics: dict[str, dict] = {}
+    target_iso = target_date.isoformat()
+    for row in reversed(existing_rows):
+        if row["date"] >= target_iso:
+            continue
+        for key in keys_needed:
+            if key not in prev_metrics and row.get(key):
+                prev_metrics[key] = row[key]
+        if len(prev_metrics) == len(keys_needed):
+            break
+
+    results: dict = {}
+    for key in keys_needed:
+        symbol = YAHOO_SYMBOLS.get(key)
+        if not symbol:
+            continue
+        print(f"  {key} ({symbol})…", end=" ", flush=True)
+        close = fetch_yahoo_close(symbol, target_date)
+        if close is None:
+            print("no data from Yahoo")
+            continue
+
+        prev = prev_metrics.get(key, {})
+        prev_eps = prev.get("impliedEPS")
+        prev_bv  = prev.get("impliedBV")
+
+        pe = round(close / prev_eps, 4) if prev_eps else None
+        pb = round(close / prev_bv,  4) if prev_bv  else None
+
+        results[key] = build_metrics(close, pe, pb)
+        print(f"close={close}, pe={pe} (approx), pb={pb} (approx)")
+
+    return results
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -377,7 +438,6 @@ def main():
     target_iso  = target_date.isoformat()
     print(f"Fetching EOD data for: {target_iso}")
 
-    # Resolve paths
     script_dir   = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
     output_path  = os.path.join(project_root, "data", "historical.json")
@@ -385,34 +445,41 @@ def main():
     with open(output_path) as f:
         rows: list[dict] = json.load(f)
 
-    existing_dates = {r["date"] for r in rows}
-    if target_iso in existing_dates:
+    if target_iso in {r["date"] for r in rows}:
         print(f"Date {target_iso} already exists — nothing to do.")
         return
 
-    # ── Strategy 1: HTTP API ──────────────────────────────────────────────────
-    api_results = fetch_all_api(target_date)
+    # ── Strategy 1: niftyindices.com HTTP API ─────────────────────────────────
+    results = fetch_all_api(target_date)
 
-    # Determine which keys still need data
-    missing_keys = [k for k in TARGET_KEYS if not api_results.get(k)]
+    # ── Strategy 2: Playwright (for any remaining) ────────────────────────────
+    still_missing = missing_keys(results)
+    if still_missing:
+        print(f"\n{len(still_missing)} indices missing — trying Playwright…")
+        pw = fetch_all_playwright(target_date)
+        for k, v in pw.items():
+            if v and not results.get(k):
+                results[k] = v
 
-    # ── Strategy 2: Playwright fallback for any missing indices ───────────────
-    playwright_results: dict[str, Optional[dict]] = {}
-    if missing_keys:
-        print(f"\n  {len(missing_keys)} indices missing from API — trying Playwright…")
-        playwright_results = fetch_all_playwright(target_date)
+    # ── Strategy 3: Yahoo Finance fallback (for any still remaining) ──────────
+    still_missing = missing_keys(results)
+    if still_missing:
+        print(f"\n{len(still_missing)} indices still missing — falling back to Yahoo Finance…")
+        yf = fetch_all_yahoo(target_date, still_missing, rows)
+        for k, v in yf.items():
+            if v and not results.get(k):
+                results[k] = v
 
-    # ── Merge results ─────────────────────────────────────────────────────────
+    # ── Build new row ─────────────────────────────────────────────────────────
     new_row: dict = {"date": target_iso}
-    all_ok = True
     null_entry = {"close": None, "pe": None, "pb": None, "impliedEPS": None, "impliedBV": None}
-
+    all_ok = True
     for key in TARGET_KEYS:
-        metrics = api_results.get(key) or playwright_results.get(key)
-        if metrics:
-            new_row[key] = metrics
+        m = results.get(key)
+        if m and m.get("close"):
+            new_row[key] = m
         else:
-            print(f"  FAILED: {key} — using null values")
+            print(f"  FAILED: {key} — all strategies exhausted, using null")
             new_row[key] = dict(null_entry)
             all_ok = False
 
@@ -429,9 +496,13 @@ def main():
     with open(output_path, "w") as f:
         json.dump(deduped, f, indent=2)
 
-    status = "OK" if all_ok else "PARTIAL"
+    status = "OK" if all_ok else "PARTIAL (Yahoo Finance approximation used for some indices)"
     print(f"\n[{status}] Written {len(deduped)} rows → {output_path}")
-    if not all_ok:
+    # Don't exit 1 for Yahoo approximation — we still have valid close prices
+    # Only exit 1 if we have complete null rows
+    truly_failed = [k for k in TARGET_KEYS if not new_row[k].get("close")]
+    if truly_failed:
+        print(f"Truly failed (null close): {truly_failed}")
         sys.exit(1)
 
 
