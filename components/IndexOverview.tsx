@@ -177,7 +177,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                   {/* Close */}
                   <td className="px-5 py-4 text-right">
                     <span className="text-base font-bold text-zinc-900 tabular-nums">
-                      {formatPrice(close)}
+                      {close != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(close)) : "—"}
                     </span>
                   </td>
 
