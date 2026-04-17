@@ -32,11 +32,11 @@ export function MetricCard({ label, metric, stats, isLive = false, value, valueF
   const isNegative = changePct != null && changePct < 0;
 
   return (
-    <Card className="bg-white border border-zinc-200 shadow-sm hover:shadow-md transition-shadow">
+    <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-sm hover:shadow-md transition-shadow">
       <CardContent className="p-4">
         {/* Label + LIVE badge */}
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-medium text-zinc-700 uppercase tracking-wide">
+          <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 uppercase tracking-wide">
             {label}
           </p>
           {isLive && (
@@ -51,7 +51,7 @@ export function MetricCard({ label, metric, stats, isLive = false, value, valueF
         </div>
 
         {/* Current value */}
-        <p className="text-2xl font-semibold text-zinc-900 mb-1 leading-none">
+        <p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 mb-1 leading-none">
           {valueFormatter ? valueFormatter(current) : formatMetric(metric, current)}
         </p>
 
@@ -78,7 +78,7 @@ export function MetricCard({ label, metric, stats, isLive = false, value, valueF
         )}
 
         {/* Mean */}
-        <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-100">
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
           <span className="text-xs text-[#1d3557]">
             Mean: {valueFormatter ? valueFormatter(stats?.mean ?? null) : formatMetric(metric, stats?.mean ?? null)}
           </span>

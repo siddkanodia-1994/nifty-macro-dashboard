@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { formatDateShort, formatMetric } from "@/lib/utils";
+import { useTheme } from "@/lib/theme";
 import type { ChartPoint } from "@/lib/calculations";
 import type { ControlLines, MetricKey } from "@/lib/types";
 
@@ -19,7 +20,6 @@ interface IndexChartProps {
   metric: MetricKey;
   controlLines: ControlLines | null;
   showControlLines: boolean;
-  /** Override the default formatMetric formatter for tooltip and Y-axis labels */
   valueFormatter?: (v: number) => string;
 }
 
@@ -35,23 +35,25 @@ interface CustomTooltipProps {
   showControlLines?: boolean;
   metric?: MetricKey;
   valueFormatter?: (v: number) => string;
+  isDark?: boolean;
 }
 
-function CustomTooltip({ active, payload, label, controlLines, showControlLines, metric, valueFormatter }: CustomTooltipProps) {
+function CustomTooltip({ active, payload, label, controlLines, showControlLines, metric, valueFormatter, isDark }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
   const value = payload[0]?.value;
   const fmt = (v: number) => valueFormatter ? valueFormatter(v) : metric ? formatMetric(metric, v) : v.toFixed(2);
 
   const showLevels = showControlLines && controlLines;
+  const meanColor = isDark ? "#e4e4e7" : "#1f2937";
 
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg shadow-lg px-3 py-2.5 text-xs min-w-[140px]">
-      <p className="font-medium text-zinc-500 mb-1.5">{label}</p>
+    <div className={`rounded-lg shadow-lg px-3 py-2.5 text-xs min-w-[140px] border ${isDark ? "bg-zinc-800 border-zinc-700 text-zinc-100" : "bg-white border-zinc-200 text-zinc-900"}`}>
+      <p className={`font-medium mb-1.5 ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>{label}</p>
       {value != null && (
-        <p className="text-zinc-900 font-bold text-sm mb-2">{fmt(value)}</p>
+        <p className={`font-bold text-sm mb-2 ${isDark ? "text-zinc-100" : "text-zinc-900"}`}>{fmt(value)}</p>
       )}
       {showLevels && (
-        <div className="border-t border-zinc-100 pt-2 space-y-1">
+        <div className={`border-t pt-2 space-y-1 ${isDark ? "border-zinc-700" : "border-zinc-100"}`}>
           <div className="flex justify-between gap-4">
             <span style={{ color: "#b91c1c" }} className="font-semibold">+2σ</span>
             <span style={{ color: "#b91c1c" }} className="font-semibold">{fmt(controlLines.sd2Upper)}</span>
@@ -61,8 +63,8 @@ function CustomTooltip({ active, payload, label, controlLines, showControlLines,
             <span style={{ color: "#b45309" }} className="font-semibold">{fmt(controlLines.sd1Upper)}</span>
           </div>
           <div className="flex justify-between gap-4">
-            <span style={{ color: "#1f2937" }} className="font-semibold">Mean</span>
-            <span style={{ color: "#1f2937" }} className="font-semibold">{fmt(controlLines.mean)}</span>
+            <span style={{ color: meanColor }} className="font-semibold">Mean</span>
+            <span style={{ color: meanColor }} className="font-semibold">{fmt(controlLines.mean)}</span>
           </div>
           <div className="flex justify-between gap-4">
             <span style={{ color: "#b45309" }} className="font-semibold">−1σ</span>
@@ -79,6 +81,15 @@ function CustomTooltip({ active, payload, label, controlLines, showControlLines,
 }
 
 export function IndexChart({ data, metric, controlLines, showControlLines, valueFormatter }: IndexChartProps) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
+  const colors = {
+    grid:  isDark ? "#3f3f46" : "#f4f4f5",
+    axis:  isDark ? "#a1a1aa" : "#52525b",
+    mean:  isDark ? "#e4e4e7" : "#6b7280",
+  };
+
   if (data.length === 0) {
     return (
       <div className="h-72 flex items-center justify-center text-zinc-400 text-sm">
@@ -87,14 +98,11 @@ export function IndexChart({ data, metric, controlLines, showControlLines, value
     );
   }
 
-  // Determine Y-axis domain with 8% padding
   const values = data.map((d) => d.value);
   const minVal = Math.min(...values);
   const maxVal = Math.max(...values);
   const pad = (maxVal - minVal) * 0.08 || Math.abs(maxVal) * 0.05 || 1;
 
-  // Y-axis: start from data range, then always extend to fit all 5 control lines.
-  // Control lines are now window-based (close to the data), so expansion is small.
   let domainMin = minVal - pad;
   let domainMax = maxVal + pad;
   if (showControlLines && controlLines) {
@@ -102,24 +110,20 @@ export function IndexChart({ data, metric, controlLines, showControlLines, value
     domainMax = Math.max(domainMax, controlLines.sd2Upper + pad);
   }
 
-  // X-axis: target ~6 evenly-spaced ticks; never 0 (Recharts shows ALL ticks when interval=0)
   const tickInterval = Math.max(1, Math.floor(data.length / 6));
 
-  // KEY: include control-line mean so Recharts remounts (rescales Y-axis) whenever
-  // the window changes (new mean) or the metric changes (different value range).
-  // Also include showControlLines so domain changes on toggle trigger a remount.
-  const chartKey = `${metric}-${minVal.toFixed(2)}-${maxVal.toFixed(2)}-${data.length}-${controlLines?.mean.toFixed(2) ?? "x"}-${showControlLines}`;
+  const chartKey = `${metric}-${minVal.toFixed(2)}-${maxVal.toFixed(2)}-${data.length}-${controlLines?.mean.toFixed(2) ?? "x"}-${showControlLines}-${isDark}`;
 
   return (
     <ResponsiveContainer key={chartKey} width="100%" height={320}>
       <ComposedChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} vertical={false} />
 
         <XAxis
           dataKey="date"
           tickFormatter={formatDateShort}
           interval={tickInterval}
-          tick={{ fontSize: 11, fill: "#52525b" }}
+          tick={{ fontSize: 11, fill: colors.axis }}
           axisLine={false}
           tickLine={false}
         />
@@ -127,13 +131,12 @@ export function IndexChart({ data, metric, controlLines, showControlLines, value
         <YAxis
           domain={[domainMin, domainMax]}
           allowDataOverflow={false}
-          tick={{ fontSize: 11, fill: "#52525b" }}
+          tick={{ fontSize: 11, fill: colors.axis }}
           axisLine={false}
           tickLine={false}
           width={60}
           tickFormatter={(v: number) => {
             if (valueFormatter) return valueFormatter(v);
-            // Format large numbers (Price, Implied EPS/BV) compactly
             if (Math.abs(v) >= 10000) return (v / 1000).toFixed(1) + "k";
             if (Math.abs(v) >= 1000) return v.toFixed(0);
             return v.toFixed(2);
@@ -147,11 +150,11 @@ export function IndexChart({ data, metric, controlLines, showControlLines, value
               showControlLines={showControlLines}
               metric={metric}
               valueFormatter={valueFormatter}
+              isDark={isDark}
             />
           }
         />
 
-        {/* Main price/metric line */}
         <Line
           type="monotone"
           dataKey="value"
@@ -161,15 +164,14 @@ export function IndexChart({ data, metric, controlLines, showControlLines, value
           activeDot={{ r: 4, fill: "#3b82f6", strokeWidth: 0 }}
         />
 
-        {/* Fixed control lines — computed from ALL historical data */}
         {showControlLines && controlLines && (
           <>
             <ReferenceLine
               y={controlLines.mean}
-              stroke="#6b7280"
+              stroke={colors.mean}
               strokeDasharray="5 4"
               strokeWidth={1.5}
-              label={{ value: "Mean", position: "insideTopRight", fontSize: 10, fill: "#6b7280" }}
+              label={{ value: "Mean", position: "insideTopRight", fontSize: 10, fill: colors.mean }}
             />
             <ReferenceLine
               y={controlLines.sd1Upper}

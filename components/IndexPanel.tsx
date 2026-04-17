@@ -120,7 +120,7 @@ export function IndexPanel({
       </div>
 
       {/* ── Chart card ── */}
-      <Card className="bg-white border border-zinc-200 shadow-sm">
+      <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-sm">
         <CardHeader className="px-5 pt-4 pb-3">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
             {/* Left: metric selector buttons */}
@@ -133,7 +133,7 @@ export function IndexPanel({
                     "px-3 py-1 rounded-md text-xs font-medium transition-colors",
                     chartMetric === key
                       ? "bg-blue-600 text-white"
-                      : "text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100"
+                      : "text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                   )}
                 >
                   {label}
@@ -149,8 +149,8 @@ export function IndexPanel({
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium border transition-colors",
                   showControlLines
-                    ? "border-zinc-300 bg-zinc-50 text-zinc-800"
-                    : "border-zinc-200 text-zinc-600 hover:text-zinc-800"
+                    ? "border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200"
+                    : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
                 )}
                 title="Toggle control lines (Mean ± 1σ/2σ)"
               >
