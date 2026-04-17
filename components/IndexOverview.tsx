@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { TimeWindowSelector } from "@/components/TimeWindowSelector";
 import {
   filterByWindow,
@@ -15,7 +14,6 @@ import {
   formatPrice,
   formatRatio,
   formatZScore,
-  zScoreColor,
   cn,
 } from "@/lib/utils";
 import type { HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
@@ -24,6 +22,24 @@ interface IndexOverviewProps {
   historicalData: HistoricalRow[];
   liveData: Partial<Record<IndexKey, number>> | null;
   onSelectIndex: (key: IndexKey) => void;
+}
+
+function ZBadge({ z }: { z: number | null }) {
+  if (z == null) return <span className="text-zinc-400 text-sm">—</span>;
+  const abs = Math.abs(z);
+  const label = formatZScore(z);
+
+  if (abs >= 1.5) {
+    return z > 0
+      ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-800 tabular-nums">{label}</span>
+      : <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800 tabular-nums">{label}</span>;
+  }
+  if (abs >= 0.5) {
+    return z > 0
+      ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-600 tabular-nums">{label}</span>
+      : <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-600 tabular-nums">{label}</span>;
+  }
+  return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 text-zinc-600 tabular-nums">{label}</span>;
 }
 
 export function IndexOverview({ historicalData, liveData, onSelectIndex }: IndexOverviewProps) {
@@ -36,45 +52,31 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
     [historicalData, timeWindow]
   );
 
-  // Per-index stats computed from the selected window
   const stats = useMemo(() => {
     return INDEX_META.map((meta) => {
       const key = meta.key;
-
-      // Live-aware current values
       const liveClose = liveData?.[key] ?? null;
       const hist = lastRow?.[key];
       const isLive = liveClose != null;
 
-      const close      = liveClose ?? hist?.close ?? null;
-      const currentPE  = isLive && hist?.impliedEPS ? liveClose! / hist.impliedEPS : hist?.pe ?? null;
-      const currentPB  = isLive && hist?.impliedBV  ? liveClose! / hist.impliedBV  : hist?.pb ?? null;
+      const close     = liveClose ?? hist?.close ?? null;
+      const currentPE = isLive && hist?.impliedEPS ? liveClose! / hist.impliedEPS : hist?.pe ?? null;
+      const currentPB = isLive && hist?.impliedBV  ? liveClose! / hist.impliedBV  : hist?.pb ?? null;
 
-      // Window mean/SD for PE
-      const peVals  = extractValues(windowRows, key, "pe");
-      const peMean  = peVals.length >= 2 ? mean(peVals)   : null;
-      const peSD    = peVals.length >= 2 ? stdDev(peVals) : null;
-      const peZ     = currentPE != null && peMean != null && peSD != null
-        ? zScore(currentPE, peMean, peSD)
-        : null;
+      const peVals = extractValues(windowRows, key, "pe");
+      const peMean = peVals.length >= 2 ? mean(peVals)   : null;
+      const peSD   = peVals.length >= 2 ? stdDev(peVals) : null;
+      const peZ    = currentPE != null && peMean != null && peSD != null ? zScore(currentPE, peMean, peSD) : null;
 
-      // Window mean/SD for PB
-      const pbVals  = extractValues(windowRows, key, "pb");
-      const pbMean  = pbVals.length >= 2 ? mean(pbVals)   : null;
-      const pbSD    = pbVals.length >= 2 ? stdDev(pbVals) : null;
-      const pbZ     = currentPB != null && pbMean != null && pbSD != null
-        ? zScore(currentPB, pbMean, pbSD)
-        : null;
+      const pbVals = extractValues(windowRows, key, "pb");
+      const pbMean = pbVals.length >= 2 ? mean(pbVals)   : null;
+      const pbSD   = pbVals.length >= 2 ? stdDev(pbVals) : null;
+      const pbZ    = currentPB != null && pbMean != null && pbSD != null ? zScore(currentPB, pbMean, pbSD) : null;
 
-      return {
-        meta, key, close, isLive,
-        pe: currentPE, peMean, peSD, peZ,
-        pb: currentPB, pbMean, pbSD, pbZ,
-      };
+      return { meta, key, close, isLive, pe: currentPE, peMean, peSD, peZ, pb: currentPB, pbMean, pbSD, pbZ };
     });
   }, [windowRows, lastRow, liveData]);
 
-  // Color for current PE/PB cell — red if > mean+1SD, green if < mean-1SD
   function ratioColor(current: number | null, m: number | null, sd: number | null) {
     if (current == null || m == null || sd == null || sd === 0) return "text-zinc-900";
     if (current > m + sd)  return "text-red-700";
@@ -82,160 +84,169 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
     return "text-zinc-900";
   }
 
-  const headers = [
-    { label: "Index",     span: 1, right: false },
-    { label: "Close",     span: 1, right: true  },
-    { label: "P/E",       span: 1, right: true  },
-    { label: "PE Mean",   span: 1, right: true  },
-    { label: "PE SD",     span: 1, right: true  },
-    { label: "PE Z",      span: 1, right: true  },
-    { label: "P/B",       span: 1, right: true  },
-    { label: "PB Mean",   span: 1, right: true  },
-    { label: "PB SD",     span: 1, right: true  },
-    { label: "PB Z",      span: 1, right: true  },
-    { label: "",          span: 1, right: false },  // Details CTA
-  ];
-
   return (
-    <div className="space-y-4 pt-2">
-      <Card className="bg-white border border-zinc-200 shadow-sm">
-        <CardHeader className="px-6 pt-5 pb-3">
-          <div className="flex items-center justify-between">
-            <p className="text-base font-semibold text-zinc-900">
+    <div className="pt-2">
+      {/* Card with top accent border */}
+      <div className="rounded-xl border border-zinc-200 shadow-sm bg-white overflow-hidden">
+
+        {/* Header strip */}
+        <div className="border-b border-zinc-200 bg-zinc-50 px-6 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-base font-semibold text-zinc-900 tracking-tight">
               All Indices — {timeWindow} Window Statistics
             </p>
-            <TimeWindowSelector value={timeWindow} onChange={setTimeWindow} />
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Mean &amp; SD computed from {timeWindow} rolling window · Live prices during market hours
+            </p>
           </div>
-        </CardHeader>
+          <TimeWindowSelector value={timeWindow} onChange={setTimeWindow} />
+        </div>
 
-        <CardContent className="px-0 pb-4">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-zinc-200">
-                  {headers.map((h, i) => (
-                    <th
-                      key={i}
-                      className={cn(
-                        "px-5 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-600 whitespace-nowrap",
-                        h.right ? "text-right" : "text-left"
-                      )}
-                    >
-                      {h.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {stats.map(({ meta, close, isLive, pe, peMean, peSD, peZ, pb, pbMean, pbSD, pbZ }) => (
-                  <tr
-                    key={meta.key}
-                    className="border-b border-zinc-50 hover:bg-zinc-50/70 transition-colors"
-                  >
-                    {/* Index name */}
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base font-bold text-zinc-900 whitespace-nowrap">
-                          {meta.label}
-                        </span>
-                        {isLive && (
-                          <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 whitespace-nowrap">
-                            <span className="relative flex h-1.5 w-1.5">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                            </span>
-                            LIVE
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              {/* Group headers */}
+              <tr className="bg-zinc-50 border-b border-zinc-200">
+                <th className="px-6 py-2 text-left" rowSpan={2} />
+                <th
+                  className="px-5 py-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-400"
+                  rowSpan={2}
+                >
+                  Close
+                </th>
+                {/* P/E group */}
+                <th
+                  colSpan={4}
+                  className="px-5 py-1.5 text-center text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-l border-zinc-200"
+                >
+                  P / E  R A T I O
+                </th>
+                {/* P/B group */}
+                <th
+                  colSpan={4}
+                  className="px-5 py-1.5 text-center text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-l border-zinc-200"
+                >
+                  P / B  R A T I O
+                </th>
+                <th rowSpan={2} />
+              </tr>
+
+              {/* Column headers */}
+              <tr className="bg-zinc-50 border-b-2 border-zinc-200">
+                {/* PE cols */}
+                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500 border-l border-zinc-200">Current</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Mean</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500">SD</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Z-Score</th>
+                {/* PB cols */}
+                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500 border-l border-zinc-200">Current</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Mean</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500">SD</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Z-Score</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-zinc-100">
+              {stats.map(({ meta, close, isLive, pe, peMean, peSD, peZ, pb, pbMean, pbSD, pbZ }, idx) => (
+                <tr
+                  key={meta.key}
+                  className={cn(
+                    "transition-colors hover:bg-blue-50/30",
+                    idx % 2 === 1 ? "bg-zinc-50/40" : "bg-white"
+                  )}
+                >
+                  {/* Index name */}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-sm font-bold text-zinc-900 whitespace-nowrap tracking-tight">
+                        {meta.label}
+                      </span>
+                      {isLive && (
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 whitespace-nowrap bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
                           </span>
-                        )}
-                      </div>
-                    </td>
+                          LIVE
+                        </span>
+                      )}
+                    </div>
+                  </td>
 
-                    {/* Close price */}
-                    <td className="px-5 py-4 text-right">
-                      <span className="text-base font-semibold text-zinc-900 tabular-nums whitespace-nowrap">
-                        {formatPrice(close)}
-                      </span>
-                    </td>
+                  {/* Close */}
+                  <td className="px-5 py-4 text-right">
+                    <span className="text-base font-bold text-zinc-900 tabular-nums">
+                      {formatPrice(close)}
+                    </span>
+                  </td>
 
-                    {/* P/E */}
-                    <td className="px-5 py-4 text-right">
-                      <span className={cn("text-base font-semibold tabular-nums", ratioColor(pe, peMean, peSD))}>
-                        {formatRatio(pe)}
-                      </span>
-                    </td>
+                  {/* PE Current */}
+                  <td className="px-5 py-4 text-right border-l border-zinc-100">
+                    <span className={cn("text-base font-bold tabular-nums", ratioColor(pe, peMean, peSD))}>
+                      {formatRatio(pe)}
+                    </span>
+                  </td>
+                  {/* PE Mean */}
+                  <td className="px-5 py-4 text-right">
+                    <span className="text-sm text-zinc-600 tabular-nums">{formatRatio(peMean)}</span>
+                  </td>
+                  {/* PE SD */}
+                  <td className="px-5 py-4 text-right">
+                    <span className="text-sm text-zinc-500 tabular-nums">{formatRatio(peSD)}</span>
+                  </td>
+                  {/* PE Z */}
+                  <td className="px-5 py-4 text-right">
+                    <ZBadge z={peZ} />
+                  </td>
 
-                    {/* PE Mean */}
-                    <td className="px-5 py-4 text-right">
-                      <span className="text-sm text-zinc-700 tabular-nums">
-                        {formatRatio(peMean)}
-                      </span>
-                    </td>
+                  {/* PB Current */}
+                  <td className="px-5 py-4 text-right border-l border-zinc-100">
+                    <span className={cn("text-base font-bold tabular-nums", ratioColor(pb, pbMean, pbSD))}>
+                      {formatRatio(pb)}
+                    </span>
+                  </td>
+                  {/* PB Mean */}
+                  <td className="px-5 py-4 text-right">
+                    <span className="text-sm text-zinc-600 tabular-nums">{formatRatio(pbMean)}</span>
+                  </td>
+                  {/* PB SD */}
+                  <td className="px-5 py-4 text-right">
+                    <span className="text-sm text-zinc-500 tabular-nums">{formatRatio(pbSD)}</span>
+                  </td>
+                  {/* PB Z */}
+                  <td className="px-5 py-4 text-right">
+                    <ZBadge z={pbZ} />
+                  </td>
 
-                    {/* PE SD */}
-                    <td className="px-5 py-4 text-right">
-                      <span className="text-sm text-zinc-600 tabular-nums">
-                        {formatRatio(peSD)}
-                      </span>
-                    </td>
+                  {/* Details */}
+                  <td className="px-5 py-4 text-right">
+                    <button
+                      onClick={() => onSelectIndex(meta.key)}
+                      className="text-xs font-semibold text-zinc-400 hover:text-zinc-900 transition-colors whitespace-nowrap tracking-wide"
+                    >
+                      Details →
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-                    {/* PE Z-Score */}
-                    <td className="px-5 py-4 text-right">
-                      <span className={cn("text-sm font-semibold tabular-nums", zScoreColor(peZ))}>
-                        {formatZScore(peZ)}
-                      </span>
-                    </td>
-
-                    {/* P/B */}
-                    <td className="px-5 py-4 text-right">
-                      <span className={cn("text-base font-semibold tabular-nums", ratioColor(pb, pbMean, pbSD))}>
-                        {formatRatio(pb)}
-                      </span>
-                    </td>
-
-                    {/* PB Mean */}
-                    <td className="px-5 py-4 text-right">
-                      <span className="text-sm text-zinc-700 tabular-nums">
-                        {formatRatio(pbMean)}
-                      </span>
-                    </td>
-
-                    {/* PB SD */}
-                    <td className="px-5 py-4 text-right">
-                      <span className="text-sm text-zinc-600 tabular-nums">
-                        {formatRatio(pbSD)}
-                      </span>
-                    </td>
-
-                    {/* PB Z-Score */}
-                    <td className="px-5 py-4 text-right">
-                      <span className={cn("text-sm font-semibold tabular-nums", zScoreColor(pbZ))}>
-                        {formatZScore(pbZ)}
-                      </span>
-                    </td>
-
-                    {/* Details link */}
-                    <td className="px-5 py-4 text-right">
-                      <button
-                        onClick={() => onSelectIndex(meta.key)}
-                        className="text-xs font-medium text-zinc-500 hover:text-zinc-900 transition-colors whitespace-nowrap"
-                      >
-                        Details →
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Legend */}
-          <div className="mt-3 px-6 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-zinc-500">
-            <span><span className="text-red-700 font-medium">Red</span> = current &gt; mean + 1SD (expensive)</span>
-            <span><span className="text-emerald-700 font-medium">Green</span> = current &lt; mean − 1SD (cheap)</span>
-            <span>Z-Score: deviation from {timeWindow} window mean in SD units</span>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Footer legend */}
+        <div className="border-t border-zinc-100 px-6 py-3 bg-zinc-50/60 flex flex-wrap gap-x-6 gap-y-1 text-[11px] text-zinc-500">
+          <span>
+            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-red-100 border border-red-300 mr-1.5 align-middle" />
+            Current &gt; Mean + 1SD — expensive vs {timeWindow} history
+          </span>
+          <span>
+            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-300 mr-1.5 align-middle" />
+            Current &lt; Mean − 1SD — cheap vs {timeWindow} history
+          </span>
+          <span className="text-zinc-400">Z-Score = (Current − Mean) ÷ SD</span>
+        </div>
+      </div>
     </div>
   );
 }
