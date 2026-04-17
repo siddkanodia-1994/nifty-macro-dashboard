@@ -110,7 +110,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
               <tr className="bg-zinc-50 border-b border-zinc-200">
                 <th className="px-6 py-2 text-left" rowSpan={2} />
                 <th
-                  className="px-5 py-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-400"
+                  className="px-5 py-2 text-right text-xs font-bold uppercase tracking-wider text-zinc-700"
                   rowSpan={2}
                 >
                   Close
@@ -118,14 +118,14 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                 {/* P/E group */}
                 <th
                   colSpan={4}
-                  className="px-5 py-1.5 text-center text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-l border-zinc-200"
+                  className="px-5 py-2 text-center text-sm font-bold uppercase tracking-wider text-zinc-800 border-l border-zinc-200"
                 >
                   P / E  R A T I O
                 </th>
                 {/* P/B group */}
                 <th
                   colSpan={4}
-                  className="px-5 py-1.5 text-center text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-l border-zinc-200"
+                  className="px-5 py-2 text-center text-sm font-bold uppercase tracking-wider text-zinc-800 border-l border-zinc-200"
                 >
                   P / B  R A T I O
                 </th>
@@ -135,15 +135,15 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
               {/* Column headers */}
               <tr className="bg-zinc-50 border-b-2 border-zinc-200">
                 {/* PE cols */}
-                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500 border-l border-zinc-200">Current</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Mean</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500">SD</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Z-Score</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700 border-l border-zinc-200">Current</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700">Mean</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700">SD</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700">Z-Score</th>
                 {/* PB cols */}
-                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500 border-l border-zinc-200">Current</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Mean</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500">SD</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Z-Score</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700 border-l border-zinc-200">Current</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700">Mean</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700">SD</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700">Z-Score</th>
               </tr>
             </thead>
 
