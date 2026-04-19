@@ -110,7 +110,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
               <tr className="bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
                 <th className="px-6 py-2 text-left" rowSpan={2} />
                 <th
-                  className="px-5 py-2 text-right text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300"
+                  className="px-5 py-2 text-right text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-300"
                   rowSpan={2}
                 >
                   Close
@@ -244,7 +244,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
             <span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-300 mr-1.5 align-middle" />
             Current &lt; Mean − 1SD — cheap vs {timeWindow} history
           </span>
-          <span className="text-zinc-400">Z-Score = (Current − Mean) ÷ SD</span>
+          <span className="text-zinc-600">Z-Score = (Current − Mean) ÷ SD</span>
         </div>
       </div>
     </div>

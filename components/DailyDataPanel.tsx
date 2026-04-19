@@ -301,7 +301,7 @@ export function DailyDataPanel({ historicalData, liveData }: DailyDataPanelProps
 
         {/* Bottom pagination */}
         <div className="px-5 pb-4 flex items-center justify-between">
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-zinc-600">
             {sortedRows.length.toLocaleString()} rows · Page {page}/{totalPages}
           </p>
           <div className="flex items-center gap-2">
