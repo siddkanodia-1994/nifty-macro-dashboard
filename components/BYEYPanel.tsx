@@ -10,10 +10,24 @@ import {
   computeBYEYControlLines,
   computeBYEYWindowStats,
   buildBYEYChartData,
+  mean,
+  stdDev,
+  zScore,
+  percentileRank,
 } from "@/lib/calculations";
 import { formatPct, formatRatio, formatZScore, formatPercentile, formatDate, zScoreColor, zScoreBgColor, cn } from "@/lib/utils";
-import type { BYEYRow, HistoricalRow, TimeWindow } from "@/lib/types";
+import type { BYEYRow, HistoricalRow, TimeWindow, WindowStats } from "@/lib/types";
 import { Eye, EyeOff } from "lucide-react";
+
+function buildStats(vals: (number | null)[], current: number | null): WindowStats | null {
+  const clean = vals.filter((v): v is number => v != null);
+  if (clean.length < 2 || current == null) return null;
+  const m   = mean(clean);
+  const sd  = stdDev(clean);
+  const z   = zScore(current, m, sd);
+  const pct = percentileRank(current, clean);
+  return { mean: m, sd, current, zScore: z, percentile: pct, min: Math.min(...clean), max: Math.max(...clean), count: clean.length };
+}
 
 interface BYEYPanelProps {
   byeyData: BYEYRow[];
@@ -85,6 +99,23 @@ export function BYEYPanel({
     [windowRows, currentSpread]
   );
 
+  const peStats = useMemo(
+    () => buildStats(windowRows.map((r) => r.pe), currentPE),
+    [windowRows, currentPE]
+  );
+
+  const bondYieldStats = useMemo(() => {
+    const vals = windowRows.map((r) => (r.bondYield != null ? r.bondYield * 100 : null));
+    const cur  = currentBondYield != null ? currentBondYield * 100 : null;
+    return buildStats(vals, cur);
+  }, [windowRows, currentBondYield]);
+
+  const eyStats = useMemo(() => {
+    const vals = windowRows.map((r) => (r.ey != null ? r.ey * 100 : null));
+    const cur  = currentEY != null ? currentEY * 100 : null;
+    return buildStats(vals, cur);
+  }, [windowRows, currentEY]);
+
   // Chart data for selected window
   const chartData = useMemo(
     () => buildBYEYChartData(windowRows),
@@ -117,12 +148,11 @@ export function BYEYPanel({
           valueFormatter={spreadFmt}
         />
 
-        {/* Nifty 50 P/E — current value only */}
+        {/* Nifty 50 P/E */}
         <MetricCard
           label="Nifty 50 P/E"
           metric="pe"
-          stats={null}
-          value={currentPE}
+          stats={peStats}
           isLive={isPELive}
           valueFormatter={peFmt}
         />
@@ -131,8 +161,7 @@ export function BYEYPanel({
         <MetricCard
           label={`India 10Y Yield${lastByeyRow ? ` · ${formatDate(lastByeyRow.date)}` : ""}`}
           metric="pe"
-          stats={null}
-          value={currentBondYield != null ? currentBondYield * 100 : null}
+          stats={bondYieldStats}
           isLive={false}
           valueFormatter={spreadFmt}
         />
@@ -141,8 +170,7 @@ export function BYEYPanel({
         <MetricCard
           label="Earnings Yield"
           metric="pe"
-          stats={null}
-          value={currentEY != null ? currentEY * 100 : null}
+          stats={eyStats}
           isLive={isPELive}
           valueFormatter={spreadFmt}
         />
