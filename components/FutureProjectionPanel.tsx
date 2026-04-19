@@ -23,6 +23,8 @@ interface IndexProjection {
   path: ProjectionPath;
   baseEPS?: number | null;
   baseBV?:  number | null;
+  savedPE?: { bear: number; base: number; bull: number };
+  savedPB?: { bear: number; base: number; bull: number };
   bear: ScenarioRow;
   base: ScenarioRow;
   bull: ScenarioRow;
@@ -166,17 +168,41 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
   const switchPath = useCallback((newPath: ProjectionPath) => {
     if (!lastRow) return;
     const m = lastRow[selectedIndex];
-    const multiple = newPath === "pe_eps" ? (m.pe ?? 20) : (m.pb ?? 3);
-    setProjections((prev) => ({
-      ...prev,
-      [selectedIndex]: {
-        ...prev[selectedIndex],
-        path: newPath,
-        bear: { multiple: parseFloat((multiple * 0.85).toFixed(2)), growthPct: -5 },
-        base: { multiple: parseFloat(multiple.toFixed(2)),           growthPct:  0 },
-        bull: { multiple: parseFloat((multiple * 1.15).toFixed(2)), growthPct: 10 },
-      },
-    }));
+
+    setProjections((prev) => {
+      const cur = prev[selectedIndex];
+      if (cur.path === newPath) return prev;
+
+      const leavingKey  = cur.path === "pe_eps" ? "savedPE" : "savedPB";
+      const enteringKey = newPath  === "pe_eps" ? "savedPE" : "savedPB";
+
+      const currentMultiples = { bear: cur.bear.multiple, base: cur.base.multiple, bull: cur.bull.multiple };
+
+      const saved = cur[enteringKey];
+      let newMultiples: { bear: number; base: number; bull: number };
+      if (saved) {
+        newMultiples = saved;
+      } else {
+        const mkt = newPath === "pe_eps" ? (m.pe ?? 20) : (m.pb ?? 3);
+        newMultiples = {
+          bear: parseFloat((mkt * 0.85).toFixed(2)),
+          base: parseFloat(mkt.toFixed(2)),
+          bull: parseFloat((mkt * 1.15).toFixed(2)),
+        };
+      }
+
+      return {
+        ...prev,
+        [selectedIndex]: {
+          ...cur,
+          path: newPath,
+          [leavingKey]: currentMultiples,
+          bear: { ...cur.bear, multiple: newMultiples.bear },
+          base: { ...cur.base, multiple: newMultiples.base },
+          bull: { ...cur.bull, multiple: newMultiples.bull },
+        },
+      };
+    });
   }, [lastRow, selectedIndex]);
 
   const updateScenario = useCallback(
