@@ -80,8 +80,9 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
   );
   const [ownerDefaults, setOwnerDefaults] = useState<ProjectionsMap | null>(null);
   const [showPinDialog, setShowPinDialog] = useState(false);
-  const autoSaveReady = useRef(false);
-  const ownerPinRef   = useRef<string | null>(null);
+  const autoSaveReady  = useRef(false);
+  const ownerPinRef    = useRef<string | null>(null);
+  const userHasEdited  = useRef(false);
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
@@ -127,9 +128,10 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist visitor edits to localStorage (guarded so it never fires during init)
+  // Persist visitor edits to localStorage — only when user has explicitly changed something
   useEffect(() => {
     if (!autoSaveReady.current) return;
+    if (!userHasEdited.current) return;
     try {
       localStorage.setItem(VISITOR_STORAGE_KEY, JSON.stringify(projections));
     } catch {
@@ -137,7 +139,7 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
     }
   }, [projections]);
 
-  // Auto-save to blob when owner PIN is cached (silent — no dialog needed after first save)
+  // Auto-save to blob when owner PIN is cached; update ownerDefaults on success
   useEffect(() => {
     if (!autoSaveReady.current) return;
     const cachedPin = ownerPinRef.current;
@@ -146,7 +148,9 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pin: cachedPin, defaults: projections }),
-    }).catch(() => {});
+    })
+      .then((res) => { if (res.ok) setOwnerDefaults(projections); })
+      .catch(() => {});
   }, [projections]);
 
   const lastRow = historicalData[historicalData.length - 1] ?? null;
@@ -173,6 +177,7 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
       const cur = prev[selectedIndex];
       if (cur.path === newPath) return prev;
 
+      userHasEdited.current = true;
       const leavingKey  = cur.path === "pe_eps" ? "savedPE" : "savedPB";
       const enteringKey = newPath  === "pe_eps" ? "savedPE" : "savedPB";
 
@@ -209,6 +214,7 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
     (scenario: Scenario, field: keyof ScenarioRow, raw: string) => {
       const value = parseFloat(raw);
       if (isNaN(value)) return;
+      userHasEdited.current = true;
       setProjections((prev) => ({
         ...prev,
         [selectedIndex]: {
@@ -223,6 +229,7 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
   const updateBase = useCallback((raw: string) => {
     const value = parseFloat(raw);
     if (isNaN(value)) return;
+    userHasEdited.current = true;
     setProjections((prev) => {
       const field = prev[selectedIndex].path === "pe_eps" ? "baseEPS" : "baseBV";
       return {
@@ -234,6 +241,7 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
 
   const handleReset = useCallback(() => {
     localStorage.removeItem(VISITOR_STORAGE_KEY);
+    userHasEdited.current = false;
     if (ownerDefaults) {
       setProjections(ownerDefaults);
     } else {
