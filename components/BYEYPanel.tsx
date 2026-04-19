@@ -11,7 +11,7 @@ import {
   computeBYEYWindowStats,
   buildBYEYChartData,
 } from "@/lib/calculations";
-import { formatPct, formatRatio, formatZScore, formatPercentile, zScoreColor, zScoreBgColor, cn } from "@/lib/utils";
+import { formatPct, formatRatio, formatZScore, formatPercentile, formatDate, zScoreColor, zScoreBgColor, cn } from "@/lib/utils";
 import type { BYEYRow, HistoricalRow, TimeWindow } from "@/lib/types";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -129,7 +129,7 @@ export function BYEYPanel({
 
         {/* India 10Y Bond Yield % — daily EOD value, no LIVE badge */}
         <MetricCard
-          label="India 10Y Yield"
+          label={`India 10Y Yield${lastByeyRow ? ` · ${formatDate(lastByeyRow.date)}` : ""}`}
           metric="pe"
           stats={null}
           value={currentBondYield != null ? currentBondYield * 100 : null}

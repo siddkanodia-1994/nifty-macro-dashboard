@@ -78,10 +78,10 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
   }, [windowRows, lastRow, liveData]);
 
   function ratioColor(current: number | null, m: number | null, sd: number | null) {
-    if (current == null || m == null || sd == null || sd === 0) return "text-zinc-900";
-    if (current > m + sd)  return "text-red-700";
-    if (current < m - sd)  return "text-emerald-700";
-    return "text-zinc-900";
+    if (current == null || m == null || sd == null || sd === 0) return "text-zinc-900 dark:text-zinc-100";
+    if (current > m + sd)  return "text-red-700 dark:text-red-400";
+    if (current < m - sd)  return "text-emerald-700 dark:text-emerald-400";
+    return "text-zinc-900 dark:text-zinc-100";
   }
 
   return (
