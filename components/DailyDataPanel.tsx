@@ -153,33 +153,33 @@ export function DailyDataPanel({ historicalData, liveData }: DailyDataPanelProps
               <span className="font-semibold text-zinc-900 dark:text-zinc-100">
                 {METRIC_LABELS[selectedMetric]} — {timeWindow} Window
               </span>
-              <span className="text-zinc-600">
-                Mean: <span className="font-medium text-zinc-900 dark:text-zinc-100">{fmtBand(windowMean)}</span>
+              <span className="text-zinc-600 dark:text-zinc-400">
+                Mean:<span className="font-medium text-zinc-900 dark:text-zinc-100">{fmtBand(windowMean)}</span>
               </span>
-              <span className="text-zinc-600">
-                SD: <span className="font-medium text-zinc-900 dark:text-zinc-100">{fmtBand(windowSD)}</span>
+              <span className="text-zinc-600 dark:text-zinc-400">
+                SD:<span className="font-medium text-zinc-900 dark:text-zinc-100">{fmtBand(windowSD)}</span>
               </span>
               {windowStats.current != null && (
                 <>
-                  <span className="text-zinc-600">
-                    Current: <span className="font-medium text-zinc-900 dark:text-zinc-100">{fmtBand(windowStats.current)}</span>
+                  <span className="text-zinc-600 dark:text-zinc-400">
+                    Current:<span className="font-medium text-zinc-900 dark:text-zinc-100">{fmtBand(windowStats.current)}</span>
                   </span>
                   <span className={cn("font-semibold", zScoreColor(windowStats.zScore))}>
                     Z: {formatZScore(windowStats.zScore)}
                   </span>
                 </>
               )}
-              <span className="text-zinc-500">+2σ: <span className="font-medium">{fmtBand(sd2U)}</span></span>
-              <span className="text-zinc-500">+1σ: <span className="font-medium">{fmtBand(sd1U)}</span></span>
-              <span className="text-zinc-500">−1σ: <span className="font-medium">{fmtBand(sd1L)}</span></span>
-              <span className="text-zinc-500">−2σ: <span className="font-medium">{fmtBand(sd2L)}</span></span>
+              <span className="text-zinc-500 dark:text-zinc-400">+2σ: <span className="font-medium">{fmtBand(sd2U)}</span></span>
+              <span className="text-zinc-500 dark:text-zinc-400">+1σ: <span className="font-medium">{fmtBand(sd1U)}</span></span>
+              <span className="text-zinc-500 dark:text-zinc-400">−1σ: <span className="font-medium">{fmtBand(sd1L)}</span></span>
+              <span className="text-zinc-500 dark:text-zinc-400">−2σ: <span className="font-medium">{fmtBand(sd2L)}</span></span>
             </div>
           </CardContent>
         </Card>
       )}
 
       {/* ── Table card ── */}
-      <Card className="bg-white border border-zinc-200 shadow-sm">
+      <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-sm">
         <CardHeader className="px-5 pt-4 pb-2">
           <div className="flex items-center justify-between">
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
