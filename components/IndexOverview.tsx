@@ -31,15 +31,15 @@ function ZBadge({ z }: { z: number | null }) {
 
   if (abs >= 1.5) {
     return z > 0
-      ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-800 tabular-nums">{label}</span>
-      : <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800 tabular-nums">{label}</span>;
+      ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 tabular-nums">{label}</span>
+      : <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 tabular-nums">{label}</span>;
   }
   if (abs >= 0.5) {
     return z > 0
-      ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-600 tabular-nums">{label}</span>
-      : <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-600 tabular-nums">{label}</span>;
+      ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 tabular-nums">{label}</span>
+      : <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 tabular-nums">{label}</span>;
   }
-  return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 text-zinc-600 tabular-nums">{label}</span>;
+  return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 tabular-nums">{label}</span>;
 }
 
 export function IndexOverview({ historicalData, liveData, onSelectIndex }: IndexOverviewProps) {
@@ -95,7 +95,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
             <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
               All Indices — {timeWindow} Window Statistics
             </p>
-            <p className="text-xs text-zinc-500 mt-0.5">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
               Mean &amp; SD computed from {timeWindow} rolling window · Live prices during market hours
             </p>
           </div>
@@ -193,7 +193,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                   </td>
                   {/* PE SD */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm text-zinc-500 dark:text-zinc-500 tabular-nums">{formatRatio(peSD)}</span>
+                    <span className="text-sm text-zinc-500 dark:text-zinc-400 tabular-nums">{formatRatio(peSD)}</span>
                   </td>
                   {/* PE Z */}
                   <td className="px-5 py-4 text-right">
@@ -212,7 +212,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                   </td>
                   {/* PB SD */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm text-zinc-500 dark:text-zinc-500 tabular-nums">{formatRatio(pbSD)}</span>
+                    <span className="text-sm text-zinc-500 dark:text-zinc-400 tabular-nums">{formatRatio(pbSD)}</span>
                   </td>
                   {/* PB Z */}
                   <td className="px-5 py-4 text-right">

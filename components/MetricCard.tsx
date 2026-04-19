@@ -79,7 +79,7 @@ export function MetricCard({ label, metric, stats, isLive = false, value, valueF
 
         {/* Mean */}
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-          <span className="text-xs text-[#1d3557]">
+          <span className="text-xs text-zinc-600 dark:text-zinc-400">
             Mean: {valueFormatter ? valueFormatter(stats?.mean ?? null) : formatMetric(metric, stats?.mean ?? null)}
           </span>
           {zScore != null && (
@@ -91,7 +91,7 @@ export function MetricCard({ label, metric, stats, isLive = false, value, valueF
 
         {/* Percentile badge */}
         {pct != null && (
-          <p className="text-xs text-[#1d3557] mt-1">
+          <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">
             {formatPercentile(pct)} percentile
           </p>
         )}

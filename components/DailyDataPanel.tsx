@@ -286,10 +286,10 @@ export function DailyDataPanel({ historicalData, liveData }: DailyDataPanelProps
                       <td className={cn("px-4 py-2 tabular-nums font-medium", zScoreColor(rowZ))}>
                         {formatZScore(rowZ)}
                       </td>
-                      <td className="px-4 py-2 tabular-nums text-red-700">{fmtBand(sd2U)}</td>
-                      <td className="px-4 py-2 tabular-nums text-amber-700">{fmtBand(sd1U)}</td>
-                      <td className="px-4 py-2 tabular-nums text-emerald-700">{fmtBand(sd1L)}</td>
-                      <td className="px-4 py-2 tabular-nums text-emerald-700">{fmtBand(sd2L)}</td>
+                      <td className="px-4 py-2 tabular-nums text-red-700 dark:text-red-400">{fmtBand(sd2U)}</td>
+                      <td className="px-4 py-2 tabular-nums text-amber-700 dark:text-amber-400">{fmtBand(sd1U)}</td>
+                      <td className="px-4 py-2 tabular-nums text-emerald-700 dark:text-emerald-400">{fmtBand(sd1L)}</td>
+                      <td className="px-4 py-2 tabular-nums text-emerald-700 dark:text-emerald-400">{fmtBand(sd2L)}</td>
                       <td className="px-4 py-2 tabular-nums text-zinc-600 dark:text-zinc-400">{fmtBand(windowSD)}</td>
                     </tr>
                   );
