@@ -237,7 +237,7 @@ export function DailyDataPanel({ historicalData, liveData }: DailyDataPanelProps
                   ].map((h) => (
                     <th
                       key={h}
-                      className="px-4 py-2.5 text-left font-medium text-zinc-700 dark:text-zinc-300 uppercase tracking-wide whitespace-nowrap"
+                      className="px-4 py-2.5 text-left font-semibold text-zinc-800 dark:text-zinc-300 uppercase tracking-wide whitespace-nowrap"
                     >
                       {h}
                     </th>

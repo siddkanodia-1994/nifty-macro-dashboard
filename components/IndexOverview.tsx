@@ -95,7 +95,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
             <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
               All Indices — {timeWindow} Window Statistics
             </p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+            <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
               Mean &amp; SD computed from {timeWindow} rolling window · Live prices during market hours
             </p>
           </div>
@@ -118,14 +118,14 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                 {/* P/E group */}
                 <th
                   colSpan={4}
-                  className="px-5 py-2 text-center text-sm font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-200 border-l border-zinc-200 dark:border-zinc-700"
+                  className="px-5 py-2 text-center text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-200 border-l border-zinc-200 dark:border-zinc-700"
                 >
                   P / E  R A T I O
                 </th>
                 {/* P/B group */}
                 <th
                   colSpan={4}
-                  className="px-5 py-2 text-center text-sm font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-200 border-l border-zinc-200 dark:border-zinc-700"
+                  className="px-5 py-2 text-center text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-200 border-l border-zinc-200 dark:border-zinc-700"
                 >
                   P / B  R A T I O
                 </th>
@@ -135,15 +135,15 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
               {/* Column headers */}
               <tr className="bg-zinc-50 dark:bg-zinc-800 border-b-2 border-zinc-200 dark:border-zinc-700">
                 {/* PE cols */}
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-300">Mean</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-300">SD</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-300">Z-Score</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
                 {/* PB cols */}
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-300">Mean</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-300">SD</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-700 dark:text-zinc-300">Z-Score</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
               </tr>
             </thead>
 
@@ -189,11 +189,11 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                   </td>
                   {/* PE Mean */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm text-zinc-600 dark:text-zinc-400 tabular-nums">{formatRatio(peMean)}</span>
+                    <span className="text-sm text-zinc-700 dark:text-zinc-400 tabular-nums">{formatRatio(peMean)}</span>
                   </td>
                   {/* PE SD */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm text-zinc-500 dark:text-zinc-400 tabular-nums">{formatRatio(peSD)}</span>
+                    <span className="text-sm text-zinc-600 dark:text-zinc-400 tabular-nums">{formatRatio(peSD)}</span>
                   </td>
                   {/* PE Z */}
                   <td className="px-5 py-4 text-right">
@@ -208,11 +208,11 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                   </td>
                   {/* PB Mean */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm text-zinc-600 dark:text-zinc-400 tabular-nums">{formatRatio(pbMean)}</span>
+                    <span className="text-sm text-zinc-700 dark:text-zinc-400 tabular-nums">{formatRatio(pbMean)}</span>
                   </td>
                   {/* PB SD */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm text-zinc-500 dark:text-zinc-400 tabular-nums">{formatRatio(pbSD)}</span>
+                    <span className="text-sm text-zinc-600 dark:text-zinc-400 tabular-nums">{formatRatio(pbSD)}</span>
                   </td>
                   {/* PB Z */}
                   <td className="px-5 py-4 text-right">
@@ -223,7 +223,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                   <td className="px-5 py-4 text-right">
                     <button
                       onClick={() => onSelectIndex(meta.key)}
-                      className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors whitespace-nowrap tracking-wide"
+                      className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors whitespace-nowrap tracking-wide"
                     >
                       Details →
                     </button>
@@ -235,7 +235,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
         </div>
 
         {/* Footer legend */}
-        <div className="border-t border-zinc-100 dark:border-zinc-800 px-6 py-3 bg-zinc-50/60 dark:bg-zinc-800/60 flex flex-wrap gap-x-6 gap-y-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+        <div className="border-t border-zinc-100 dark:border-zinc-800 px-6 py-3 bg-zinc-50/60 dark:bg-zinc-800/60 flex flex-wrap gap-x-6 gap-y-1 text-[11px] text-zinc-600 dark:text-zinc-400">
           <span>
             <span className="inline-block w-2.5 h-2.5 rounded-sm bg-red-100 border border-red-300 mr-1.5 align-middle" />
             Current &gt; Mean + 1SD — expensive vs {timeWindow} history

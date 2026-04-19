@@ -27,7 +27,7 @@ export function StatsTable({ stats, timeWindow }: StatsTableProps) {
                 {["Metric", "Mean", "Std Dev", "Current", "Z-Score", "Percentile"].map((h) => (
                   <th
                     key={h}
-                    className="px-5 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 uppercase tracking-wide whitespace-nowrap"
+                    className="px-5 py-2 text-left text-xs font-semibold text-zinc-800 dark:text-zinc-300 uppercase tracking-wide whitespace-nowrap"
                   >
                     {h}
                   </th>
@@ -48,10 +48,10 @@ export function StatsTable({ stats, timeWindow }: StatsTableProps) {
                     <td className="px-5 py-2.5 font-medium text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
                       {METRIC_LABELS[metric]}
                     </td>
-                    <td className="px-5 py-2.5 text-zinc-800 dark:text-zinc-200 tabular-nums">
+                    <td className="px-5 py-2.5 text-zinc-900 dark:text-zinc-200 tabular-nums">
                       {s ? formatMetric(metric, s.mean) : "—"}
                     </td>
-                    <td className="px-5 py-2.5 text-zinc-800 dark:text-zinc-200 tabular-nums">
+                    <td className="px-5 py-2.5 text-zinc-900 dark:text-zinc-200 tabular-nums">
                       {s ? formatMetric(metric, s.sd) : "—"}
                     </td>
                     <td className="px-5 py-2.5 font-semibold text-zinc-900 dark:text-zinc-100 tabular-nums">
@@ -60,7 +60,7 @@ export function StatsTable({ stats, timeWindow }: StatsTableProps) {
                     <td className={cn("px-5 py-2.5 font-medium tabular-nums", zScoreColor(s?.zScore ?? null))}>
                       {s ? formatZScore(s.zScore) : "—"}
                     </td>
-                    <td className="px-5 py-2.5 text-zinc-800 dark:text-zinc-200 tabular-nums">
+                    <td className="px-5 py-2.5 text-zinc-900 dark:text-zinc-200 tabular-nums">
                       {s ? formatPercentile(s.percentile) : "—"}
                     </td>
                   </tr>

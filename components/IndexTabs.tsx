@@ -63,28 +63,28 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
       <TabsList className="flex h-auto gap-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl p-1 w-full mb-5">
         <TabsTrigger
           value="INDEX_LEVELS"
-          className="flex-1 rounded-lg px-4 py-2 text-xs font-medium data-active:bg-zinc-900 dark:data-active:bg-zinc-100 data-active:text-white dark:data-active:text-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+          className="flex-1 rounded-lg px-4 py-2 text-xs font-medium data-active:bg-zinc-900 dark:data-active:bg-zinc-100 data-active:text-white dark:data-active:text-zinc-900 text-zinc-800 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
         >
           <span className="hidden sm:inline">Index Levels</span>
           <span className="sm:hidden">Indices</span>
         </TabsTrigger>
         <TabsTrigger
           value="FUTURE_PROJECTION"
-          className="flex-1 rounded-lg px-4 py-2 text-xs font-medium data-active:bg-zinc-900 dark:data-active:bg-zinc-100 data-active:text-white dark:data-active:text-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+          className="flex-1 rounded-lg px-4 py-2 text-xs font-medium data-active:bg-zinc-900 dark:data-active:bg-zinc-100 data-active:text-white dark:data-active:text-zinc-900 text-zinc-800 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
         >
           <span className="hidden sm:inline">Future Projection</span>
           <span className="sm:hidden">Projection</span>
         </TabsTrigger>
         <TabsTrigger
           value="BYEY"
-          className="flex-1 rounded-lg px-4 py-2 text-xs font-medium data-active:bg-zinc-900 dark:data-active:bg-zinc-100 data-active:text-white dark:data-active:text-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+          className="flex-1 rounded-lg px-4 py-2 text-xs font-medium data-active:bg-zinc-900 dark:data-active:bg-zinc-100 data-active:text-white dark:data-active:text-zinc-900 text-zinc-800 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
         >
           <span className="hidden sm:inline">BY-EY Spread</span>
           <span className="sm:hidden">BY-EY</span>
         </TabsTrigger>
         <TabsTrigger
           value="DAILY_DATA"
-          className="flex-1 rounded-lg px-4 py-2 text-xs font-medium data-active:bg-zinc-900 dark:data-active:bg-zinc-100 data-active:text-white dark:data-active:text-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+          className="flex-1 rounded-lg px-4 py-2 text-xs font-medium data-active:bg-zinc-900 dark:data-active:bg-zinc-100 data-active:text-white dark:data-active:text-zinc-900 text-zinc-800 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
         >
           <span className="hidden sm:inline">Daily Data</span>
           <span className="sm:hidden">Daily</span>
@@ -102,7 +102,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
             <TabsList className="flex h-auto gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 w-max min-w-full">
               <TabsTrigger
                 value="OVERVIEW"
-                className="rounded-md px-4 py-1.5 text-xs font-medium data-active:bg-white dark:data-active:bg-zinc-900 data-active:text-zinc-900 dark:data-active:text-zinc-100 data-active:shadow-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors whitespace-nowrap"
+                className="rounded-md px-4 py-1.5 text-xs font-medium data-active:bg-white dark:data-active:bg-zinc-900 data-active:text-zinc-900 dark:data-active:text-zinc-100 data-active:shadow-sm text-zinc-700 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors whitespace-nowrap"
               >
                 Overview
               </TabsTrigger>
@@ -110,7 +110,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
                 <TabsTrigger
                   key={meta.key}
                   value={meta.key}
-                  className="rounded-md px-4 py-1.5 text-xs font-medium data-active:bg-white dark:data-active:bg-zinc-900 data-active:text-zinc-900 dark:data-active:text-zinc-100 data-active:shadow-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors whitespace-nowrap"
+                  className="rounded-md px-4 py-1.5 text-xs font-medium data-active:bg-white dark:data-active:bg-zinc-900 data-active:text-zinc-900 dark:data-active:text-zinc-100 data-active:shadow-sm text-zinc-700 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors whitespace-nowrap"
                 >
                   <span className="hidden sm:inline">{meta.label}</span>
                   <span className="sm:hidden">{meta.shortLabel}</span>
