@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   INDEX_META,
@@ -76,11 +76,13 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
   );
   const [ownerDefaults, setOwnerDefaults] = useState<ProjectionsMap | null>(null);
   const [showPinDialog, setShowPinDialog] = useState(false);
+  const autoSaveReady = useRef(false);
+  const ownerPinRef   = useRef<string | null>(null);
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
 
-  // On mount: fetch owner defaults from KV, then load visitor overrides if any
+  // On mount: fetch owner defaults from blob, then load visitor overrides if any
   useEffect(() => {
     async function init() {
       let kv: ProjectionsMap | null = null;
@@ -88,31 +90,34 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
         const res = await fetch("/api/projection-defaults");
         if (res.ok) {
           const json = await res.json();
-          if (json) {
-            kv = json as ProjectionsMap;
-            setOwnerDefaults(kv);
-          }
+          if (json) { kv = json as ProjectionsMap; setOwnerDefaults(kv); }
         }
       } catch {
-        // no KV in local dev — fall through
+        // no blob in local dev — fall through
       }
 
-      // Visitor override takes precedence over KV; KV over hardcoded
+      // Restore cached owner PIN if previously saved via gear icon
+      try {
+        const cachedPin = localStorage.getItem("nifty-owner-pin");
+        if (cachedPin) ownerPinRef.current = cachedPin;
+      } catch {}
+
+      // Visitor localStorage > blob > hardcoded
+      let loaded = false;
       try {
         const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
         if (stored) {
           setProjections(JSON.parse(stored) as ProjectionsMap);
-          return;
+          loaded = true;
         }
-      } catch {
-        // ignore
+      } catch {}
+
+      if (!loaded) {
+        setProjections(kv ?? buildDefaults(historicalData));
       }
 
-      if (kv) {
-        setProjections(kv);
-      } else {
-        setProjections(buildDefaults(historicalData));
-      }
+      // Mark ready — prevents auto-save firing on the initial projections set
+      autoSaveReady.current = true;
     }
     init();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -125,6 +130,18 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
     } catch {
       // ignore quota errors
     }
+  }, [projections]);
+
+  // Auto-save to blob when owner PIN is cached (silent — no dialog needed after first save)
+  useEffect(() => {
+    if (!autoSaveReady.current) return;
+    const cachedPin = ownerPinRef.current;
+    if (!cachedPin) return;
+    fetch("/api/projection-defaults", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: cachedPin, defaults: projections }),
+    }).catch(() => {});
   }, [projections]);
 
   const lastRow = historicalData[historicalData.length - 1] ?? null;
@@ -193,6 +210,10 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
       });
       if (res.ok) {
         setOwnerDefaults(projections);
+        try {
+          localStorage.setItem("nifty-owner-pin", pin);
+          ownerPinRef.current = pin;
+        } catch {}
         setSaveStatus("saved");
         setShowPinDialog(false);
         setPin("");
@@ -340,7 +361,7 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 dark:border-zinc-800">
-                  {["Scenario", multipleLabel, growthLabel, forwardLabel, "Projected Price", "vs Current"].map((h) => (
+                  {["Scenario", multipleLabel, isPE ? "Implied EPS" : "Implied BV", growthLabel, forwardLabel, "Projected Price", "vs Current"].map((h) => (
                     <th
                       key={h}
                       className="px-5 py-2.5 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 uppercase tracking-wide whitespace-nowrap"
@@ -372,6 +393,12 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
                           onChange={(e) => updateScenario(s, "multiple", e.target.value)}
                           className="w-20 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-sm tabular-nums text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500"
                         />
+                      </td>
+
+                      <td className="px-5 py-3 tabular-nums text-zinc-800 dark:text-zinc-200 font-medium whitespace-nowrap">
+                        {currentBase != null
+                          ? (isPE ? formatEPS(currentBase) : formatPrice(currentBase))
+                          : "—"}
                       </td>
 
                       <td className="px-5 py-3">
