@@ -21,6 +21,8 @@ interface ScenarioRow {
 
 interface IndexProjection {
   path: ProjectionPath;
+  baseEPS?: number | null;
+  baseBV?:  number | null;
   bear: ScenarioRow;
   base: ScenarioRow;
   bull: ScenarioRow;
@@ -123,8 +125,9 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist visitor edits to localStorage
+  // Persist visitor edits to localStorage (guarded so it never fires during init)
   useEffect(() => {
+    if (!autoSaveReady.current) return;
     try {
       localStorage.setItem(VISITOR_STORAGE_KEY, JSON.stringify(projections));
     } catch {
@@ -191,6 +194,18 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
     [selectedIndex]
   );
 
+  const updateBase = useCallback((raw: string) => {
+    const value = parseFloat(raw);
+    if (isNaN(value)) return;
+    setProjections((prev) => {
+      const field = prev[selectedIndex].path === "pe_eps" ? "baseEPS" : "baseBV";
+      return {
+        ...prev,
+        [selectedIndex]: { ...prev[selectedIndex], [field]: value },
+      };
+    });
+  }, [selectedIndex]);
+
   const handleReset = useCallback(() => {
     localStorage.removeItem(VISITOR_STORAGE_KEY);
     if (ownerDefaults) {
@@ -229,7 +244,9 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
   const computed = useMemo(() => {
     if (!current) return null;
     const isPE = proj.path === "pe_eps";
-    const currentBase = isPE ? current.impliedEPS : current.impliedBV;
+    const currentBase = isPE
+      ? (proj.baseEPS ?? current.impliedEPS)
+      : (proj.baseBV  ?? current.impliedBV);
     const currentPrice = current.close;
 
     return SCENARIOS.map((s) => {
@@ -244,11 +261,12 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
   }, [current, proj]);
 
   const isPE = proj.path === "pe_eps";
-  const multipleLabel = isPE ? "Target P/E" : "Target P/B";
-  const growthLabel   = isPE ? "EPS Growth %" : "BV Growth %";
-  const forwardLabel  = isPE ? "Forward EPS" : "Forward BV";
-  const currentBase   = current ? (isPE ? current.impliedEPS : current.impliedBV) : null;
-  const currentMult   = current ? (isPE ? current.pe : current.pb) : null;
+  const multipleLabel  = isPE ? "Target P/E" : "Target P/B";
+  const growthLabel    = isPE ? "EPS Growth %" : "BV Growth %";
+  const forwardLabel   = isPE ? "Forward EPS" : "Forward BV";
+  const rawBase        = current ? (isPE ? current.impliedEPS : current.impliedBV) : null;
+  const effectiveBase  = current ? (isPE ? (proj.baseEPS ?? current.impliedEPS) : (proj.baseBV ?? current.impliedBV)) : null;
+  const currentMult    = current ? (isPE ? current.pe : current.pb) : null;
 
   return (
     <div className="space-y-4 pt-2">
@@ -292,7 +310,7 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
                   <span>
                     {isPE ? "Implied EPS" : "Implied BV"}:{" "}
                     <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                      {isPE ? formatEPS(currentBase) : formatPrice(currentBase)}
+                      {isPE ? formatEPS(rawBase) : formatPrice(rawBase)}
                     </span>
                   </span>
                   <span>
@@ -395,10 +413,14 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
                         />
                       </td>
 
-                      <td className="px-5 py-3 tabular-nums text-zinc-800 dark:text-zinc-200 font-medium whitespace-nowrap">
-                        {currentBase != null
-                          ? (isPE ? formatEPS(currentBase) : formatPrice(currentBase))
-                          : "—"}
+                      <td className="px-5 py-3">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={effectiveBase ?? ""}
+                          onChange={(e) => updateBase(e.target.value)}
+                          className="w-24 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-sm tabular-nums text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+                        />
                       </td>
 
                       <td className="px-5 py-3">
