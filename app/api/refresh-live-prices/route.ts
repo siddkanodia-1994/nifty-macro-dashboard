@@ -61,6 +61,11 @@ export async function GET(request: Request) {
   const prices: Partial<Record<IndexKey, number | null>> = {};
   for (const [key, price] of results) prices[key] = price;
 
+  const anyValid = Object.values(prices).some((p) => p !== null);
+  if (!anyValid) {
+    return NextResponse.json({ skipped: true, reason: "all prices null (Yahoo blocked from Vercel)" });
+  }
+
   await put(
     "live-prices.json",
     JSON.stringify({ ...prices, marketOpen: true, asOf: now.toISOString() }),
