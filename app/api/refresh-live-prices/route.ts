@@ -3,41 +3,17 @@ import { put } from "@vercel/blob";
 import { isMarketOpen } from "@/lib/marketHours";
 import type { IndexKey } from "@/lib/types";
 
-const YAHOO_BASE = "https://query1.finance.yahoo.com/v8/finance/chart";
+const LIVE_URL = "https://iislliveblob.niftyindices.com/jsonfiles/LiveIndicesWatch.json";
 
-const YAHOO_SYMBOLS: Record<IndexKey, string> = {
-  NIFTY_50:           "^NSEI",
-  NIFTY_BANK:         "^NSEBANK",
-  NIFTY_IT:           "^CNXIT",
-  NIFTY_MIDCAP_150:   "NIFTYMIDCAP150.NS",
-  NIFTY_PSU_BANK:     "^CNXPSUBANK",
-  NIFTY_MICROCAP_250: "NIFTY_MICROCAP250.NS",
-  NIFTY_SMALLCAP_250: "NIFTYSMLCAP250.NS",
+const INDEX_NAME_MAP: Record<string, IndexKey> = {
+  "NIFTY 50":         "NIFTY_50",
+  "NIFTY BANK":       "NIFTY_BANK",
+  "NIFTY IT":         "NIFTY_IT",
+  "NIFTY MIDCAP 150": "NIFTY_MIDCAP_150",
+  "NIFTY PSU BANK":   "NIFTY_PSU_BANK",
+  "NIFTY MICROCAP250":"NIFTY_MICROCAP_250",
+  "NIFTY SMLCAP 250": "NIFTY_SMALLCAP_250",
 };
-
-async function fetchPrice(symbol: string): Promise<number | null> {
-  try {
-    const res = await fetch(
-      `${YAHOO_BASE}/${encodeURIComponent(symbol)}?interval=1d&range=1d`,
-      {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept": "application/json,text/plain,*/*",
-          "Accept-Language": "en-US,en;q=0.9",
-          "Referer": "https://finance.yahoo.com",
-          "Origin": "https://finance.yahoo.com",
-        },
-        next: { revalidate: 0 },
-      }
-    );
-    if (!res.ok) return null;
-    const json = await res.json();
-    const price = json?.chart?.result?.[0]?.meta?.regularMarketPrice;
-    return typeof price === "number" ? price : null;
-  } catch {
-    return null;
-  }
-}
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -53,24 +29,36 @@ export async function GET(request: Request) {
     return NextResponse.json({ skipped: true, reason: "market closed" });
   }
 
-  const entries = Object.entries(YAHOO_SYMBOLS) as [IndexKey, string][];
-  const results = await Promise.all(
-    entries.map(async ([key, symbol]) => [key, await fetchPrice(symbol)] as const)
-  );
+  try {
+    const res = await fetch(LIVE_URL, {
+      headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+      next: { revalidate: 0 },
+    });
+    if (!res.ok) throw new Error(`niftyindices fetch failed: ${res.status}`);
 
-  const prices: Partial<Record<IndexKey, number | null>> = {};
-  for (const [key, price] of results) prices[key] = price;
+    const json = await res.json();
+    const prices: Partial<Record<IndexKey, number | null>> = {};
 
-  const anyValid = Object.values(prices).some((p) => p !== null);
-  if (!anyValid) {
-    return NextResponse.json({ skipped: true, reason: "all prices null (Yahoo blocked from Vercel)" });
+    for (const entry of json.data ?? []) {
+      const key = INDEX_NAME_MAP[entry.indexName];
+      if (!key) continue;
+      const price = parseFloat(String(entry.last).replace(/,/g, ""));
+      prices[key] = isNaN(price) ? null : price;
+    }
+
+    const anyValid = Object.values(prices).some((p) => p !== null);
+    if (!anyValid) {
+      return NextResponse.json({ skipped: true, reason: "all prices null" });
+    }
+
+    await put(
+      "live-prices.json",
+      JSON.stringify({ ...prices, marketOpen: true, asOf: now.toISOString() }),
+      { access: "public", allowOverwrite: true, contentType: "application/json" }
+    );
+
+    return NextResponse.json({ ok: true, asOf: now.toISOString(), prices });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 502 });
   }
-
-  await put(
-    "live-prices.json",
-    JSON.stringify({ ...prices, marketOpen: true, asOf: now.toISOString() }),
-    { access: "public", allowOverwrite: true, contentType: "application/json" }
-  );
-
-  return NextResponse.json({ ok: true, asOf: now.toISOString(), prices });
 }
