@@ -116,19 +116,9 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
   // Forward PE/PB series for all indices (only computed in FWD mode)
   const fwdSeriesMap = useMemo(() => {
     if (ratioMode !== "FWD") return null;
-    // Read visitor diff synchronously — growthPct may be in localStorage (not the Blob)
-    let visitorDiff: Record<string, any> | null = null;
-    if (typeof window !== "undefined") {
-      try {
-        const s = localStorage.getItem(VISITOR_STORAGE_KEY);
-        if (s) visitorDiff = JSON.parse(s);
-      } catch {}
-    }
     const result = {} as Record<IndexKey, { date: string; fwdPE: number | null; fwdPB: number | null }[]>;
     for (const meta of INDEX_META) {
-      const blobGrowthPct  = projectionDefaults?.[meta.key]?.base?.growthPct ?? 0;
-      const localGrowthPct = (visitorDiff as any)?.[meta.key]?.base?.growthPct;
-      const growthPct = localGrowthPct != null ? localGrowthPct : blobGrowthPct;
+      const growthPct = projectionDefaults?.[meta.key]?.base?.growthPct ?? 0;
       result[meta.key] = buildForwardRatioSeries(historicalData, meta.key, growthPct);
     }
     return result;
