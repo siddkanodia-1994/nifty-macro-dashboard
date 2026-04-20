@@ -83,19 +83,29 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   );
   const [ownerDefaults, setOwnerDefaults] = useState<ProjectionsMap | null>(null);
   const [manualCells, setManualCells] = useState<Set<string>>(new Set());
+  const [ownerMode, setOwnerMode] = useState(false);
   const userHasEdited = useRef(false);
+  const cronSecret = useRef<string | null>(null);
 
-  // On mount: fetch owner defaults from static JSON, then load visitor overrides if any
+  // On mount: detect owner mode, fetch owner defaults from API, then load visitor overrides
   useEffect(() => {
     async function init() {
+      // Detect owner mode from URL ?key=
+      const params = new URLSearchParams(window.location.search);
+      const key = params.get("key");
+      if (key) { cronSecret.current = key; setOwnerMode(true); }
+
       let kv: ProjectionsMap | null = null;
       try {
-        const res = await fetch("/projection-defaults.json");
+        const res = await fetch("/api/projection-defaults", { cache: "no-store" });
         if (res.ok) {
           const json = await res.json();
           if (json) { kv = json as ProjectionsMap; setOwnerDefaults(kv); }
         }
       } catch {}
+
+      // Owner mode: always use Blob defaults (skip localStorage)
+      if (key) { setProjections(kv ?? buildDefaults(historicalData)); return; }
 
       let loaded = false;
       try {
@@ -111,11 +121,31 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
   // Persist visitor edits to localStorage — only when user has explicitly changed something
   useEffect(() => {
+    if (ownerMode) return; // owner saves to Blob, not localStorage
     if (!userHasEdited.current) return;
     try {
       localStorage.setItem(VISITOR_STORAGE_KEY, JSON.stringify(projections));
     } catch {}
-  }, [projections]);
+  }, [projections, ownerMode]);
+
+  // Auto-save to Blob in owner mode (debounced 600ms)
+  useEffect(() => {
+    if (!ownerMode || !cronSecret.current) return;
+    if (!userHasEdited.current) return;
+    const id = setTimeout(async () => {
+      try {
+        await fetch("/api/projection-defaults", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${cronSecret.current}`,
+          },
+          body: JSON.stringify(projections),
+        });
+      } catch {}
+    }, 600);
+    return () => clearTimeout(id);
+  }, [projections, ownerMode]);
 
   // Auto-fill Target PE/PB from historical mean ± 1SD for the selected time window
   useEffect(() => {
@@ -310,8 +340,11 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         <CardHeader className="px-5 pt-4 pb-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <CardTitle className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              <CardTitle className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                 {INDEX_META.find((m) => m.key === selectedIndex)?.label} — Forward Projections
+                {ownerMode && (
+                  <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">● Owner mode</span>
+                )}
               </CardTitle>
               {current && (
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 flex flex-wrap gap-x-4">
