@@ -9,7 +9,9 @@ import {
   formatEPS,
   cn,
 } from "@/lib/utils";
-import type { HistoricalRow, IndexKey } from "@/lib/types";
+import { TimeWindowSelector } from "@/components/TimeWindowSelector";
+import { filterByWindow, extractValues, mean, stdDev } from "@/lib/calculations";
+import type { HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
 
 type ProjectionPath = "pe_eps" | "pb_bv";
 
@@ -78,6 +80,8 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
     buildDefaults(historicalData)
   );
   const [ownerDefaults, setOwnerDefaults] = useState<ProjectionsMap | null>(null);
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>("2Y");
+  const [manualCells, setManualCells] = useState<Set<string>>(new Set());
   const userHasEdited = useRef(false);
 
   // On mount: fetch owner defaults from static JSON, then load visitor overrides if any
@@ -112,6 +116,31 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
     } catch {}
   }, [projections]);
 
+  // Auto-fill Target PE/PB from historical mean ± 1SD for the selected time window
+  useEffect(() => {
+    const windowRows = filterByWindow(historicalData, timeWindow);
+    setProjections((prev) => {
+      const next = { ...prev };
+      for (const meta of INDEX_META) {
+        const key = meta.key;
+        const field = next[key].path === "pe_eps" ? "pe" : "pb";
+        const vals = extractValues(windowRows, key, field);
+        if (vals.length < 2) continue;
+        const m = mean(vals);
+        const sd = stdDev(vals);
+        next[key] = {
+          ...next[key],
+          bear: { ...next[key].bear, multiple: parseFloat((m - sd).toFixed(2)) },
+          base: { ...next[key].base, multiple: parseFloat(m.toFixed(2)) },
+          bull: { ...next[key].bull, multiple: parseFloat((m + sd).toFixed(2)) },
+        };
+      }
+      return next;
+    });
+    setManualCells(new Set());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeWindow]);
+
   const lastRow = historicalData[historicalData.length - 1] ?? null;
 
   // Current values for selected index
@@ -132,20 +161,30 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
     if (!lastRow) return;
     const m = lastRow[selectedIndex];
 
+    // Compute period-based multiples for the new path
+    const windowRows = filterByWindow(historicalData, timeWindow);
+    const field = newPath === "pe_eps" ? "pe" : "pb";
+    const vals = extractValues(windowRows, selectedIndex, field);
+    const hasPeriod = vals.length >= 2;
+
     setProjections((prev) => {
       const cur = prev[selectedIndex];
       if (cur.path === newPath) return prev;
 
       userHasEdited.current = true;
       const leavingKey  = cur.path === "pe_eps" ? "savedPE" : "savedPB";
-      const enteringKey = newPath  === "pe_eps" ? "savedPE" : "savedPB";
 
       const currentMultiples = { bear: cur.bear.multiple, base: cur.base.multiple, bull: cur.bull.multiple };
 
-      const saved = cur[enteringKey];
       let newMultiples: { bear: number; base: number; bull: number };
-      if (saved) {
-        newMultiples = saved;
+      if (hasPeriod) {
+        const mv = mean(vals);
+        const sd = stdDev(vals);
+        newMultiples = {
+          bear: parseFloat((mv - sd).toFixed(2)),
+          base: parseFloat(mv.toFixed(2)),
+          bull: parseFloat((mv + sd).toFixed(2)),
+        };
       } else {
         const mkt = newPath === "pe_eps" ? (m.pe ?? 20) : (m.pb ?? 3);
         newMultiples = {
@@ -167,7 +206,12 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
         },
       };
     });
-  }, [lastRow, selectedIndex]);
+    setManualCells((prev) => {
+      const next = new Set(prev);
+      SCENARIOS.forEach((s) => next.delete(`${selectedIndex}_${s}`));
+      return next;
+    });
+  }, [lastRow, selectedIndex, historicalData, timeWindow]);
 
   const updateScenario = useCallback(
     (scenario: Scenario, field: keyof ScenarioRow, raw: string) => {
@@ -181,6 +225,9 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
           [scenario]: { ...prev[selectedIndex][scenario], [field]: value },
         },
       }));
+      if (field === "multiple") {
+        setManualCells((prev) => new Set(prev).add(`${selectedIndex}_${scenario}`));
+      }
     },
     [selectedIndex]
   );
@@ -290,7 +337,10 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Time window selector */}
+              <TimeWindowSelector value={timeWindow} onChange={setTimeWindow} />
+
               {/* Path toggle */}
               <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
                 <button
@@ -363,7 +413,12 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
                           step="0.5"
                           value={row.multiple}
                           onChange={(e) => updateScenario(s, "multiple", e.target.value)}
-                          className="w-20 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-sm tabular-nums text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+                          className={cn(
+                            "w-20 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-sm tabular-nums bg-white dark:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500",
+                            manualCells.has(`${selectedIndex}_${s}`)
+                              ? "text-zinc-900 dark:text-zinc-100 font-semibold"
+                              : "text-zinc-400 dark:text-zinc-500"
+                          )}
                         />
                       </td>
 

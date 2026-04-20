@@ -12,13 +12,23 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
   const [live, setLive] = useState(false);
+  const [istTime, setIstTime] = useState("");
   const { theme, toggleTheme } = useTheme();
 
+  function getISTTime() {
+    return new Date().toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: false,
+    });
+  }
+
   useEffect(() => {
-    // Check once on mount, then every minute
     setLive(isMarketOpen());
-    const id = setInterval(() => setLive(isMarketOpen()), 60_000);
-    return () => clearInterval(id);
+    setIstTime(getISTTime());
+    const marketId = setInterval(() => setLive(isMarketOpen()), 60_000);
+    const clockId  = setInterval(() => setIstTime(getISTTime()), 1_000);
+    return () => { clearInterval(marketId); clearInterval(clockId); };
   }, []);
 
   return (
@@ -61,6 +71,9 @@ export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
               </span>
               LIVE
+              {istTime && (
+                <span className="font-mono font-normal tracking-tight">{istTime}</span>
+              )}
             </span>
           )}
           <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-1.5">
