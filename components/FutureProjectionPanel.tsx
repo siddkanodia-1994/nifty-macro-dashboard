@@ -33,6 +33,33 @@ interface IndexProjection {
 
 type ProjectionsMap = Record<IndexKey, IndexProjection>;
 
+type VisitorDiff = Partial<Record<IndexKey, {
+  path?: ProjectionPath;
+  bear?: Partial<ScenarioRow>;
+  base?: Partial<ScenarioRow>;
+  bull?: Partial<ScenarioRow>;
+  baseEPS?: number;
+  baseBV?: number;
+}>>;
+
+function mergeWithDiff(base: ProjectionsMap, diff: VisitorDiff): ProjectionsMap {
+  const merged = { ...base };
+  for (const ik of Object.keys(base) as IndexKey[]) {
+    const d = diff[ik];
+    if (!d) continue;
+    merged[ik] = {
+      ...base[ik],
+      ...(d.path   != null ? { path:   d.path   } : {}),
+      ...(d.baseEPS != null ? { baseEPS: d.baseEPS } : {}),
+      ...(d.baseBV  != null ? { baseBV:  d.baseBV  } : {}),
+      bear: { ...base[ik].bear, ...d.bear },
+      base: { ...base[ik].base, ...d.base },
+      bull: { ...base[ik].bull, ...d.bull },
+    };
+  }
+  return merged;
+}
+
 const SCENARIOS = ["bear", "base", "bull"] as const;
 type Scenario = typeof SCENARIOS[number];
 
@@ -48,7 +75,7 @@ const SCENARIO_COLORS: Record<Scenario, string> = {
   bull: "text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400",
 };
 
-const VISITOR_STORAGE_KEY = "nifty-projections-visitor-v1";
+const VISITOR_STORAGE_KEY = "nifty-projections-visitor-v2";
 
 function buildDefaults(historicalData: HistoricalRow[]): ProjectionsMap {
   const lastRow = historicalData[historicalData.length - 1];
@@ -86,12 +113,15 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const [ownerMode, setOwnerMode] = useState(false);
   const userHasEdited = useRef(false);
   const cronSecret = useRef<string | null>(null);
+  const visitorDiff = useRef<VisitorDiff>({});
 
   // Detect owner mode immediately (synchronous, separate from async init)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const key = params.get("key");
     if (key) { cronSecret.current = key; setOwnerMode(true); }
+    // Migrate: clear old v1 snapshot so it doesn't interfere
+    try { localStorage.removeItem("nifty-projections-visitor-v1"); } catch {}
   }, []);
 
   // On mount: fetch owner defaults from API, then load visitor overrides
@@ -111,24 +141,31 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       // Owner mode: always use Blob defaults (skip localStorage)
       if (key) { setProjections(kv ?? buildDefaults(historicalData)); return; }
 
-      let loaded = false;
+      // Visitor mode: Blob is base; apply visitor's sparse override diff on top
+      const base = kv ?? buildDefaults(historicalData);
       try {
         const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
-        if (stored) { setProjections(JSON.parse(stored) as ProjectionsMap); loaded = true; }
-      } catch {}
-
-      if (!loaded) { setProjections(kv ?? buildDefaults(historicalData)); }
+        if (stored) {
+          const diff = JSON.parse(stored) as VisitorDiff;
+          visitorDiff.current = diff;
+          setProjections(mergeWithDiff(base, diff));
+        } else {
+          setProjections(base);
+        }
+      } catch {
+        setProjections(base);
+      }
     }
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist visitor edits to localStorage — only when user has explicitly changed something
+  // Persist only visitor's explicit override diff (not full state)
   useEffect(() => {
-    if (ownerMode) return; // owner saves to Blob, not localStorage
+    if (ownerMode) return;
     if (!userHasEdited.current) return;
     try {
-      localStorage.setItem(VISITOR_STORAGE_KEY, JSON.stringify(projections));
+      localStorage.setItem(VISITOR_STORAGE_KEY, JSON.stringify(visitorDiff.current));
     } catch {}
   }, [projections, ownerMode]);
 
@@ -229,6 +266,19 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         };
       }
 
+      // Record path switch and new multiples in visitor diff
+      const curDiff = visitorDiff.current[selectedIndex] ?? {};
+      visitorDiff.current = {
+        ...visitorDiff.current,
+        [selectedIndex]: {
+          ...curDiff,
+          path: newPath,
+          bear: { ...(curDiff.bear ?? {}), multiple: newMultiples.bear },
+          base: { ...(curDiff.base ?? {}), multiple: newMultiples.base },
+          bull: { ...(curDiff.bull ?? {}), multiple: newMultiples.bull },
+        },
+      };
+
       return {
         ...prev,
         [selectedIndex]: {
@@ -253,6 +303,11 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       const value = parseFloat(raw);
       if (isNaN(value)) return;
       userHasEdited.current = true;
+      const cur = visitorDiff.current[selectedIndex] ?? {};
+      visitorDiff.current = {
+        ...visitorDiff.current,
+        [selectedIndex]: { ...cur, [scenario]: { ...(cur[scenario] ?? {}), [field]: value } },
+      };
       setProjections((prev) => ({
         ...prev,
         [selectedIndex]: {
@@ -273,6 +328,8 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     userHasEdited.current = true;
     setProjections((prev) => {
       const field = prev[selectedIndex].path === "pe_eps" ? "baseEPS" : "baseBV";
+      const cur = visitorDiff.current[selectedIndex] ?? {};
+      visitorDiff.current = { ...visitorDiff.current, [selectedIndex]: { ...cur, [field]: value } };
       return {
         ...prev,
         [selectedIndex]: { ...prev[selectedIndex], [field]: value },
@@ -281,13 +338,11 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   }, [selectedIndex]);
 
   const handleReset = useCallback(() => {
-    localStorage.removeItem(VISITOR_STORAGE_KEY);
+    try { localStorage.removeItem(VISITOR_STORAGE_KEY); } catch {}
+    visitorDiff.current = {};
     userHasEdited.current = false;
-    if (ownerDefaults) {
-      setProjections(ownerDefaults);
-    } else {
-      setProjections(buildDefaults(historicalData));
-    }
+    setManualCells(new Set());
+    setProjections(ownerDefaults ?? buildDefaults(historicalData));
   }, [ownerDefaults, historicalData]);
 
   const computed = useMemo(() => {

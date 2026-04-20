@@ -27,7 +27,7 @@ const MULTIPLE_OPTIONS: { value: MultipleTarget; label: string }[] = [
   { value: "sd2l",  label: "−2σ"   },
 ];
 
-const VISITOR_STORAGE_KEY = "nifty-projections-visitor-v1";
+const VISITOR_STORAGE_KEY = "nifty-projections-visitor-v2";
 
 interface IndexOverviewProps {
   historicalData: HistoricalRow[];
@@ -70,15 +70,43 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
   const [forwardMode, setForwardMode] = useState(false);
   const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
 
-  // Read visitor projections from localStorage when forward mode is toggled on
+  // Load forward bases: Blob as base, visitor's sparse diff applied on top
   useEffect(() => {
     if (!forwardMode) { setForwardBases(null); return; }
-    try {
-      const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
-      setForwardBases(stored ? JSON.parse(stored) : null);
-    } catch {
-      setForwardBases(null);
-    }
+    (async () => {
+      let blob: Record<string, any> | null = null;
+      try {
+        const r = await fetch("/api/projection-defaults", { cache: "no-store" });
+        if (r.ok) blob = await r.json();
+      } catch {}
+
+      let diff: Record<string, any> | null = null;
+      try {
+        const s = localStorage.getItem(VISITOR_STORAGE_KEY);
+        if (s) diff = JSON.parse(s);
+      } catch {}
+
+      if (!blob && !diff) { setForwardBases(null); return; }
+
+      // Merge: blob base + visitor diff on top (same logic as FutureProjectionPanel)
+      const merged: Record<string, any> = { ...(blob ?? {}) };
+      if (diff) {
+        for (const ik of Object.keys(diff)) {
+          const d = diff[ik];
+          const b = blob?.[ik] ?? {};
+          merged[ik] = {
+            ...b,
+            ...(d.path    != null ? { path:    d.path    } : {}),
+            ...(d.baseEPS != null ? { baseEPS: d.baseEPS } : {}),
+            ...(d.baseBV  != null ? { baseBV:  d.baseBV  } : {}),
+            bear: { ...b.bear, ...d.bear },
+            base: { ...b.base, ...d.base },
+            bull: { ...b.bull, ...d.bull },
+          };
+        }
+      }
+      setForwardBases(Object.keys(merged).length ? merged : null);
+    })();
   }, [forwardMode]);
 
   const lastRow = historicalData[historicalData.length - 1] ?? null;
