@@ -242,7 +242,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 whitespace-nowrap">
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">
                   Upside % <span className="text-zinc-500 dark:text-zinc-500 font-normal">({multipleLabel})</span>
                 </th>
                 {/* PB cols */}
@@ -250,7 +250,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 whitespace-nowrap">
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">
                   Upside % <span className="text-zinc-500 dark:text-zinc-500 font-normal">({multipleLabel})</span>
                 </th>
               </tr>
