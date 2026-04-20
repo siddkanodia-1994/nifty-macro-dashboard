@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { TimeWindowSelector } from "@/components/TimeWindowSelector";
 import {
   filterByWindow,
@@ -11,12 +11,23 @@ import {
 } from "@/lib/calculations";
 import {
   INDEX_META,
-  formatPrice,
   formatRatio,
   formatZScore,
   cn,
 } from "@/lib/utils";
 import type { HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
+
+type MultipleTarget = "mean" | "sd1u" | "sd1l" | "sd2u" | "sd2l";
+
+const MULTIPLE_OPTIONS: { value: MultipleTarget; label: string }[] = [
+  { value: "mean",  label: "Mean"  },
+  { value: "sd1u",  label: "+1σ"   },
+  { value: "sd2u",  label: "+2σ"   },
+  { value: "sd1l",  label: "−1σ"   },
+  { value: "sd2l",  label: "−2σ"   },
+];
+
+const VISITOR_STORAGE_KEY = "nifty-projections-visitor-v1";
 
 interface IndexOverviewProps {
   historicalData: HistoricalRow[];
@@ -42,8 +53,32 @@ function ZBadge({ z }: { z: number | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 tabular-nums">{label}</span>;
 }
 
+function UpsideBadge({ pct }: { pct: number | null }) {
+  if (pct == null) return <span className="text-zinc-400 text-sm">—</span>;
+  const label = (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%";
+  if (pct > 0)
+    return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{label}</span>;
+  if (pct < 0)
+    return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold tabular-nums text-red-700 dark:text-red-400">{label}</span>;
+  return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold tabular-nums text-zinc-600 dark:text-zinc-400">{label}</span>;
+}
+
 export function IndexOverview({ historicalData, liveData, onSelectIndex }: IndexOverviewProps) {
   const [timeWindow, setTimeWindow] = useState<TimeWindow>("2Y");
+  const [multipleTarget, setMultipleTarget] = useState<MultipleTarget>("mean");
+  const [forwardMode, setForwardMode] = useState(false);
+  const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
+
+  // Read visitor projections from localStorage when forward mode is toggled on
+  useEffect(() => {
+    if (!forwardMode) { setForwardBases(null); return; }
+    try {
+      const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
+      setForwardBases(stored ? JSON.parse(stored) : null);
+    } catch {
+      setForwardBases(null);
+    }
+  }, [forwardMode]);
 
   const lastRow = historicalData[historicalData.length - 1] ?? null;
 
@@ -51,6 +86,17 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
     () => filterByWindow(historicalData, timeWindow),
     [historicalData, timeWindow]
   );
+
+  function applyTarget(m: number | null, sd: number | null): number | null {
+    if (m == null || sd == null) return null;
+    switch (multipleTarget) {
+      case "mean": return m;
+      case "sd1u": return m + sd;
+      case "sd1l": return m - sd;
+      case "sd2u": return m + 2 * sd;
+      case "sd2l": return m - 2 * sd;
+    }
+  }
 
   const stats = useMemo(() => {
     return INDEX_META.map((meta) => {
@@ -73,9 +119,35 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
       const pbSD   = pbVals.length >= 2 ? stdDev(pbVals) : null;
       const pbZ    = currentPB != null && pbMean != null && pbSD != null ? zScore(currentPB, pbMean, pbSD) : null;
 
-      return { meta, key, close, isLive, pe: currentPE, peMean, peSD, peZ, pb: currentPB, pbMean, pbSD, pbZ };
+      // Base EPS/BV — trailing from lastRow, or forward (base scenario) from projections
+      const projEntry = forwardBases?.[key] ?? null;
+      const trailingEPS = hist?.impliedEPS ?? null;
+      const trailingBV  = hist?.impliedBV  ?? null;
+
+      let baseEPS: number | null = trailingEPS;
+      let baseBV:  number | null = trailingBV;
+
+      if (forwardMode) {
+        const rawEPS = projEntry?.baseEPS ?? trailingEPS;
+        const rawBV  = projEntry?.baseBV  ?? trailingBV;
+        const growthPct = projEntry?.base?.growthPct ?? 0;
+        baseEPS = rawEPS != null ? rawEPS * (1 + growthPct / 100) : null;
+        baseBV  = rawBV  != null ? rawBV  * (1 + growthPct / 100) : null;
+      }
+
+      // Upside %: (target_multiple × base_value − current_price) / current_price × 100
+      const peTarget = applyTarget(peMean, peSD);
+      const pbTarget = applyTarget(pbMean, pbSD);
+
+      const peUpside = peTarget != null && baseEPS != null && close != null
+        ? ((peTarget * baseEPS - close) / close) * 100 : null;
+      const pbUpside = pbTarget != null && baseBV != null && close != null
+        ? ((pbTarget * baseBV  - close) / close) * 100 : null;
+
+      return { meta, key, close, isLive, pe: currentPE, peMean, peSD, peZ, peUpside, pb: currentPB, pbMean, pbSD, pbZ, pbUpside };
     });
-  }, [windowRows, lastRow, liveData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [windowRows, lastRow, liveData, multipleTarget, forwardMode, forwardBases]);
 
   function ratioColor(current: number | null, m: number | null, sd: number | null) {
     if (current == null || m == null || sd == null || sd === 0) return "text-zinc-900 dark:text-zinc-100";
@@ -84,13 +156,14 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
     return "text-zinc-900 dark:text-zinc-100";
   }
 
+  const multipleLabel = MULTIPLE_OPTIONS.find((o) => o.value === multipleTarget)?.label ?? "Mean";
+
   return (
     <div className="pt-2">
-      {/* Card with top accent border */}
       <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm bg-white dark:bg-zinc-900 overflow-hidden">
 
         {/* Header strip */}
-        <div className="border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-6 py-4 flex items-center justify-between">
+        <div className="border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
               All Indices — {timeWindow} Window Statistics
@@ -99,7 +172,37 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
               Mean &amp; SD computed from {timeWindow} rolling window · Live prices during market hours
             </p>
           </div>
-          <TimeWindowSelector value={timeWindow} onChange={setTimeWindow} />
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Multiple target dropdown */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">Upside via</span>
+              <select
+                value={multipleTarget}
+                onChange={(e) => setMultipleTarget(e.target.value as MultipleTarget)}
+                className="text-xs font-medium border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-zinc-300 dark:focus:ring-zinc-600"
+              >
+                {MULTIPLE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Forward EPS/BV toggle */}
+            <button
+              onClick={() => setForwardMode((v) => !v)}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap",
+                forwardMode
+                  ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900 dark:border-zinc-100"
+                  : "bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-100"
+              )}
+            >
+              Forward EPS/BV
+            </button>
+
+            <TimeWindowSelector value={timeWindow} onChange={setTimeWindow} />
+          </div>
         </div>
 
         {/* Table */}
@@ -115,16 +218,16 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                 >
                   Close
                 </th>
-                {/* P/E group */}
+                {/* P/E group — 5 cols */}
                 <th
-                  colSpan={4}
+                  colSpan={5}
                   className="px-5 py-2 text-center text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-200 border-l border-zinc-200 dark:border-zinc-700"
                 >
                   P / E  R A T I O
                 </th>
-                {/* P/B group */}
+                {/* P/B group — 5 cols */}
                 <th
-                  colSpan={4}
+                  colSpan={5}
                   className="px-5 py-2 text-center text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-200 border-l border-zinc-200 dark:border-zinc-700"
                 >
                   P / B  R A T I O
@@ -139,16 +242,22 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 whitespace-nowrap">
+                  Upside % <span className="text-zinc-500 dark:text-zinc-500 font-normal">({multipleLabel})</span>
+                </th>
                 {/* PB cols */}
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 whitespace-nowrap">
+                  Upside % <span className="text-zinc-500 dark:text-zinc-500 font-normal">({multipleLabel})</span>
+                </th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {stats.map(({ meta, close, isLive, pe, peMean, peSD, peZ, pb, pbMean, pbSD, pbZ }, idx) => (
+              {stats.map(({ meta, close, isLive, pe, peMean, peSD, peZ, peUpside, pb, pbMean, pbSD, pbZ, pbUpside }, idx) => (
                 <tr
                   key={meta.key}
                   className={cn(
@@ -199,6 +308,10 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                   <td className="px-5 py-4 text-right">
                     <ZBadge z={peZ} />
                   </td>
+                  {/* PE Upside % */}
+                  <td className="px-5 py-4 text-right">
+                    <UpsideBadge pct={peUpside} />
+                  </td>
 
                   {/* PB Current */}
                   <td className="px-5 py-4 text-right border-l border-zinc-100 dark:border-zinc-800">
@@ -217,6 +330,10 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
                   {/* PB Z */}
                   <td className="px-5 py-4 text-right">
                     <ZBadge z={pbZ} />
+                  </td>
+                  {/* PB Upside % */}
+                  <td className="px-5 py-4 text-right">
+                    <UpsideBadge pct={pbUpside} />
                   </td>
 
                   {/* Details */}
@@ -245,6 +362,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
             Current &lt; Mean − 1SD — cheap vs {timeWindow} history
           </span>
           <span className="text-zinc-600">Z-Score = (Current − Mean) ÷ SD</span>
+          <span className="text-zinc-600">Upside % = ({multipleLabel} multiple × {forwardMode ? "Forward" : "Implied"} EPS/BV − Price) ÷ Price</span>
         </div>
       </div>
     </div>
