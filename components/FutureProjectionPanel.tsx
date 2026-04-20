@@ -9,7 +9,6 @@ import {
   formatEPS,
   cn,
 } from "@/lib/utils";
-import { Settings } from "lucide-react";
 import type { HistoricalRow, IndexKey } from "@/lib/types";
 
 type ProjectionPath = "pe_eps" | "pb_bv";
@@ -79,78 +78,38 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
     buildDefaults(historicalData)
   );
   const [ownerDefaults, setOwnerDefaults] = useState<ProjectionsMap | null>(null);
-  const [showPinDialog, setShowPinDialog] = useState(false);
-  const autoSaveReady  = useRef(false);
-  const ownerPinRef    = useRef<string | null>(null);
-  const userHasEdited  = useRef(false);
-  const [pin, setPin] = useState("");
-  const [pinError, setPinError] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
+  const userHasEdited = useRef(false);
 
-  // On mount: fetch owner defaults from blob, then load visitor overrides if any
+  // On mount: fetch owner defaults from static JSON, then load visitor overrides if any
   useEffect(() => {
     async function init() {
       let kv: ProjectionsMap | null = null;
       try {
-        const res = await fetch("/api/projection-defaults");
+        const res = await fetch("/projection-defaults.json");
         if (res.ok) {
           const json = await res.json();
           if (json) { kv = json as ProjectionsMap; setOwnerDefaults(kv); }
         }
-      } catch {
-        // no blob in local dev — fall through
-      }
-
-      // Restore cached owner PIN if previously saved via gear icon
-      try {
-        const cachedPin = localStorage.getItem("nifty-owner-pin");
-        if (cachedPin) ownerPinRef.current = cachedPin;
       } catch {}
 
-      // Visitor localStorage > blob > hardcoded
       let loaded = false;
       try {
         const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
-        if (stored) {
-          setProjections(JSON.parse(stored) as ProjectionsMap);
-          loaded = true;
-        }
+        if (stored) { setProjections(JSON.parse(stored) as ProjectionsMap); loaded = true; }
       } catch {}
 
-      if (!loaded) {
-        setProjections(kv ?? buildDefaults(historicalData));
-      }
-
-      // Mark ready — prevents auto-save firing on the initial projections set
-      autoSaveReady.current = true;
+      if (!loaded) { setProjections(kv ?? buildDefaults(historicalData)); }
     }
     init();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist visitor edits to localStorage — only when user has explicitly changed something
   useEffect(() => {
-    if (!autoSaveReady.current) return;
     if (!userHasEdited.current) return;
     try {
       localStorage.setItem(VISITOR_STORAGE_KEY, JSON.stringify(projections));
-    } catch {
-      // ignore quota errors
-    }
-  }, [projections]);
-
-  // Auto-save to blob when owner PIN is cached; update ownerDefaults on success
-  useEffect(() => {
-    if (!autoSaveReady.current) return;
-    const cachedPin = ownerPinRef.current;
-    if (!cachedPin) return;
-    fetch("/api/projection-defaults", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: cachedPin, defaults: projections }),
-    })
-      .then((res) => { if (res.ok) setOwnerDefaults(projections); })
-      .catch(() => {});
+    } catch {}
   }, [projections]);
 
   const lastRow = historicalData[historicalData.length - 1] ?? null;
@@ -248,32 +207,6 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
       setProjections(buildDefaults(historicalData));
     }
   }, [ownerDefaults, historicalData]);
-
-  const handleSaveGlobal = useCallback(async () => {
-    setPinError(false);
-    try {
-      const res = await fetch("/api/projection-defaults", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin, defaults: projections }),
-      });
-      if (res.ok) {
-        setOwnerDefaults(projections);
-        try {
-          localStorage.setItem("nifty-owner-pin", pin);
-          ownerPinRef.current = pin;
-        } catch {}
-        setSaveStatus("saved");
-        setShowPinDialog(false);
-        setPin("");
-        setTimeout(() => setSaveStatus("idle"), 3000);
-      } else {
-        setPinError(true);
-      }
-    } catch {
-      setSaveStatus("error");
-    }
-  }, [pin, projections]);
 
   const computed = useMemo(() => {
     if (!current) return null;
@@ -391,19 +324,6 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
               >
                 Reset
               </button>
-
-              {/* Save as global default (gear icon) */}
-              <button
-                onClick={() => { setShowPinDialog(true); setPinError(false); }}
-                title="Save as global default"
-                className="p-1.5 text-zinc-400 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-              >
-                <Settings className="h-3.5 w-3.5" />
-              </button>
-
-              {saveStatus === "saved" && (
-                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">✓ Saved</span>
-              )}
             </div>
           </div>
         </CardHeader>
@@ -503,38 +423,6 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
           </p>
         </CardContent>
       </Card>
-
-      {/* ── PIN dialog ── */}
-      {showPinDialog && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl p-6 shadow-2xl w-80 border border-zinc-200 dark:border-zinc-700">
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Save as Global Default</h3>
-            <input
-              type="password"
-              placeholder="Enter PIN"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSaveGlobal()}
-              className="w-full border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm mb-2 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500"
-            />
-            {pinError && <p className="text-xs text-red-600 dark:text-red-400 mb-2">Incorrect PIN</p>}
-            <div className="flex gap-2">
-              <button
-                onClick={handleSaveGlobal}
-                className="flex-1 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg py-2 text-sm font-medium hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
-              >
-                Save
-              </button>
-              <button
-                onClick={() => { setShowPinDialog(false); setPin(""); setPinError(false); }}
-                className="flex-1 border border-zinc-200 dark:border-zinc-700 rounded-lg py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
