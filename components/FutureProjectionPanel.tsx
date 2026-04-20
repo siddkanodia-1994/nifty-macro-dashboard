@@ -72,15 +72,16 @@ function buildDefaults(historicalData: HistoricalRow[]): ProjectionsMap {
 interface FutureProjectionPanelProps {
   historicalData: HistoricalRow[];
   liveData: Partial<Record<IndexKey, number>> | null;
+  timeWindow: TimeWindow;
+  onTimeWindowChange: (w: TimeWindow) => void;
 }
 
-export function FutureProjectionPanel({ historicalData, liveData }: FutureProjectionPanelProps) {
+export function FutureProjectionPanel({ historicalData, liveData, timeWindow, onTimeWindowChange }: FutureProjectionPanelProps) {
   const [selectedIndex, setSelectedIndex] = useState<IndexKey>("NIFTY_50");
   const [projections, setProjections] = useState<ProjectionsMap>(() =>
     buildDefaults(historicalData)
   );
   const [ownerDefaults, setOwnerDefaults] = useState<ProjectionsMap | null>(null);
-  const [timeWindow, setTimeWindow] = useState<TimeWindow>("2Y");
   const [manualCells, setManualCells] = useState<Set<string>>(new Set());
   const userHasEdited = useRef(false);
 
@@ -339,7 +340,7 @@ export function FutureProjectionPanel({ historicalData, liveData }: FutureProjec
 
             <div className="flex items-center gap-2 flex-wrap">
               {/* Time window selector */}
-              <TimeWindowSelector value={timeWindow} onChange={setTimeWindow} />
+              <TimeWindowSelector value={timeWindow} onChange={onTimeWindowChange} />
 
               {/* Path toggle */}
               <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">

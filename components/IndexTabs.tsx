@@ -20,9 +20,10 @@ interface IndexTabsProps {
 }
 
 export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
-  const [activeMainTab, setActiveMainTab]   = useState<MainTab>("INDEX_LEVELS");
-  const [activeIndexTab, setActiveIndexTab] = useState<IndexSubTab>("OVERVIEW");
-  const [timeWindow, setTimeWindow]         = useState<TimeWindow>("1Y");
+  const [activeMainTab, setActiveMainTab]       = useState<MainTab>("INDEX_LEVELS");
+  const [activeIndexTab, setActiveIndexTab]     = useState<IndexSubTab>("OVERVIEW");
+  const [timeWindow, setTimeWindow]             = useState<TimeWindow>("1Y");
+  const [overviewTimeWindow, setOverviewTimeWindow] = useState<TimeWindow>("2Y");
   const [liveData, setLiveData]             = useState<Partial<Record<IndexKey, number>> | null>(null);
   const [liveBondYield, setLiveBondYield]   = useState<number | null>(null);
 
@@ -125,6 +126,8 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
               historicalData={historicalData}
               liveData={liveData}
               onSelectIndex={(key) => setActiveIndexTab(key)}
+              timeWindow={overviewTimeWindow}
+              onTimeWindowChange={setOverviewTimeWindow}
             />
           </TabsContent>
 
@@ -148,6 +151,8 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
         <FutureProjectionPanel
           historicalData={historicalData}
           liveData={liveData}
+          timeWindow={overviewTimeWindow}
+          onTimeWindowChange={setOverviewTimeWindow}
         />
       </TabsContent>
 

@@ -33,6 +33,8 @@ interface IndexOverviewProps {
   historicalData: HistoricalRow[];
   liveData: Partial<Record<IndexKey, number>> | null;
   onSelectIndex: (key: IndexKey) => void;
+  timeWindow: TimeWindow;
+  onTimeWindowChange: (w: TimeWindow) => void;
 }
 
 function ZBadge({ z }: { z: number | null }) {
@@ -63,8 +65,7 @@ function UpsideBadge({ pct }: { pct: number | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold tabular-nums text-zinc-600 dark:text-zinc-400">{label}</span>;
 }
 
-export function IndexOverview({ historicalData, liveData, onSelectIndex }: IndexOverviewProps) {
-  const [timeWindow, setTimeWindow] = useState<TimeWindow>("2Y");
+export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWindow, onTimeWindowChange }: IndexOverviewProps) {
   const [multipleTarget, setMultipleTarget] = useState<MultipleTarget>("mean");
   const [forwardMode, setForwardMode] = useState(false);
   const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
@@ -201,7 +202,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex }: Index
               Forward EPS/BV
             </button>
 
-            <TimeWindowSelector value={timeWindow} onChange={setTimeWindow} />
+            <TimeWindowSelector value={timeWindow} onChange={onTimeWindowChange} />
           </div>
         </div>
 
