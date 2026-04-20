@@ -8,13 +8,16 @@ import {
   mean,
   stdDev,
   zScore,
+  buildForwardRatioSeries,
 } from "@/lib/calculations";
 import {
   INDEX_META,
   formatRatio,
+  formatPrice,
   formatZScore,
   cn,
 } from "@/lib/utils";
+import { useRatioMode } from "@/lib/ratioMode";
 import type { HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
 
 type MultipleTarget = "mean" | "sd1u" | "sd1l" | "sd2u" | "sd2l";
@@ -69,10 +72,11 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
   const [multipleTarget, setMultipleTarget] = useState<MultipleTarget>("mean");
   const [forwardMode, setForwardMode] = useState(false);
   const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
+  const { ratioMode } = useRatioMode();
 
-  // Load forward bases: Blob as base, visitor's sparse diff applied on top
+  // Load forward bases when either "Forward EPS/BV" toggle or FWD ratio mode is active
   useEffect(() => {
-    if (!forwardMode) { setForwardBases(null); return; }
+    if (!forwardMode && ratioMode !== "FWD") { setForwardBases(null); return; }
     (async () => {
       let blob: Record<string, any> | null = null;
       try {
@@ -88,7 +92,6 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
 
       if (!blob && !diff) { setForwardBases(null); return; }
 
-      // Merge: blob base + visitor diff on top (same logic as FutureProjectionPanel)
       const merged: Record<string, any> = { ...(blob ?? {}) };
       if (diff) {
         for (const ik of Object.keys(diff)) {
@@ -107,7 +110,18 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
       }
       setForwardBases(Object.keys(merged).length ? merged : null);
     })();
-  }, [forwardMode]);
+  }, [forwardMode, ratioMode]);
+
+  // Forward PE/PB series for all indices (only computed in FWD mode)
+  const fwdSeriesMap = useMemo(() => {
+    if (ratioMode !== "FWD") return null;
+    const result = {} as Record<IndexKey, { date: string; fwdPE: number | null; fwdPB: number | null }[]>;
+    for (const meta of INDEX_META) {
+      const growthPct = (forwardBases as any)?.[meta.key]?.base?.growthPct ?? 0;
+      result[meta.key] = buildForwardRatioSeries(historicalData, meta.key, growthPct);
+    }
+    return result;
+  }, [ratioMode, historicalData, forwardBases]);
 
   const lastRow = historicalData[historicalData.length - 1] ?? null;
 
@@ -128,25 +142,59 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
   }
 
   const stats = useMemo(() => {
+    const windowDateSet = new Set(windowRows.map((r) => r.date));
+
     return INDEX_META.map((meta) => {
       const key = meta.key;
       const liveClose = liveData?.[key] ?? null;
       const hist = lastRow?.[key];
       const isLive = liveClose != null;
 
-      const close     = liveClose ?? hist?.close ?? null;
-      const currentPE = isLive && hist?.impliedEPS ? liveClose! / hist.impliedEPS : hist?.pe ?? null;
-      const currentPB = isLive && hist?.impliedBV  ? liveClose! / hist.impliedBV  : hist?.pb ?? null;
+      const close = liveClose ?? hist?.close ?? null;
 
-      const peVals = extractValues(windowRows, key, "pe");
-      const peMean = peVals.length >= 2 ? mean(peVals)   : null;
-      const peSD   = peVals.length >= 2 ? stdDev(peVals) : null;
-      const peZ    = currentPE != null && peMean != null && peSD != null ? zScore(currentPE, peMean, peSD) : null;
+      // PE/PB current values and mean/SD — use forward series in FWD mode
+      const fwdSeries = fwdSeriesMap?.[key];
 
-      const pbVals = extractValues(windowRows, key, "pb");
-      const pbMean = pbVals.length >= 2 ? mean(pbVals)   : null;
-      const pbSD   = pbVals.length >= 2 ? stdDev(pbVals) : null;
-      const pbZ    = currentPB != null && pbMean != null && pbSD != null ? zScore(currentPB, pbMean, pbSD) : null;
+      let currentPE: number | null;
+      let peMean: number | null;
+      let peSD: number | null;
+      let currentPB: number | null;
+      let pbMean: number | null;
+      let pbSD: number | null;
+
+      if (ratioMode === "FWD" && fwdSeries) {
+        const lastFwdEntry = fwdSeries[fwdSeries.length - 1];
+        currentPE = lastFwdEntry?.fwdPE ?? null;
+        currentPB = lastFwdEntry?.fwdPB ?? null;
+
+        const fwdPEVals = fwdSeries
+          .filter((r) => windowDateSet.has(r.date))
+          .map((r) => r.fwdPE)
+          .filter((v): v is number => v != null);
+        const fwdPBVals = fwdSeries
+          .filter((r) => windowDateSet.has(r.date))
+          .map((r) => r.fwdPB)
+          .filter((v): v is number => v != null);
+
+        peMean = fwdPEVals.length >= 2 ? mean(fwdPEVals) : null;
+        peSD   = fwdPEVals.length >= 2 ? stdDev(fwdPEVals) : null;
+        pbMean = fwdPBVals.length >= 2 ? mean(fwdPBVals) : null;
+        pbSD   = fwdPBVals.length >= 2 ? stdDev(fwdPBVals) : null;
+      } else {
+        currentPE = isLive && hist?.impliedEPS ? liveClose! / hist.impliedEPS : hist?.pe ?? null;
+        currentPB = isLive && hist?.impliedBV  ? liveClose! / hist.impliedBV  : hist?.pb ?? null;
+
+        const peVals = extractValues(windowRows, key, "pe");
+        peMean = peVals.length >= 2 ? mean(peVals)   : null;
+        peSD   = peVals.length >= 2 ? stdDev(peVals) : null;
+
+        const pbVals = extractValues(windowRows, key, "pb");
+        pbMean = pbVals.length >= 2 ? mean(pbVals)   : null;
+        pbSD   = pbVals.length >= 2 ? stdDev(pbVals) : null;
+      }
+
+      const peZ = currentPE != null && peMean != null && peSD != null ? zScore(currentPE, peMean, peSD) : null;
+      const pbZ = currentPB != null && pbMean != null && pbSD != null ? zScore(currentPB, pbMean, pbSD) : null;
 
       // Base EPS/BV — trailing from lastRow, or forward (base scenario) from projections
       const projEntry = forwardBases?.[key] ?? null;
@@ -164,19 +212,21 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
         baseBV  = rawBV  != null ? rawBV  * (1 + growthPct / 100) : null;
       }
 
-      // Upside %: (target_multiple × base_value − current_price) / current_price × 100
       const peTarget = applyTarget(peMean, peSD);
       const pbTarget = applyTarget(pbMean, pbSD);
 
-      const peUpside = peTarget != null && baseEPS != null && close != null
-        ? ((peTarget * baseEPS - close) / close) * 100 : null;
-      const pbUpside = pbTarget != null && baseBV != null && close != null
-        ? ((pbTarget * baseBV  - close) / close) * 100 : null;
+      const peTargetPrice = peTarget != null && baseEPS != null ? peTarget * baseEPS : null;
+      const pbTargetPrice = pbTarget != null && baseBV  != null ? pbTarget * baseBV  : null;
 
-      return { meta, key, close, isLive, pe: currentPE, peMean, peSD, peZ, peUpside, pb: currentPB, pbMean, pbSD, pbZ, pbUpside };
+      const peUpside = peTargetPrice != null && close != null
+        ? ((peTargetPrice - close) / close) * 100 : null;
+      const pbUpside = pbTargetPrice != null && close != null
+        ? ((pbTargetPrice - close) / close) * 100 : null;
+
+      return { meta, key, close, isLive, pe: currentPE, peMean, peSD, peZ, peTargetPrice, peUpside, pb: currentPB, pbMean, pbSD, pbZ, pbTargetPrice, pbUpside };
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [windowRows, lastRow, liveData, multipleTarget, forwardMode, forwardBases]);
+  }, [windowRows, lastRow, liveData, multipleTarget, forwardMode, forwardBases, ratioMode, fwdSeriesMap]);
 
   function ratioColor(current: number | null, m: number | null, sd: number | null) {
     if (current == null || m == null || sd == null || sd === 0) return "text-zinc-900 dark:text-zinc-100";
@@ -247,16 +297,16 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
                 >
                   Close
                 </th>
-                {/* P/E group — 5 cols */}
+                {/* P/E group — 6 cols */}
                 <th
-                  colSpan={5}
+                  colSpan={6}
                   className="px-5 py-2 text-center text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-200 border-l border-zinc-200 dark:border-zinc-700"
                 >
                   P / E  R A T I O
                 </th>
-                {/* P/B group — 5 cols */}
+                {/* P/B group — 6 cols */}
                 <th
-                  colSpan={5}
+                  colSpan={6}
                   className="px-5 py-2 text-center text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-200 border-l border-zinc-200 dark:border-zinc-700"
                 >
                   P / B  R A T I O
@@ -271,6 +321,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Target Price</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">
                   Upside % <span className="text-zinc-500 dark:text-zinc-500 font-normal">({multipleLabel})</span>
                 </th>
@@ -279,6 +330,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Target Price</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">
                   Upside % <span className="text-zinc-500 dark:text-zinc-500 font-normal">({multipleLabel})</span>
                 </th>
@@ -286,7 +338,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
             </thead>
 
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {stats.map(({ meta, close, isLive, pe, peMean, peSD, peZ, peUpside, pb, pbMean, pbSD, pbZ, pbUpside }, idx) => (
+              {stats.map(({ meta, close, isLive, pe, peMean, peSD, peZ, peTargetPrice, peUpside, pb, pbMean, pbSD, pbZ, pbTargetPrice, pbUpside }, idx) => (
                 <tr
                   key={meta.key}
                   className={cn(
@@ -337,6 +389,12 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
                   <td className="px-5 py-4 text-right">
                     <ZBadge z={peZ} />
                   </td>
+                  {/* PE Target Price */}
+                  <td className="px-5 py-4 text-right">
+                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 tabular-nums">
+                      {peTargetPrice != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(peTargetPrice)) : "—"}
+                    </span>
+                  </td>
                   {/* PE Upside % */}
                   <td className="px-5 py-4 text-right">
                     <UpsideBadge pct={peUpside} />
@@ -359,6 +417,12 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
                   {/* PB Z */}
                   <td className="px-5 py-4 text-right">
                     <ZBadge z={pbZ} />
+                  </td>
+                  {/* PB Target Price */}
+                  <td className="px-5 py-4 text-right">
+                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 tabular-nums">
+                      {pbTargetPrice != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(pbTargetPrice)) : "—"}
+                    </span>
                   </td>
                   {/* PB Upside % */}
                   <td className="px-5 py-4 text-right">
@@ -391,7 +455,7 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
             Current &lt; Mean − 1SD — cheap vs {timeWindow} history
           </span>
           <span className="text-zinc-600">Z-Score = (Current − Mean) ÷ SD</span>
-          <span className="text-zinc-600">Upside % = ({multipleLabel} multiple × {forwardMode ? "Forward" : "Implied"} EPS/BV − Price) ÷ Price</span>
+          <span className="text-zinc-600">Target Price = {multipleLabel} multiple × {forwardMode ? "Forward" : "Implied"} EPS/BV · Upside % = (Target Price − Close) ÷ Close</span>
         </div>
       </div>
     </div>

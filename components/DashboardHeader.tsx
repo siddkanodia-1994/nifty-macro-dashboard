@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useTheme } from "@/lib/theme";
+import { useRatioMode } from "@/lib/ratioMode";
 import { isMarketOpen } from "@/lib/marketHours";
 import { BarChart3, Calendar, Moon, Sun } from "lucide-react";
 
@@ -14,6 +16,7 @@ export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
   const [live, setLive] = useState(false);
   const [istTime, setIstTime] = useState("");
   const { theme, toggleTheme } = useTheme();
+  const { ratioMode, setRatioMode } = useRatioMode();
 
   function getISTTime() {
     return new Date().toLocaleTimeString("en-IN", {
@@ -49,8 +52,34 @@ export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
           </div>
         </div>
 
-        {/* Right side: dark toggle + LIVE badge + data freshness */}
+        {/* Right side: TTM/FWD toggle + dark toggle + LIVE badge + data freshness */}
         <div className="flex items-center gap-2">
+          {/* TTM / FWD toggle */}
+          <div className="flex items-center bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg p-0.5">
+            <button
+              onClick={() => setRatioMode("TTM")}
+              className={cn(
+                "px-3 py-1 rounded-md text-xs font-medium transition-colors",
+                ratioMode === "TTM"
+                  ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+              )}
+            >
+              TTM
+            </button>
+            <button
+              onClick={() => setRatioMode("FWD")}
+              className={cn(
+                "px-3 py-1 rounded-md text-xs font-medium transition-colors",
+                ratioMode === "FWD"
+                  ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+              )}
+            >
+              FWD
+            </button>
+          </div>
+
           {/* Dark mode toggle */}
           <button
             onClick={toggleTheme}

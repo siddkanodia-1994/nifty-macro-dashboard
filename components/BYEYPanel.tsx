@@ -10,13 +10,15 @@ import {
   computeBYEYControlLines,
   computeBYEYWindowStats,
   buildBYEYChartData,
+  buildForwardRatioSeries,
   mean,
   stdDev,
   zScore,
   percentileRank,
 } from "@/lib/calculations";
-import { formatPct, formatRatio, formatZScore, formatPercentile, formatDate, zScoreColor, zScoreBgColor, cn } from "@/lib/utils";
-import type { BYEYRow, HistoricalRow, TimeWindow, WindowStats } from "@/lib/types";
+import { formatPct, formatRatio, formatZScore, formatPercentile, formatDate, zScoreColor, cn } from "@/lib/utils";
+import { useRatioMode } from "@/lib/ratioMode";
+import type { BYEYRow, HistoricalRow, TimeWindow, WindowStats, ControlLines } from "@/lib/types";
 import { Eye, EyeOff } from "lucide-react";
 
 function buildStats(vals: (number | null)[], current: number | null): WindowStats | null {
@@ -36,6 +38,7 @@ interface BYEYPanelProps {
   onTimeWindowChange: (w: TimeWindow) => void;
   liveNifty50Close: number | null;
   liveBondYield: number | null;     // decimal (e.g. 0.0687)
+  nifty50BaseGrowthPct?: number;    // for forward PE extrapolation
 }
 
 export function BYEYPanel({
@@ -45,8 +48,10 @@ export function BYEYPanel({
   onTimeWindowChange,
   liveNifty50Close,
   liveBondYield,
+  nifty50BaseGrowthPct = 0,
 }: BYEYPanelProps) {
   const [showControlLines, setShowControlLines] = useState(true);
+  const { ratioMode } = useRatioMode();
 
   // Last row from BY-EY data (most recent historical point)
   const lastByeyRow = byeyData[byeyData.length - 1] ?? null;
@@ -57,15 +62,42 @@ export function BYEYPanel({
     return historicalData[historicalData.length - 1].NIFTY_50.impliedEPS;
   }, [historicalData]);
 
-  // Live derived values
-  const livePE = liveNifty50Close && prevImpliedEPS
+  // Forward PE/PB series for NIFTY_50 (FWD mode only)
+  const fwdSeries = useMemo(() => {
+    if (ratioMode !== "FWD") return null;
+    return buildForwardRatioSeries(historicalData, "NIFTY_50", nifty50BaseGrowthPct);
+  }, [ratioMode, historicalData, nifty50BaseGrowthPct]);
+
+  // Build date → fwdPE map for efficient lookup
+  const fwdPEByDate = useMemo(() => {
+    if (!fwdSeries) return null;
+    const map = new Map<string, number>();
+    for (const r of fwdSeries) {
+      if (r.fwdPE != null) map.set(r.date, r.fwdPE);
+    }
+    return map;
+  }, [fwdSeries]);
+
+  // Trailing live values
+  const trailingLivePE = liveNifty50Close && prevImpliedEPS
     ? liveNifty50Close / prevImpliedEPS
     : null;
-  const liveEY = livePE ? 1 / livePE : null;
 
-  // For live spread: use live bond yield when available; fall back to latest daily value.
-  // Bond yield changes only a few basis points intraday — the spread is effectively live
-  // because it updates every 60s as PE changes.
+  // Forward live PE: uses extrapolated forward EPS from live close
+  const fwdLivePE = liveNifty50Close && prevImpliedEPS
+    ? liveNifty50Close / (prevImpliedEPS * (1 + nifty50BaseGrowthPct / 100))
+    : null;
+
+  // Last forward PE from series (for non-live current value)
+  const lastFwdPE = fwdSeries?.[fwdSeries.length - 1]?.fwdPE ?? null;
+
+  // Effective current PE — forward in FWD mode
+  const effectiveLivePE = ratioMode === "FWD"
+    ? (fwdLivePE ?? (lastFwdPE != null ? lastFwdPE : trailingLivePE))
+    : trailingLivePE;
+  const liveEY = effectiveLivePE ? 1 / effectiveLivePE : null;
+
+  // For live spread: use live bond yield when available
   const effectiveLiveBondYield = liveBondYield ?? lastByeyRow?.bondYield ?? null;
   const liveSpread = liveEY != null && effectiveLiveBondYield != null
     ? effectiveLiveBondYield - liveEY
@@ -73,14 +105,12 @@ export function BYEYPanel({
 
   // Current values (live when available, else last historical)
   const currentSpread    = liveSpread    ?? lastByeyRow?.spread    ?? null;
-  const currentPE        = livePE        ?? lastByeyRow?.pe        ?? null;
+  const currentPE        = effectiveLivePE ?? lastByeyRow?.pe      ?? null;
   const currentBondYield = liveBondYield ?? lastByeyRow?.bondYield ?? null;
-  const currentEY        = liveEY        ?? lastByeyRow?.ey        ?? null;
+  const currentEY        = liveEY        ?? (ratioMode === "FWD" && lastFwdPE ? 1 / lastFwdPE : lastByeyRow?.ey) ?? null;
 
-  // PE/EY/Spread are live when Nifty price is live (EY = 1/PE tracks live price).
-  // Bond yield uses daily EOD data — no LIVE badge on that card.
-  const isPELive        = liveNifty50Close != null;
-  const isSpreadLive    = isPELive && effectiveLiveBondYield != null;
+  const isPELive     = liveNifty50Close != null;
+  const isSpreadLive = isPELive && effectiveLiveBondYield != null;
 
   // Window-filtered data
   const windowRows = useMemo(
@@ -88,41 +118,77 @@ export function BYEYPanel({
     [byeyData, timeWindow]
   );
 
-  // Control lines + stats for spread (in %-points)
-  const controlLines = useMemo(
-    () => computeBYEYControlLines(windowRows),
-    [windowRows]
-  );
+  // FWD mode: compute forward spread values per date in window
+  const fwdWindowData = useMemo((): { date: string; value: number }[] | null => {
+    if (ratioMode !== "FWD" || !fwdPEByDate) return null;
+    return windowRows
+      .filter((r) => r.bondYield != null && fwdPEByDate.has(r.date))
+      .map((r) => ({
+        date: r.date,
+        value: (r.bondYield! - 1 / fwdPEByDate.get(r.date)!) * 100,
+      }));
+  }, [ratioMode, windowRows, fwdPEByDate]);
 
-  const spreadStats = useMemo(
-    () => computeBYEYWindowStats(windowRows, currentSpread),
-    [windowRows, currentSpread]
-  );
+  // Control lines
+  const controlLines = useMemo((): ControlLines | null => {
+    if (ratioMode === "FWD" && fwdWindowData && fwdWindowData.length >= 10) {
+      const vals = fwdWindowData.map((r) => r.value);
+      const m = mean(vals);
+      const sd = stdDev(vals);
+      return { mean: m, sd1Upper: m + sd, sd1Lower: m - sd, sd2Upper: m + 2 * sd, sd2Lower: m - 2 * sd };
+    }
+    return computeBYEYControlLines(windowRows);
+  }, [ratioMode, fwdWindowData, windowRows]);
 
-  const peStats = useMemo(
-    () => buildStats(windowRows.map((r) => r.pe), currentPE),
-    [windowRows, currentPE]
-  );
+  // Spread stats
+  const spreadStats = useMemo((): WindowStats | null => {
+    if (ratioMode === "FWD" && fwdWindowData && fwdWindowData.length >= 2) {
+      const vals = fwdWindowData.map((r) => r.value);
+      const cur = currentSpread != null ? currentSpread * 100 : null;
+      return buildStats(vals, cur);
+    }
+    return computeBYEYWindowStats(windowRows, currentSpread);
+  }, [ratioMode, fwdWindowData, windowRows, currentSpread]);
 
+  // PE stats
+  const peStats = useMemo((): WindowStats | null => {
+    if (ratioMode === "FWD" && fwdPEByDate) {
+      const vals = windowRows
+        .map((r) => fwdPEByDate.get(r.date) ?? null)
+        .filter((v): v is number => v != null);
+      return buildStats(vals, currentPE);
+    }
+    return buildStats(windowRows.map((r) => r.pe), currentPE);
+  }, [ratioMode, fwdPEByDate, windowRows, currentPE]);
+
+  // Bond yield stats (unchanged)
   const bondYieldStats = useMemo(() => {
     const vals = windowRows.map((r) => (r.bondYield != null ? r.bondYield * 100 : null));
     const cur  = currentBondYield != null ? currentBondYield * 100 : null;
     return buildStats(vals, cur);
   }, [windowRows, currentBondYield]);
 
-  const eyStats = useMemo(() => {
+  // EY stats
+  const eyStats = useMemo((): WindowStats | null => {
+    if (ratioMode === "FWD" && fwdPEByDate) {
+      const vals = windowRows
+        .filter((r) => fwdPEByDate.has(r.date))
+        .map((r) => (1 / fwdPEByDate.get(r.date)!) * 100);
+      const cur = currentEY != null ? currentEY * 100 : null;
+      return buildStats(vals, cur);
+    }
     const vals = windowRows.map((r) => (r.ey != null ? r.ey * 100 : null));
     const cur  = currentEY != null ? currentEY * 100 : null;
     return buildStats(vals, cur);
-  }, [windowRows, currentEY]);
+  }, [ratioMode, fwdPEByDate, windowRows, currentEY]);
 
-  // Chart data for selected window
-  const chartData = useMemo(
-    () => buildBYEYChartData(windowRows),
-    [windowRows]
-  );
+  // Chart data
+  const chartData = useMemo(() => {
+    if (ratioMode === "FWD" && fwdWindowData) return fwdWindowData;
+    return buildBYEYChartData(windowRows);
+  }, [ratioMode, fwdWindowData, windowRows]);
 
-  // Append live spread point to chart if available and not already today
+  // Append live spread point to chart
   const liveChartData = useMemo(() => {
     if (liveSpread == null) return chartData;
     const todayISO = new Date().toISOString().slice(0, 10);

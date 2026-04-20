@@ -11,9 +11,15 @@ import {
   computeIndexStats,
   filterByWindow,
   buildChartData,
+  buildForwardRatioSeries,
+  mean,
+  stdDev,
+  zScore,
+  percentileRank,
 } from "@/lib/calculations";
 import { METRIC_LABELS, METRIC_SHORT_LABELS } from "@/lib/utils";
-import type { HistoricalRow, IndexKey, MetricKey, TimeWindow } from "@/lib/types";
+import { useRatioMode } from "@/lib/ratioMode";
+import type { HistoricalRow, IndexKey, MetricKey, TimeWindow, WindowStats, ControlLines } from "@/lib/types";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +29,7 @@ interface IndexPanelProps {
   timeWindow: TimeWindow;
   onTimeWindowChange: (w: TimeWindow) => void;
   liveClose?: number | null;
+  indexGrowthPct?: number;
 }
 
 const CHART_METRICS: { key: MetricKey; label: string }[] = [
@@ -33,15 +40,31 @@ const CHART_METRICS: { key: MetricKey; label: string }[] = [
   { key: "impliedBV",  label: "Implied BV"  },
 ];
 
+function buildWindowStatsFromVals(vals: number[], current: number | null): WindowStats | null {
+  if (vals.length < 2) return null;
+  const m = mean(vals);
+  const sd = stdDev(vals);
+  return {
+    mean: m, sd, current,
+    zScore: current != null ? zScore(current, m, sd) : null,
+    percentile: current != null ? percentileRank(current, vals) : null,
+    min: Math.min(...vals),
+    max: Math.max(...vals),
+    count: vals.length,
+  };
+}
+
 export function IndexPanel({
   indexKey,
   historicalData,
   timeWindow,
   onTimeWindowChange,
   liveClose = null,
+  indexGrowthPct = 0,
 }: IndexPanelProps) {
   const [showControlLines, setShowControlLines] = useState(true);
   const [chartMetric, setChartMetric] = useState<MetricKey>("pe");
+  const { ratioMode } = useRatioMode();
 
   // Current metrics = last row of historical data (EOD)
   const currentMetrics = useMemo(() => {
@@ -69,23 +92,68 @@ export function IndexPanel({
     [historicalData, timeWindow]
   );
 
-  // Control lines from the selected window — recalculate when window or metric changes
-  const controlLines = useMemo(
-    () => computeControlLines(windowRows, indexKey, chartMetric),
-    [windowRows, indexKey, chartMetric]
-  );
+  // Forward PE/PB series (only computed in FWD mode)
+  const fwdSeries = useMemo(() => {
+    if (ratioMode !== "FWD") return null;
+    return buildForwardRatioSeries(historicalData, indexKey, indexGrowthPct);
+  }, [ratioMode, historicalData, indexKey, indexGrowthPct]);
 
-  // Stats for all metrics in selected window (use live-adjusted metrics if available)
-  const indexStats = useMemo(
-    () => computeIndexStats(windowRows, indexKey, effectiveMetrics),
-    [windowRows, indexKey, effectiveMetrics]
-  );
+  const isFwdRatioChart = ratioMode === "FWD" && fwdSeries != null && (chartMetric === "pe" || chartMetric === "pb");
 
-  // Chart data for selected metric in selected window
-  const chartData = useMemo(
-    () => buildChartData(windowRows, indexKey, chartMetric),
-    [windowRows, indexKey, chartMetric]
-  );
+  // Chart data — use forward series for pe/pb in FWD mode
+  const chartData = useMemo(() => {
+    if (isFwdRatioChart) {
+      const windowDateSet = new Set(windowRows.map((r) => r.date));
+      const field = chartMetric === "pe" ? "fwdPE" : "fwdPB";
+      return fwdSeries!
+        .filter((r) => windowDateSet.has(r.date) && r[field] != null)
+        .map((r) => ({ date: r.date, value: r[field] as number }));
+    }
+    return buildChartData(windowRows, indexKey, chartMetric);
+  }, [windowRows, indexKey, chartMetric, isFwdRatioChart, fwdSeries]);
+
+  // Control lines — use forward series for pe/pb in FWD mode
+  const controlLines = useMemo((): ControlLines | null => {
+    if (isFwdRatioChart) {
+      const windowDateSet = new Set(windowRows.map((r) => r.date));
+      const field = chartMetric === "pe" ? "fwdPE" : "fwdPB";
+      const vals = fwdSeries!
+        .filter((r) => windowDateSet.has(r.date))
+        .map((r) => r[field])
+        .filter((v): v is number => v != null);
+      if (vals.length < 10) return null;
+      const m = mean(vals);
+      const sd = stdDev(vals);
+      return { mean: m, sd1Upper: m + sd, sd1Lower: m - sd, sd2Upper: m + 2 * sd, sd2Lower: m - 2 * sd };
+    }
+    return computeControlLines(windowRows, indexKey, chartMetric);
+  }, [windowRows, indexKey, chartMetric, isFwdRatioChart, fwdSeries]);
+
+  // Index stats — override pe/pb with forward values in FWD mode
+  const indexStats = useMemo(() => {
+    const trailing = computeIndexStats(windowRows, indexKey, effectiveMetrics);
+    if (ratioMode !== "FWD" || !fwdSeries) return trailing;
+
+    const windowDateSet = new Set(windowRows.map((r) => r.date));
+    const lastFwdEntry = fwdSeries[fwdSeries.length - 1];
+    const lastFwdPE = lastFwdEntry?.fwdPE ?? null;
+    const lastFwdPB = lastFwdEntry?.fwdPB ?? null;
+
+    const fwdPEVals = fwdSeries
+      .filter((r) => windowDateSet.has(r.date))
+      .map((r) => r.fwdPE)
+      .filter((v): v is number => v != null);
+    const fwdPBVals = fwdSeries
+      .filter((r) => windowDateSet.has(r.date))
+      .map((r) => r.fwdPB)
+      .filter((v): v is number => v != null);
+
+    return {
+      ...trailing,
+      pe: buildWindowStatsFromVals(fwdPEVals, lastFwdPE) ?? trailing.pe,
+      pb: buildWindowStatsFromVals(fwdPBVals, lastFwdPB) ?? trailing.pb,
+    };
+  }, [windowRows, indexKey, effectiveMetrics, ratioMode, fwdSeries]);
 
   // Append today's live point to the chart for metrics derived from live close
   const LIVE_METRICS: MetricKey[] = ["close", "pe", "pb"];
@@ -93,8 +161,10 @@ export function IndexPanel({
     if (!liveClose || !effectiveMetrics || !LIVE_METRICS.includes(chartMetric)) {
       return chartData;
     }
+    // Skip live point for forward pe/pb — the series already has the most recent point
+    if (isFwdRatioChart) return chartData;
+
     const todayISO = new Date().toISOString().slice(0, 10);
-    // Don't duplicate if the last historical point is already today
     if (chartData.length > 0 && chartData[chartData.length - 1].date === todayISO) {
       return chartData;
     }
@@ -102,7 +172,7 @@ export function IndexPanel({
     if (liveValue == null) return chartData;
     return [...chartData, { date: todayISO, value: liveValue }];
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartData, liveClose, effectiveMetrics, chartMetric]);
+  }, [chartData, liveClose, effectiveMetrics, chartMetric, isFwdRatioChart]);
 
   return (
     <div className="space-y-5 pt-2">

@@ -14,6 +14,9 @@ import type { BYEYRow, HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
 type MainTab = "INDEX_LEVELS" | "FUTURE_PROJECTION" | "BYEY" | "DAILY_DATA";
 type IndexSubTab = IndexKey | "OVERVIEW";
 
+type ProjectionDefaultEntry = { base?: { growthPct?: number }; baseEPS?: number | null; baseBV?: number | null };
+type ProjectionDefaultsMap = Partial<Record<IndexKey, ProjectionDefaultEntry>>;
+
 interface IndexTabsProps {
   historicalData: HistoricalRow[];
   byeyData: BYEYRow[];
@@ -26,6 +29,19 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
   const [overviewTimeWindow, setOverviewTimeWindow] = useState<TimeWindow>("2Y");
   const [liveData, setLiveData]             = useState<Partial<Record<IndexKey, number>> | null>(null);
   const [liveBondYield, setLiveBondYield]   = useState<number | null>(null);
+  const [projectionDefaults, setProjectionDefaults] = useState<ProjectionDefaultsMap | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/projection-defaults", { cache: "no-store" });
+        if (res.ok) {
+          const json = await res.json();
+          if (json) setProjectionDefaults(json as ProjectionDefaultsMap);
+        }
+      } catch {}
+    })();
+  }, []);
 
   const fetchLive = useCallback(async () => {
     if (!isMarketOpen()) return;
@@ -140,6 +156,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
                 timeWindow={timeWindow}
                 onTimeWindowChange={setTimeWindow}
                 liveClose={liveData?.[meta.key] ?? null}
+                indexGrowthPct={projectionDefaults?.[meta.key]?.base?.growthPct ?? 0}
               />
             </TabsContent>
           ))}
@@ -165,6 +182,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
           onTimeWindowChange={setTimeWindow}
           liveNifty50Close={liveData?.["NIFTY_50"] ?? null}
           liveBondYield={liveBondYield}
+          nifty50BaseGrowthPct={projectionDefaults?.["NIFTY_50"]?.base?.growthPct ?? 0}
         />
       </TabsContent>
 

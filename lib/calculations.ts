@@ -275,3 +275,45 @@ export function buildBYEYChartData(rows: BYEYRow[]): ChartPoint[] {
       value: (r.spread as number) * 100,
     }));
 }
+
+// ─── Forward ratio series ──────────────────────────────────────────────────────
+
+/**
+ * Computes forward PE/PB series for an index.
+ * For each row at date D, looks up the row at D+365 days (next available trading day).
+ * If found, uses that row's impliedEPS/impliedBV as the forward value.
+ * If not found (too recent), extrapolates using baseGrowthPct.
+ */
+export function buildForwardRatioSeries(
+  rows: HistoricalRow[],
+  indexKey: IndexKey,
+  baseGrowthPct: number
+): { date: string; fwdPE: number | null; fwdPB: number | null }[] {
+  return rows.map((row) => {
+    const m = row[indexKey];
+    const close = m.close;
+    if (close == null) return { date: row.date, fwdPE: null, fwdPB: null };
+
+    const targetISO = new Date(parseISO(row.date).getTime() + 365 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+
+    const fwdRow = rows.find((r) => r.date >= targetISO);
+
+    let fwdEPS: number | null;
+    let fwdBV: number | null;
+
+    if (fwdRow) {
+      fwdEPS = fwdRow[indexKey].impliedEPS;
+      fwdBV  = fwdRow[indexKey].impliedBV;
+    } else {
+      fwdEPS = m.impliedEPS != null ? m.impliedEPS * (1 + baseGrowthPct / 100) : null;
+      fwdBV  = m.impliedBV  != null ? m.impliedBV  * (1 + baseGrowthPct / 100) : null;
+    }
+
+    const fwdPE = fwdEPS != null && fwdEPS !== 0 ? close / fwdEPS : null;
+    const fwdPB = fwdBV  != null && fwdBV  !== 0 ? close / fwdBV  : null;
+
+    return { date: row.date, fwdPE, fwdPB };
+  });
+}

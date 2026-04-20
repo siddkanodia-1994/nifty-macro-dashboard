@@ -10,7 +10,8 @@ import {
   cn,
 } from "@/lib/utils";
 import { TimeWindowSelector } from "@/components/TimeWindowSelector";
-import { filterByWindow, extractValues, mean, stdDev } from "@/lib/calculations";
+import { filterByWindow, extractValues, mean, stdDev, buildForwardRatioSeries } from "@/lib/calculations";
+import { useRatioMode } from "@/lib/ratioMode";
 import type { HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
 
 type ProjectionPath = "pe_eps" | "pb_bv";
@@ -111,6 +112,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const [ownerDefaults, setOwnerDefaults] = useState<ProjectionsMap | null>(null);
   const [manualCells, setManualCells] = useState<Set<string>>(new Set());
   const [ownerMode, setOwnerMode] = useState(false);
+  const { ratioMode } = useRatioMode();
   const userHasEdited = useRef(false);
   const cronSecret = useRef<string | null>(null);
   const visitorDiff = useRef<VisitorDiff>({});
@@ -189,7 +191,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     return () => clearTimeout(id);
   }, [projections, ownerMode]);
 
-  // Auto-fill Target PE/PB from historical mean ± 1SD for the selected time window
+  // Auto-fill Target PE/PB from mean ± 1SD of the selected time window and ratio mode
   useEffect(() => {
     if (!isMounted.current) { isMounted.current = true; return; }
     const windowRows = filterByWindow(historicalData, timeWindow);
@@ -197,8 +199,21 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       const next = { ...prev };
       for (const meta of INDEX_META) {
         const key = meta.key;
-        const field = next[key].path === "pe_eps" ? "pe" : "pb";
-        const vals = extractValues(windowRows, key, field);
+        const isPEPath = next[key].path === "pe_eps";
+        let vals: number[];
+
+        if (ratioMode === "FWD") {
+          const growthPct = next[key].base.growthPct;
+          const fwdSeries = buildForwardRatioSeries(historicalData, key, growthPct);
+          const windowDateSet = new Set(windowRows.map((r) => r.date));
+          vals = fwdSeries
+            .filter((r) => windowDateSet.has(r.date))
+            .map((r) => (isPEPath ? r.fwdPE : r.fwdPB))
+            .filter((v): v is number => v != null);
+        } else {
+          vals = extractValues(windowRows, key, isPEPath ? "pe" : "pb");
+        }
+
         if (vals.length < 2) continue;
         const m = mean(vals);
         const sd = stdDev(vals);
@@ -213,7 +228,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     });
     setManualCells(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeWindow]);
+  }, [timeWindow, ratioMode]);
 
   const lastRow = historicalData[historicalData.length - 1] ?? null;
 
