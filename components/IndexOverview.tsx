@@ -38,6 +38,7 @@ interface IndexOverviewProps {
   onSelectIndex: (key: IndexKey) => void;
   timeWindow: TimeWindow;
   onTimeWindowChange: (w: TimeWindow) => void;
+  projectionDefaults?: Partial<Record<IndexKey, { base?: { growthPct?: number } }>> | null;
 }
 
 function ZBadge({ z }: { z: number | null }) {
@@ -68,15 +69,15 @@ function UpsideBadge({ pct }: { pct: number | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold tabular-nums text-zinc-600 dark:text-zinc-400">{label}</span>;
 }
 
-export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWindow, onTimeWindowChange }: IndexOverviewProps) {
+export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWindow, onTimeWindowChange, projectionDefaults }: IndexOverviewProps) {
   const [multipleTarget, setMultipleTarget] = useState<MultipleTarget>("mean");
   const [forwardMode, setForwardMode] = useState(false);
   const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
   const { ratioMode } = useRatioMode();
 
-  // Load forward bases when either "Forward EPS/BV" toggle or FWD ratio mode is active
+  // Load forward bases when "Forward EPS/BV" toggle is active
   useEffect(() => {
-    if (!forwardMode && ratioMode !== "FWD") { setForwardBases(null); return; }
+    if (!forwardMode) { setForwardBases(null); return; }
     (async () => {
       let blob: Record<string, any> | null = null;
       try {
@@ -110,18 +111,18 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
       }
       setForwardBases(Object.keys(merged).length ? merged : null);
     })();
-  }, [forwardMode, ratioMode]);
+  }, [forwardMode]);
 
   // Forward PE/PB series for all indices (only computed in FWD mode)
   const fwdSeriesMap = useMemo(() => {
     if (ratioMode !== "FWD") return null;
     const result = {} as Record<IndexKey, { date: string; fwdPE: number | null; fwdPB: number | null }[]>;
     for (const meta of INDEX_META) {
-      const growthPct = (forwardBases as any)?.[meta.key]?.base?.growthPct ?? 0;
+      const growthPct = projectionDefaults?.[meta.key]?.base?.growthPct ?? 0;
       result[meta.key] = buildForwardRatioSeries(historicalData, meta.key, growthPct);
     }
     return result;
-  }, [ratioMode, historicalData, forwardBases]);
+  }, [ratioMode, historicalData, projectionDefaults]);
 
   const lastRow = historicalData[historicalData.length - 1] ?? null;
 

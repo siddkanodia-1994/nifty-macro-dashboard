@@ -144,6 +144,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
               onSelectIndex={(key) => setActiveIndexTab(key)}
               timeWindow={overviewTimeWindow}
               onTimeWindowChange={setOverviewTimeWindow}
+              projectionDefaults={projectionDefaults}
             />
           </TabsContent>
 
