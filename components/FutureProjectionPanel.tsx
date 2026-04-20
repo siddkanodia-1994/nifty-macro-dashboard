@@ -87,13 +87,17 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const userHasEdited = useRef(false);
   const cronSecret = useRef<string | null>(null);
 
-  // On mount: detect owner mode, fetch owner defaults from API, then load visitor overrides
+  // Detect owner mode immediately (synchronous, separate from async init)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const key = params.get("key");
+    if (key) { cronSecret.current = key; setOwnerMode(true); }
+  }, []);
+
+  // On mount: fetch owner defaults from API, then load visitor overrides
   useEffect(() => {
     async function init() {
-      // Detect owner mode from URL ?key=
-      const params = new URLSearchParams(window.location.search);
-      const key = params.get("key");
-      if (key) { cronSecret.current = key; setOwnerMode(true); }
+      const key = cronSecret.current;
 
       let kv: ProjectionsMap | null = null;
       try {
@@ -343,7 +347,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
               <CardTitle className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                 {INDEX_META.find((m) => m.key === selectedIndex)?.label} — Forward Projections
                 {ownerMode && (
-                  <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">● Owner mode</span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">● Owner</span>
                 )}
               </CardTitle>
               {current && (
