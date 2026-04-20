@@ -114,6 +114,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const userHasEdited = useRef(false);
   const cronSecret = useRef<string | null>(null);
   const visitorDiff = useRef<VisitorDiff>({});
+  const isMounted = useRef(false);
 
   // Detect owner mode immediately (synchronous, separate from async init)
   useEffect(() => {
@@ -190,6 +191,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
   // Auto-fill Target PE/PB from historical mean ± 1SD for the selected time window
   useEffect(() => {
+    if (!isMounted.current) { isMounted.current = true; return; }
     const windowRows = filterByWindow(historicalData, timeWindow);
     setProjections((prev) => {
       const next = { ...prev };
