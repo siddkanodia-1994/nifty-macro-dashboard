@@ -390,6 +390,29 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
     });
   }
 
+  function toggleEstimate(fy: string) {
+    updateData((prev) => ({
+      ...prev,
+      years: prev.years.map((y) =>
+        y.fy === fy ? { ...y, isEstimate: !y.isEstimate } : y
+      ),
+    }));
+  }
+
+  function addNextYear() {
+    const lastFy = data.years[data.years.length - 1]?.fy ?? "FY27";
+    const num = parseInt(lastFy.replace("FY", ""), 10);
+    const nextFy = `FY${num + 1}`;
+    const newYear: MacroYearData = {
+      fy: nextFy,
+      isEstimate: true,
+      rawData: {},
+      qualLabels: { GEO_POLITICS: "", DOMESTIC_POLICIES: "" },
+      manualScores: { GEO_POLITICS: 2, DOMESTIC_POLICIES: 2 },
+    };
+    updateData((prev) => ({ ...prev, years: [...prev.years, newYear] }));
+  }
+
   const tableHeaderCls = "sticky left-0 z-10 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-left text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap w-[164px] min-w-[164px] max-w-[164px]";
   const thCls = "px-2 py-1.5 text-center text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px] border-r border-zinc-200 dark:border-zinc-700";
   const separatorRow = "border-t-2 border-zinc-300 dark:border-zinc-600";
@@ -443,7 +466,23 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                   {years.map((y) => (
                     <th key={y.fy} className={cn(thCls, y.isEstimate && "text-blue-700 dark:text-blue-400")}>
                       {y.fy}
-                      {y.isEstimate && <span className="block text-[10px] font-normal">est.</span>}
+                      {y.isEstimate ? (
+                        ownerMode ? (
+                          <button
+                            onClick={() => toggleEstimate(y.fy)}
+                            className="block text-[10px] font-normal underline decoration-dotted cursor-pointer mt-0.5 hover:opacity-70"
+                            title="Click to mark as actual"
+                          >est.</button>
+                        ) : (
+                          <span className="block text-[10px] font-normal mt-0.5">est.</span>
+                        )
+                      ) : ownerMode ? (
+                        <button
+                          onClick={() => toggleEstimate(y.fy)}
+                          className="block text-[10px] font-normal text-zinc-400 cursor-pointer mt-0.5 hover:text-zinc-600 dark:hover:text-zinc-300"
+                          title="Click to revert to estimate"
+                        >↺</button>
+                      ) : null}
                     </th>
                   ))}
                   <th className="w-[88px] min-w-[88px] max-w-[88px] border-r border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800" />
@@ -511,18 +550,28 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
           <h3 className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 uppercase tracking-wide">
             Scoring Sheet
           </h3>
-          <button
-            onClick={() => setShowInlineRaw((v) => !v)}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors",
-              showInlineRaw
-                ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
-                : "border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+          <div className="flex items-center gap-2">
+            {ownerMode && (
+              <button
+                onClick={addNextYear}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border border-dashed border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:border-zinc-500 dark:hover:border-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+              >
+                + Add FY{parseInt((data.years[data.years.length - 1]?.fy ?? "FY27").replace("FY", ""), 10) + 1}
+              </button>
             )}
-          >
-            {showInlineRaw ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            Raw Data
-          </button>
+            <button
+              onClick={() => setShowInlineRaw((v) => !v)}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors",
+                showInlineRaw
+                  ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
+                  : "border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              )}
+            >
+              {showInlineRaw ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              Raw Data
+            </button>
+          </div>
         </CardHeader>
         <CardContent className="px-0 pb-4">
           <div className="overflow-x-auto">
