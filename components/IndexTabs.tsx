@@ -28,6 +28,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
   const [timeWindow, setTimeWindow]             = useState<TimeWindow>("1Y");
   const [overviewTimeWindow, setOverviewTimeWindow] = useState<TimeWindow>("2Y");
   const [liveData, setLiveData]             = useState<Partial<Record<IndexKey, number>> | null>(null);
+  const [liveMarketOpen, setLiveMarketOpen] = useState(false);
   const [liveBondYield, setLiveBondYield]   = useState<number | null>(null);
   const [projectionDefaults, setProjectionDefaults] = useState<ProjectionDefaultsMap | null>(null);
 
@@ -44,32 +45,40 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
   }, []);
 
   const fetchLive = useCallback(async () => {
-    if (!isMarketOpen()) return;
     try {
       const res = await fetch("/api/live-prices");
-      if (!res.ok) return;
+      if (!res.ok) { setLiveData(null); return; }
       const json = await res.json();
-      if (!json.marketOpen) return;
       const prices: Partial<Record<IndexKey, number>> = {};
       for (const meta of INDEX_META) {
         const val = json[meta.key];
         if (typeof val === "number") prices[meta.key] = val;
       }
+      const anyValid = Object.values(prices).some((v) => v != null);
+      if (!anyValid) { setLiveData(null); return; }
       setLiveData(prices);
-      if (typeof json.bondYield === "number") {
-        setLiveBondYield(json.bondYield);
-      }
+      setLiveMarketOpen(json.marketOpen === true);
+      if (typeof json.bondYield === "number") setLiveBondYield(json.bondYield);
     } catch {
-      // Network error — keep last known live data
+      // Network error — keep last known state
     }
   }, []);
 
+  // Fetch once on mount (shows CLO badge after close); poll every 60s during market hours
   useEffect(() => {
-    if (!isMarketOpen()) return;
     fetchLive();
-    const id = setInterval(fetchLive, 60_000);
-    return () => clearInterval(id);
+    if (!isMarketOpen()) return;
+    const pollId = setInterval(fetchLive, 60_000);
+    return () => clearInterval(pollId);
   }, [fetchLive]);
+
+  // Detect market close in real-time for users who stay on the page past 3:30 PM
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!isMarketOpen()) setLiveMarketOpen(false);
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <Tabs
@@ -141,6 +150,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
             <IndexOverview
               historicalData={historicalData}
               liveData={liveData}
+              liveMarketOpen={liveMarketOpen}
               onSelectIndex={(key) => setActiveIndexTab(key)}
               timeWindow={overviewTimeWindow}
               onTimeWindowChange={setOverviewTimeWindow}
@@ -157,6 +167,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
                 timeWindow={timeWindow}
                 onTimeWindowChange={setTimeWindow}
                 liveClose={liveData?.[meta.key] ?? null}
+                liveMarketOpen={liveMarketOpen}
                 indexGrowthPct={projectionDefaults?.[meta.key]?.base?.growthPct ?? 0}
               />
             </TabsContent>

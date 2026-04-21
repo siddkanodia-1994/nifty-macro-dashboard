@@ -35,6 +35,7 @@ const VISITOR_STORAGE_KEY = "nifty-projections-visitor-v2";
 interface IndexOverviewProps {
   historicalData: HistoricalRow[];
   liveData: Partial<Record<IndexKey, number>> | null;
+  liveMarketOpen?: boolean;
   onSelectIndex: (key: IndexKey) => void;
   timeWindow: TimeWindow;
   onTimeWindowChange: (w: TimeWindow) => void;
@@ -69,7 +70,7 @@ function UpsideBadge({ pct }: { pct: number | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold tabular-nums text-zinc-600 dark:text-zinc-400">{label}</span>;
 }
 
-export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWindow, onTimeWindowChange, projectionDefaults }: IndexOverviewProps) {
+export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSelectIndex, timeWindow, onTimeWindowChange, projectionDefaults }: IndexOverviewProps) {
   const [multipleTarget, setMultipleTarget] = useState<MultipleTarget>("mean");
   const [forwardMode, setForwardMode] = useState(false);
   const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
@@ -353,13 +354,19 @@ export function IndexOverview({ historicalData, liveData, onSelectIndex, timeWin
                       <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 whitespace-nowrap tracking-tight">
                         {meta.label}
                       </span>
-                      {isLive && (
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 whitespace-nowrap bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">
+                      {isLive && liveMarketOpen && (
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 whitespace-nowrap bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">
                           <span className="relative flex h-1.5 w-1.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                             <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
                           </span>
                           LIVE
+                        </span>
+                      )}
+                      {isLive && !liveMarketOpen && (
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 whitespace-nowrap bg-zinc-100 px-1.5 py-0.5 rounded-full border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700">
+                          <span className="inline-flex h-1.5 w-1.5 rounded-full bg-zinc-400" />
+                          CLO
                         </span>
                       )}
                     </div>

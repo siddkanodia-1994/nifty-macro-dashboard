@@ -29,6 +29,7 @@ interface IndexPanelProps {
   timeWindow: TimeWindow;
   onTimeWindowChange: (w: TimeWindow) => void;
   liveClose?: number | null;
+  liveMarketOpen?: boolean;
   indexGrowthPct?: number;
 }
 
@@ -60,6 +61,7 @@ export function IndexPanel({
   timeWindow,
   onTimeWindowChange,
   liveClose = null,
+  liveMarketOpen = false,
   indexGrowthPct = 0,
 }: IndexPanelProps) {
   const [showControlLines, setShowControlLines] = useState(true);
@@ -184,7 +186,7 @@ export function IndexPanel({
             label={METRIC_LABELS[m]}
             metric={m}
             stats={indexStats[m]}
-            isLive={(m === "close" || m === "pe" || m === "pb") && liveClose != null}
+            isLive={(m === "close" || m === "pe" || m === "pb") && liveClose != null && liveMarketOpen}
           />
         ))}
       </div>
