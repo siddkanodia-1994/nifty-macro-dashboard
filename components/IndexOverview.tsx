@@ -313,7 +313,6 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                 >
                   P / B  R A T I O
                 </th>
-                <th rowSpan={2} />
               </tr>
 
               {/* Column headers */}
@@ -349,9 +348,9 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                   )}
                 >
                   {/* Index name */}
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 cursor-pointer" onClick={() => onSelectIndex(meta.key)}>
                     <div className="flex items-center gap-2.5">
-                      <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 whitespace-nowrap tracking-tight">
+                      <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 whitespace-nowrap tracking-tight hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                         {meta.label}
                       </span>
                       {isLive && liveMarketOpen && (
@@ -437,15 +436,6 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                     <UpsideBadge pct={pbUpside} />
                   </td>
 
-                  {/* Details */}
-                  <td className="px-5 py-4 text-right">
-                    <button
-                      onClick={() => onSelectIndex(meta.key)}
-                      className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors whitespace-nowrap tracking-wide"
-                    >
-                      Details →
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>

@@ -133,3 +133,7 @@
 [data-compact-text] .text-base { font-size: 17px; line-height: 1.4; }
 [data-compact-text] .text-sm   { font-size: 15px; line-height: 1.4; }
 [data-compact-text] .text-xs   { font-size: 13px; line-height: 1.4; }
+[data-compact-text] td,
+[data-compact-text] th         { padding-left: 10px; padding-right: 10px; }
+[data-compact-text] td:first-child,
+[data-compact-text] th:first-child { padding-left: 16px; }
