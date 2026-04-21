@@ -18,7 +18,10 @@ export async function GET() {
     const { blobs } = await list({ prefix: "live-prices.json" });
     if (!blobs.length) throw new Error("no blob");
 
-    const res = await fetch(blobs[0].url, { cache: "no-store" });
+    const latest = blobs.sort(
+      (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+    )[0];
+    const res = await fetch(latest.url, { cache: "no-store" });
     if (!res.ok) throw new Error("blob fetch failed");
 
     const data = await res.json();

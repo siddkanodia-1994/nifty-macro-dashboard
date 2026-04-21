@@ -1,6 +1,6 @@
 // GitHub Actions: fetches live prices from NSE India API and writes to Vercel Blob.
 // Runs every 5 min during market hours (3:00–10:59 UTC Mon–Fri).
-import { put } from "@vercel/blob";
+import { put, list, del } from "@vercel/blob";
 
 const INDEX_NAME_MAP = {
   "NIFTY 50":           "NIFTY_50",
@@ -63,6 +63,10 @@ if (!anyValid) {
   console.error("All prices null — skipping blob write.");
   process.exit(1);
 }
+
+// Delete stale blobs before writing so list() always returns exactly one entry
+const { blobs: existing } = await list({ prefix: "live-prices.json" });
+if (existing.length > 0) await del(existing.map((b) => b.url));
 
 await put(
   "live-prices.json",
