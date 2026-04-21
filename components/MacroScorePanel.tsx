@@ -413,6 +413,13 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
     updateData((prev) => ({ ...prev, years: [...prev.years, newYear] }));
   }
 
+  function deleteYear(fy: string) {
+    updateData((prev) => ({
+      ...prev,
+      years: prev.years.filter((y) => y.fy !== fy),
+    }));
+  }
+
   const tableHeaderCls = "sticky left-0 z-10 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-left text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap w-[164px] min-w-[164px] max-w-[164px]";
   const thCls = "px-2 py-1.5 text-center text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px] border-r border-zinc-200 dark:border-zinc-700";
   const separatorRow = "border-t-2 border-zinc-300 dark:border-zinc-600";
@@ -468,11 +475,18 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                       {y.fy}
                       {y.isEstimate ? (
                         ownerMode ? (
-                          <button
-                            onClick={() => toggleEstimate(y.fy)}
-                            className="block text-[10px] font-normal underline decoration-dotted cursor-pointer mt-0.5 hover:opacity-70"
-                            title="Click to mark as actual"
-                          >est.</button>
+                          <div className="flex items-center justify-center gap-1 mt-0.5">
+                            <button
+                              onClick={() => toggleEstimate(y.fy)}
+                              className="text-[10px] font-normal underline decoration-dotted cursor-pointer hover:opacity-70"
+                              title="Click to mark as actual"
+                            >est.</button>
+                            <button
+                              onClick={() => deleteYear(y.fy)}
+                              className="text-[10px] font-normal text-red-400 hover:text-red-600 dark:hover:text-red-300 cursor-pointer leading-none"
+                              title={`Delete ${y.fy} column`}
+                            >×</button>
+                          </div>
                         ) : (
                           <span className="block text-[10px] font-normal mt-0.5">est.</span>
                         )
