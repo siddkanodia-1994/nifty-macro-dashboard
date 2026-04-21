@@ -165,9 +165,55 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
     loadMacroScoreData(defaultJson as MacroScoreData)
   );
   const [showRubric, setShowRubric] = useState(false);
+  const [ownerMode, setOwnerMode] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const cronSecret = useRef<string | null>(null);
+  const userHasEdited = useRef(false);
+
+  function updateData(updater: (prev: MacroScoreData) => MacroScoreData) {
+    userHasEdited.current = true;
+    setData(updater);
+  }
+
+  // Detect owner mode + fetch server data on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const key = params.get("key");
+    if (key) { cronSecret.current = key; setOwnerMode(true); }
+
+    (async () => {
+      try {
+        const res = await fetch("/api/macro-score", { cache: "no-store" });
+        if (res.ok) {
+          const json = await res.json();
+          if (json) { setData(json as MacroScoreData); return; }
+        }
+      } catch {}
+    })();
+  }, []);
 
   // Persist to localStorage on every change
   useEffect(() => { saveMacroScoreData(data); }, [data]);
+
+  // Debounced POST to Redis in owner mode
+  useEffect(() => {
+    if (!ownerMode || !cronSecret.current || !userHasEdited.current) return;
+    setSaveStatus("saving");
+    const id = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/macro-score", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${cronSecret.current}`,
+          },
+          body: JSON.stringify(data),
+        });
+        setSaveStatus(res.ok ? "saved" : "error");
+      } catch { setSaveStatus("error"); }
+    }, 600);
+    return () => clearTimeout(id);
+  }, [data, ownerMode]);
 
   const years = data.years;
 
@@ -234,7 +280,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
 
   // ── Mutation helpers ──────────────────────────────────────────────────────
   function updateYear(fy: string, updater: (y: MacroYearData) => MacroYearData) {
-    setData((prev) => ({
+    updateData((prev) => ({
       ...prev,
       years: prev.years.map((y) => (y.fy === fy ? updater(y) : y)),
     }));
@@ -283,13 +329,13 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
   function setWeightage(param: MacroParamId, val: string) {
     const n = parseFloat(val);
     if (isNaN(n)) return;
-    setData((prev) => ({ ...prev, weightages: { ...prev.weightages, [param]: n } }));
+    updateData((prev) => ({ ...prev, weightages: { ...prev.weightages, [param]: n } }));
   }
 
   function updateRubricBand(param: MacroParamId, idx: number, field: keyof RubricBand, val: string) {
     const n = parseFloat(val);
     if (isNaN(n)) return;
-    setData((prev) => {
+    updateData((prev) => {
       const bands = [...(prev.rubric[param] ?? [])];
       bands[idx] = { ...bands[idx], [field]: n };
       return { ...prev, rubric: { ...prev.rubric, [param]: bands } };
@@ -297,7 +343,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
   }
 
   function changeSlabCount(param: MacroParamId, newCount: number) {
-    setData((prev) => {
+    updateData((prev) => {
       const bands = [...(prev.rubric[param] ?? [])];
       if (newCount > bands.length) {
         while (bands.length < newCount) {
@@ -331,13 +377,27 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
             FY-wise macro health scoring. Click any cell to edit. Changes persist in your browser.
           </p>
         </div>
-        <button
-          onClick={handleReset}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-        >
-          <RotateCcw className="h-3 w-3" />
-          Reset to defaults
-        </button>
+        <div className="flex items-center gap-2">
+          {ownerMode && (
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">● Owner</span>
+          )}
+          {ownerMode && saveStatus === "saving" && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">Saving…</span>
+          )}
+          {ownerMode && saveStatus === "saved" && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">Saved ✓</span>
+          )}
+          {ownerMode && saveStatus === "error" && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">Save failed ✗</span>
+          )}
+          <button
+            onClick={handleReset}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <RotateCcw className="h-3 w-3" />
+            Reset to defaults
+          </button>
+        </div>
       </div>
 
       {/* ── Card 1: Raw Data ── */}
