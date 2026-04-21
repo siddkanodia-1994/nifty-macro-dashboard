@@ -294,7 +294,7 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
               <tr className="bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
                 <th className="px-6 py-2 text-left" rowSpan={2} />
                 <th
-                  className="px-5 py-2 text-right text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-300"
+                  className="px-5 py-2 text-right text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-300 align-bottom"
                   rowSpan={2}
                 >
                   Close
@@ -322,7 +322,7 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Target Price</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">
                   Upside % <span className="text-zinc-500 dark:text-zinc-500 font-normal">({multipleLabel})</span>
                 </th>
@@ -331,7 +331,7 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Target Price</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">
                   Upside % <span className="text-zinc-500 dark:text-zinc-500 font-normal">({multipleLabel})</span>
                 </th>
@@ -350,7 +350,7 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                   {/* Index name */}
                   <td className="px-6 py-4 cursor-pointer" onClick={() => onSelectIndex(meta.key)}>
                     <div className="flex items-center gap-2.5">
-                      <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 whitespace-nowrap tracking-tight hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                      <span className="text-sm font-bold text-[#003566] dark:text-zinc-100 whitespace-nowrap tracking-tight hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                         {meta.label}
                       </span>
                       {isLive && liveMarketOpen && (
