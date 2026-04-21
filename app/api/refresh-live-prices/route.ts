@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { put } from "@vercel/blob";
+import { put, list, del } from "@vercel/blob";
 import { isMarketOpen } from "@/lib/marketHours";
 import type { IndexKey } from "@/lib/types";
 
@@ -64,6 +64,12 @@ export async function GET(request: Request) {
     if (!anyValid) {
       return NextResponse.json({ skipped: true, reason: "all prices null" });
     }
+
+    // Delete stale blobs before writing so list() always returns exactly one entry
+    try {
+      const { blobs: existing } = await list({ prefix: "live-prices.json" });
+      if (existing.length > 0) await del(existing.map((b) => b.url));
+    } catch {}
 
     await put(
       "live-prices.json",
