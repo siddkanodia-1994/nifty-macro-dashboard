@@ -126,7 +126,7 @@ function EditCell({
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
-          className="w-full min-w-[60px] rounded border border-blue-400 bg-white dark:bg-zinc-800 px-1 py-0.5 text-xs text-right outline-none"
+          className="w-full min-w-[60px] rounded border border-blue-400 bg-white dark:bg-zinc-800 px-1 py-0.5 text-xs text-center outline-none"
         />
       </td>
     );
@@ -135,9 +135,9 @@ function EditCell({
   return (
     <td
       className={cn(
-        "px-2 py-1 text-right text-xs font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer select-none",
+        "px-2 py-1 text-center text-xs font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer select-none border-r border-zinc-200 dark:border-zinc-700",
         wrap ? "whitespace-normal break-words" : "whitespace-nowrap",
-        isEstimate && "italic opacity-60",
+        isEstimate && "text-blue-600 dark:text-blue-400",
         className
       )}
       onClick={() => { setDraft(displayText === "—" ? "" : displayText.replace("%", "")); setEditing(true); }}
@@ -318,7 +318,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
   }
 
   const tableHeaderCls = "sticky left-0 z-10 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-left text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap w-[164px] min-w-[164px] max-w-[164px]";
-  const thCls = "px-2 py-1.5 text-right text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]";
+  const thCls = "px-2 py-1.5 text-center text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px] border-r border-zinc-200 dark:border-zinc-700";
   const separatorRow = "border-t-2 border-zinc-300 dark:border-zinc-600";
 
   return (
@@ -349,14 +349,14 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
         </CardHeader>
         <CardContent className="px-0 pb-4">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse table-fixed">
+            <table className="w-full border-collapse table-fixed border border-zinc-200 dark:border-zinc-700">
               <thead>
                 <tr className="border-b border-zinc-200 dark:border-zinc-700">
                   <th className={tableHeaderCls}>Parameter</th>
                   {years.map((y) => (
-                    <th key={y.fy} className={cn(thCls, y.isEstimate && "italic opacity-60")}>
+                    <th key={y.fy} className={cn(thCls, y.isEstimate && "text-blue-700 dark:text-blue-400")}>
                       {y.fy}
-                      {y.isEstimate && <span className="block text-[10px] font-normal opacity-70">est.</span>}
+                      {y.isEstimate && <span className="block text-[10px] font-normal">est.</span>}
                     </th>
                   ))}
                 </tr>
@@ -364,7 +364,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
               <tbody>
                 {/* Quantitative rows */}
                 {QUANT_PARAMS.map((param) => (
-                  <tr key={param} className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                  <tr key={param} className="border-b border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                     <td className={tableHeaderCls}>{PARAM_LABELS[param]}</td>
                     {years.map((y) => {
                       const effVal = getEffectiveRaw(y, param);
@@ -390,7 +390,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
 
                 {/* Qualitative label rows */}
                 {QUAL_PARAMS.map((param) => (
-                  <tr key={param} className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                  <tr key={param} className="border-b border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                     <td className={tableHeaderCls}>{PARAM_LABELS[param]}</td>
                     {years.map((y) => {
                       const label = y.qualLabels[param as keyof typeof y.qualLabels] ?? "";
@@ -424,12 +424,12 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
         </CardHeader>
         <CardContent className="px-0 pb-4">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse table-fixed">
+            <table className="w-full border-collapse table-fixed border border-zinc-200 dark:border-zinc-700">
               <thead>
                 <tr className="border-b border-zinc-200 dark:border-zinc-700">
                   <th className={tableHeaderCls}>Parameter</th>
                   {years.map((y) => (
-                    <th key={y.fy} className={cn(thCls, y.isEstimate && "italic opacity-60")}>
+                    <th key={y.fy} className={cn(thCls, y.isEstimate && "text-blue-700 dark:text-blue-400")}>
                       {y.fy}
                     </th>
                   ))}
@@ -441,7 +441,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
               <tbody>
                 {/* Score rows per param */}
                 {ALL_PARAMS.map((param) => (
-                  <tr key={param} className="border-b border-zinc-100 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                  <tr key={param} className="border-b border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                     <td className={tableHeaderCls}>{PARAM_LABELS[param]}</td>
                     {years.map((y) => {
                       const manual = y.manualScores[param];
@@ -475,13 +475,13 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                       );
                     })}
                     {/* Weightage cell */}
-                    <td className="px-2 py-1 text-right text-xs bg-zinc-50 dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700">
+                    <td className="px-2 py-1 text-center text-xs bg-zinc-50 dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700">
                       <input
                         type="number"
                         step="1"
                         value={data.weightages[param]}
                         onChange={(e) => setWeightage(param, e.target.value)}
-                        className="w-14 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1 py-0.5 text-xs text-right outline-none focus:border-blue-400"
+                        className="w-14 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1 py-0.5 text-xs text-center outline-none focus:border-blue-400"
                       />
                       <span className="ml-0.5 text-zinc-400">%</span>
                     </td>
@@ -499,8 +499,8 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                       <td
                         key={y.fy}
                         className={cn(
-                          "px-2 py-1.5 text-right text-xs font-semibold",
-                          y.isEstimate && "italic opacity-70",
+                          "px-2 py-1.5 text-center text-xs font-semibold border-r border-zinc-200 dark:border-zinc-700",
+                          y.isEstimate && "text-blue-600 dark:text-blue-400",
                           scoreColor(fs)
                         )}
                       >
@@ -508,7 +508,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                       </td>
                     );
                   })}
-                  <td className="px-2 py-1 text-right text-xs bg-zinc-50 dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700">
+                  <td className="px-2 py-1 text-center text-xs bg-zinc-50 dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700">
                     <span className={cn("font-semibold", Math.abs(weightSum - 100) > 0.5 ? "text-red-600" : "text-zinc-600 dark:text-zinc-400")}>
                       {weightSum.toFixed(0)}%
                     </span>
@@ -519,11 +519,11 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                 <tr className={cn(separatorRow)}>
                   <td className={cn(tableHeaderCls, "text-zinc-700 dark:text-zinc-300")}>Nifty PE AVG</td>
                   {years.map((y) => (
-                    <td key={y.fy} className={cn("px-2 py-1.5 text-right text-xs font-medium text-zinc-700 dark:text-zinc-300", y.isEstimate && "italic opacity-60")}>
+                    <td key={y.fy} className={cn("px-2 py-1.5 text-center text-xs font-medium text-zinc-700 dark:text-zinc-300 border-r border-zinc-200 dark:border-zinc-700", y.isEstimate && "text-blue-600 dark:text-blue-400")}>
                       {autoPEAvg[y.fy] != null ? fmt(autoPEAvg[y.fy], 1) : "—"}
                     </td>
                   ))}
-                  <td className="px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700" />
+                  <td className="px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border-l border-r border-zinc-200 dark:border-zinc-700" />
                 </tr>
                 <tr>
                   <td className={cn(tableHeaderCls, "text-zinc-700 dark:text-zinc-300")}>Nifty Returns</td>
@@ -531,15 +531,16 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                     const r = autoReturn[y.fy];
                     return (
                       <td key={y.fy} className={cn(
-                        "px-2 py-1.5 text-right text-xs",
-                        y.isEstimate && "italic opacity-60",
-                        r != null ? (r >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400") : "text-zinc-400"
+                        "px-2 py-1.5 text-center text-xs font-medium border-r border-zinc-200 dark:border-zinc-700",
+                        y.isEstimate
+                          ? "text-blue-600 dark:text-blue-400"
+                          : r != null ? (r >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400") : "text-zinc-400"
                       )}>
                         {r != null ? fmtPct(r * 100, 1) : "—"}
                       </td>
                     );
                   })}
-                  <td className="px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700" />
+                  <td className="px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border-l border-r border-zinc-200 dark:border-zinc-700" />
                 </tr>
                 <tr>
                   <td className={cn(tableHeaderCls, "text-zinc-700 dark:text-zinc-300")}>Score Growth YoY</td>
@@ -549,15 +550,16 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                     const g = curr != null && prev != null && prev !== 0 ? ((curr - prev) / prev) * 100 : null;
                     return (
                       <td key={y.fy} className={cn(
-                        "px-2 py-1.5 text-right text-xs",
-                        y.isEstimate && "italic opacity-60",
-                        g != null ? (g >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400") : "text-zinc-400"
+                        "px-2 py-1.5 text-center text-xs font-medium border-r border-zinc-200 dark:border-zinc-700",
+                        y.isEstimate
+                          ? "text-blue-600 dark:text-blue-400"
+                          : g != null ? (g >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400") : "text-zinc-400"
                       )}>
                         {g != null ? fmtPct(g, 1) : "—"}
                       </td>
                     );
                   })}
-                  <td className="px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700" />
+                  <td className="px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border-l border-r border-zinc-200 dark:border-zinc-700" />
                 </tr>
               </tbody>
             </table>
