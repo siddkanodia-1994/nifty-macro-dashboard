@@ -382,9 +382,15 @@ def main():
     with open(output_path) as f:
         rows: list[dict] = json.load(f)
 
-    if target_iso in {r["date"] for r in rows}:
-        print(f"Date {target_iso} already exists — nothing to do.")
-        return
+    existing = next((r for r in rows if r["date"] == target_iso), None)
+    if existing:
+        n50_close = existing.get("NIFTY_50", {}).get("close")
+        is_clean = n50_close is not None and round(n50_close, 2) == n50_close
+        if is_clean:
+            print(f"Date {target_iso} already has clean niftyindices.com data — nothing to do.")
+            return
+        print(f"Date {target_iso} has Yahoo approximation data (close={n50_close}) — removing and re-fetching…")
+        rows = [r for r in rows if r["date"] != target_iso]
 
     # ── Strategy 1: HTTP GET to /reports/daily-reports ───────────────────────
     results = fetch_all_daily_reports(target_date)

@@ -2,13 +2,16 @@ name: Update EOD Data
 
 on:
   schedule:
-    # Retry every 30 min from 6:00 PM to 8:00 PM IST (12:30–14:30 UTC), Mon–Fri
-    # Stops doing real work once today's data is already in historical.json
+    # Every 30 min, 6:00 PM–9:00 PM IST (12:30–15:30 UTC), Mon–Fri
+    # Script itself skips if clean niftyindices.com data already present;
+    # re-fetches if only Yahoo Finance approximation data exists.
     - cron: "30 12 * * 1-5"
     - cron: "0 13 * * 1-5"
     - cron: "30 13 * * 1-5"
     - cron: "0 14 * * 1-5"
     - cron: "30 14 * * 1-5"
+    - cron: "0 15 * * 1-5"
+    - cron: "30 15 * * 1-5"
   workflow_dispatch:
     inputs:
       date:
@@ -26,25 +29,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Skip if today's data already present
-        id: check
-        run: |
-          TODAY=$(date -u +%Y-%m-%d)
-          if grep -q "\"date\": \"$TODAY\"" data/historical.json 2>/dev/null; then
-            echo "already_done=true" >> "$GITHUB_OUTPUT"
-            echo "Data for $TODAY already in historical.json — skipping fetch."
-          else
-            echo "already_done=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Set up Python 3.11
-        if: steps.check.outputs.already_done == 'false'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Cache Playwright browsers
-        if: steps.check.outputs.already_done == 'false'
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
@@ -53,15 +43,12 @@ jobs:
             playwright-chromium-${{ runner.os }}-
 
       - name: Install Python dependencies
-        if: steps.check.outputs.already_done == 'false'
         run: pip install requests playwright
 
       - name: Install Playwright Chromium
-        if: steps.check.outputs.already_done == 'false'
         run: playwright install chromium --with-deps
 
       - name: Fetch EOD Daily Snapshot from niftyindices.com
-        if: steps.check.outputs.already_done == 'false'
         run: |
           if [ -n "${{ github.event.inputs.date }}" ]; then
             python scripts/fetch-eod.py --date "${{ github.event.inputs.date }}"
@@ -70,7 +57,6 @@ jobs:
           fi
 
       - name: Fetch India 10Y bond yield and update byey.json
-        if: steps.check.outputs.already_done == 'false'
         run: |
           if [ -n "${{ github.event.inputs.date }}" ]; then
             python scripts/fetch-byey.py --date "${{ github.event.inputs.date }}"
@@ -79,7 +65,7 @@ jobs:
           fi
 
       - name: Upload debug screenshot on failure
-        if: failure() && steps.check.outputs.already_done == 'false'
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-error-screenshot
@@ -87,7 +73,6 @@ jobs:
           if-no-files-found: ignore
 
       - name: Commit and push if data changed
-        if: steps.check.outputs.already_done == 'false'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
