@@ -112,6 +112,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const [ownerDefaults, setOwnerDefaults] = useState<ProjectionsMap | null>(null);
   const [manualCells, setManualCells] = useState<Set<string>>(new Set());
   const [ownerMode, setOwnerMode] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const { ratioMode } = useRatioMode();
   const userHasEdited = useRef(false);
   const cronSecret = useRef<string | null>(null);
@@ -176,9 +177,10 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   useEffect(() => {
     if (!ownerMode || !cronSecret.current) return;
     if (!userHasEdited.current) return;
+    setSaveStatus("saving");
     const id = setTimeout(async () => {
       try {
-        await fetch("/api/projection-defaults", {
+        const res = await fetch("/api/projection-defaults", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -186,7 +188,10 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
           },
           body: JSON.stringify(projections),
         });
-      } catch {}
+        setSaveStatus(res.ok ? "saved" : "error");
+      } catch {
+        setSaveStatus("error");
+      }
     }, 600);
     return () => clearTimeout(id);
   }, [projections, ownerMode]);
@@ -420,6 +425,15 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
                 {INDEX_META.find((m) => m.key === selectedIndex)?.label} — Forward Projections
                 {ownerMode && (
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">● Owner</span>
+                )}
+                {ownerMode && saveStatus === "saving" && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">Saving…</span>
+                )}
+                {ownerMode && saveStatus === "saved" && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">Saved ✓</span>
+                )}
+                {ownerMode && saveStatus === "error" && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">Save failed ✗</span>
                 )}
               </CardTitle>
               {current && (

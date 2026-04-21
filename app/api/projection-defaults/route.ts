@@ -29,12 +29,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const body = await request.json();
-  // Delete all existing blobs before writing new one — each put() creates a new
-  // blob URL even with allowOverwrite:true, so old blobs accumulate otherwise.
-  const { blobs: existing } = await list({ prefix: BLOB_KEY });
-  if (existing.length > 0) {
-    await del(existing.map((b) => b.url));
-  }
+  try {
+    const { blobs: existing } = await list({ prefix: BLOB_KEY });
+    if (existing.length > 0) await del(existing.map((b) => b.url));
+  } catch {}
   await put(BLOB_KEY, JSON.stringify(body), {
     access: "public", allowOverwrite: true, contentType: "application/json",
   });
