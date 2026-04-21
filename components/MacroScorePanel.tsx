@@ -180,6 +180,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const cronSecret = useRef<string | null>(null);
   const userHasEdited = useRef(false);
+  const redisSnapshot = useRef<MacroScoreData | null>(null);
 
   function updateData(updater: (prev: MacroScoreData) => MacroScoreData) {
     userHasEdited.current = true;
@@ -197,7 +198,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
         const res = await fetch("/api/macro-score", { cache: "no-store" });
         if (res.ok) {
           const json = await res.json();
-          if (json) { setData(json as MacroScoreData); return; }
+          if (json) { redisSnapshot.current = json as MacroScoreData; setData(json as MacroScoreData); return; }
         }
       } catch {}
     })();
@@ -369,9 +370,11 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
   }
 
   function handleReset() {
-    if (!confirm("Reset all data to defaults? This cannot be undone.")) return;
-    resetMacroScoreData();
-    setData(defaultJson as MacroScoreData);
+    if (!confirm("Reset to the last saved version?")) return;
+    const target = redisSnapshot.current ?? (defaultJson as MacroScoreData);
+    userHasEdited.current = true;
+    setData(target);
+    saveMacroScoreData(target);
   }
 
   function setAnalysisOverride(fy: string, field: keyof AnalysisOverrides, val: string) {
@@ -452,7 +455,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
           >
             <RotateCcw className="h-3 w-3" />
-            Reset to defaults
+            Reset to saved
           </button>
         </div>
       </div>
