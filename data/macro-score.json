@@ -1,36 +1,38 @@
 {
   "rubric": {
     "EPS_GROWTH": [
-      { "max": 0,   "score": 0.5 },
-      { "max": 10,  "score": 1.0 },
-      { "max": 15,  "score": 2.0 },
-      { "max": 25,  "score": 3.0 },
-      { "max": 999, "score": 4.0 }
+      { "max": -1,  "score": 0.25 },
+      { "max": 0,   "score": 0.5  },
+      { "max": 10,  "score": 1.0  },
+      { "max": 15,  "score": 2.0  },
+      { "max": 25,  "score": 3.0  },
+      { "max": 999, "score": 4.0  }
     ],
     "ROE": [
-      { "max": 10,  "score": 1.0 },
-      { "max": 12,  "score": 1.5 },
-      { "max": 14,  "score": 2.0 },
-      { "max": 16,  "score": 3.0 },
-      { "max": 999, "score": 4.0 }
+      { "max": 10,   "score": 1.0 },
+      { "max": 12.9, "score": 1.5 },
+      { "max": 14,   "score": 2.0 },
+      { "max": 15,   "score": 2.5 },
+      { "max": 16,   "score": 3.0 },
+      { "max": 999,  "score": 4.0 }
     ],
     "CREDIT_GROWTH": [
-      { "max": 5,   "score": 0.5 },
+      { "max": 4,   "score": 0.5 },
       { "max": 10,  "score": 1.0 },
-      { "max": 15,  "score": 2.0 },
-      { "max": 20,  "score": 3.0 },
+      { "max": 12,  "score": 1.5 },
       { "max": 999, "score": 2.0 }
     ],
     "BOND_YIELD": [
-      { "max": 6,   "score": 3.0 },
-      { "max": 7,   "score": 2.0 },
-      { "max": 8,   "score": 1.0 },
+      { "max": 6.0, "score": 3.0 },
+      { "max": 6.9, "score": 2.0 },
+      { "max": 7.5, "score": 1.5 },
+      { "max": 9.0, "score": 1.0 },
       { "max": 999, "score": 0.5 }
     ],
     "MKTCAP_DEBT": [
-      { "max": 3,   "score": 1.0 },
-      { "max": 4,   "score": 1.5 },
-      { "max": 5,   "score": 2.0 },
+      { "max": 2,   "score": 1.0 },
+      { "max": 3.5, "score": 1.5 },
+      { "max": 5.5, "score": 2.0 },
       { "max": 7,   "score": 3.0 },
       { "max": 999, "score": 4.0 }
     ]
@@ -60,11 +62,6 @@
         "DOMESTIC_POLICIES": "General Election"
       },
       "manualScores": {
-        "EPS_GROWTH":        0.50,
-        "ROE":               2.00,
-        "CREDIT_GROWTH":     1.00,
-        "BOND_YIELD":        1.00,
-        "MKTCAP_DEBT":       2.00,
         "GEO_POLITICS":      2.00,
         "DOMESTIC_POLICIES": 3.00
       }
@@ -84,11 +81,6 @@
         "DOMESTIC_POLICIES": ""
       },
       "manualScores": {
-        "EPS_GROWTH":        0.25,
-        "ROE":               2.00,
-        "CREDIT_GROWTH":     1.50,
-        "BOND_YIELD":        1.00,
-        "MKTCAP_DEBT":       2.00,
         "GEO_POLITICS":      2.00,
         "DOMESTIC_POLICIES": 3.00
       }
@@ -108,11 +100,6 @@
         "DOMESTIC_POLICIES": "Demonetization"
       },
       "manualScores": {
-        "EPS_GROWTH":        0.50,
-        "ROE":               1.50,
-        "CREDIT_GROWTH":     1.00,
-        "BOND_YIELD":        1.50,
-        "MKTCAP_DEBT":       2.00,
         "GEO_POLITICS":      1.50,
         "DOMESTIC_POLICIES": 2.00
       }
@@ -132,11 +119,6 @@
         "DOMESTIC_POLICIES": "GST Implementation"
       },
       "manualScores": {
-        "EPS_GROWTH":        1.00,
-        "ROE":               2.00,
-        "CREDIT_GROWTH":     1.00,
-        "BOND_YIELD":        1.50,
-        "MKTCAP_DEBT":       2.00,
         "GEO_POLITICS":      2.00,
         "DOMESTIC_POLICIES": 2.00
       }
@@ -156,11 +138,6 @@
         "DOMESTIC_POLICIES": "NBFC Crisis"
       },
       "manualScores": {
-        "EPS_GROWTH":        3.00,
-        "ROE":               2.00,
-        "CREDIT_GROWTH":     2.00,
-        "BOND_YIELD":        1.00,
-        "MKTCAP_DEBT":       2.00,
         "GEO_POLITICS":      1.50,
         "DOMESTIC_POLICIES": 2.00
       }
@@ -180,11 +157,6 @@
         "DOMESTIC_POLICIES": "General Election (2019)"
       },
       "manualScores": {
-        "EPS_GROWTH":        0.25,
-        "ROE":               1.50,
-        "CREDIT_GROWTH":     1.00,
-        "BOND_YIELD":        2.00,
-        "MKTCAP_DEBT":       1.50,
         "GEO_POLITICS":      1.50,
         "DOMESTIC_POLICIES": 3.00
       }
@@ -203,11 +175,6 @@
         "DOMESTIC_POLICIES": "Lockdowns / Stimulus"
       },
       "manualScores": {
-        "EPS_GROWTH":        0.25,
-        "ROE":               1.00,
-        "CREDIT_GROWTH":     1.00,
-        "BOND_YIELD":        3.00,
-        "MKTCAP_DEBT":       1.50,
         "GEO_POLITICS":      1.00,
         "DOMESTIC_POLICIES": 2.00
       }
@@ -226,11 +193,6 @@
         "DOMESTIC_POLICIES": "Post-COVID Recovery"
       },
       "manualScores": {
-        "EPS_GROWTH":        4.00,
-        "ROE":               2.00,
-        "CREDIT_GROWTH":     1.00,
-        "BOND_YIELD":        2.00,
-        "MKTCAP_DEBT":       2.00,
         "GEO_POLITICS":      2.00,
         "DOMESTIC_POLICIES": 2.50
       }
@@ -249,11 +211,6 @@
         "DOMESTIC_POLICIES": ""
       },
       "manualScores": {
-        "EPS_GROWTH":        2.00,
-        "ROE":               2.50,
-        "CREDIT_GROWTH":     2.00,
-        "BOND_YIELD":        1.50,
-        "MKTCAP_DEBT":       2.00,
         "GEO_POLITICS":      1.50,
         "DOMESTIC_POLICIES": 2.00
       }

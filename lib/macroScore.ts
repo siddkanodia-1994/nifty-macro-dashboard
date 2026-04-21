@@ -99,7 +99,7 @@ export function computeFinalScore(
 }
 
 // Load & validate from localStorage, falling back to the JSON default
-const LS_KEY = "nifty-macro-score-v1";
+const LS_KEY = "nifty-macro-score-v2";
 
 export function loadMacroScoreData(defaultData: MacroScoreData): MacroScoreData {
   if (typeof window === "undefined") return defaultData;

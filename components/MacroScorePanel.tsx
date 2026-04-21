@@ -359,6 +359,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                       {y.isEstimate && <span className="block text-[10px] font-normal">est.</span>}
                     </th>
                   ))}
+                  <th className="w-[88px] min-w-[88px] max-w-[88px] border-r border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800" />
                 </tr>
               </thead>
               <tbody>
@@ -385,6 +386,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                         />
                       );
                     })}
+                    <td className="border-r border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800" />
                   </tr>
                 ))}
 
@@ -407,6 +409,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                         />
                       );
                     })}
+                    <td className="border-r border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800" />
                   </tr>
                 ))}
               </tbody>
