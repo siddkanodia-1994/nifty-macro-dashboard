@@ -1,19 +1,13 @@
 import { NextResponse } from "next/server";
-import { put, list, del } from "@vercel/blob";
+import { Redis } from "@upstash/redis";
 
-const BLOB_KEY = "projection-defaults.json";
+const REDIS_KEY = "projection-defaults";
+const redis = Redis.fromEnv();
 
 export async function GET() {
   try {
-    const { blobs } = await list({ prefix: BLOB_KEY });
-    if (!blobs.length) return NextResponse.json(null);
-    // list() returns ascending by uploadedAt — always read the newest blob
-    const latest = blobs.sort(
-      (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-    )[0];
-    const res = await fetch(latest.url, { cache: "no-store" });
-    if (!res.ok) return NextResponse.json(null);
-    return NextResponse.json(await res.json(), {
+    const data = await redis.get(REDIS_KEY);
+    return NextResponse.json(data ?? null, {
       headers: { "Cache-Control": "no-store" },
     });
   } catch {
@@ -28,13 +22,11 @@ export async function POST(request: Request) {
   if (!secret || token !== secret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const body = await request.json();
   try {
-    const { blobs: existing } = await list({ prefix: BLOB_KEY });
-    if (existing.length > 0) await del(existing.map((b) => b.url));
-  } catch {}
-  await put(BLOB_KEY, JSON.stringify(body), {
-    access: "public", allowOverwrite: true, contentType: "application/json",
-  });
-  return NextResponse.json({ ok: true });
+    const body = await request.json();
+    await redis.set(REDIS_KEY, body);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 502 });
+  }
 }
