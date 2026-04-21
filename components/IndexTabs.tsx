@@ -7,11 +7,12 @@ import { IndexOverview } from "@/components/IndexOverview";
 import { BYEYPanel } from "@/components/BYEYPanel";
 import { FutureProjectionPanel } from "@/components/FutureProjectionPanel";
 import { DailyDataPanel } from "@/components/DailyDataPanel";
+import { MacroScorePanel } from "@/components/MacroScorePanel";
 import { INDEX_META } from "@/lib/utils";
 import { isMarketOpen } from "@/lib/marketHours";
 import type { BYEYRow, HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
 
-type MainTab = "INDEX_LEVELS" | "FUTURE_PROJECTION" | "BYEY" | "DAILY_DATA";
+type MainTab = "INDEX_LEVELS" | "FUTURE_PROJECTION" | "MACRO_SCORE" | "BYEY" | "DAILY_DATA";
 type IndexSubTab = IndexKey | "OVERVIEW";
 
 type ProjectionDefaultEntry = { base?: { growthPct?: number }; baseEPS?: number | null; baseBV?: number | null };
@@ -102,6 +103,13 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
           <span className="sm:hidden">Projection</span>
         </TabsTrigger>
         <TabsTrigger
+          value="MACRO_SCORE"
+          className="flex-1 rounded-lg px-4 py-2 text-xs font-medium data-active:bg-zinc-900 dark:data-active:bg-zinc-100 data-active:text-white dark:data-active:text-zinc-900 text-zinc-800 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+        >
+          <span className="hidden sm:inline">Macro Score</span>
+          <span className="sm:hidden">Macro</span>
+        </TabsTrigger>
+        <TabsTrigger
           value="BYEY"
           className="flex-1 rounded-lg px-4 py-2 text-xs font-medium data-active:bg-zinc-900 dark:data-active:bg-zinc-100 data-active:text-white dark:data-active:text-zinc-900 text-zinc-800 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
         >
@@ -185,7 +193,15 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
         />
       </TabsContent>
 
-      {/* ── Tab 3: BY-EY Spread ── */}
+      {/* ── Tab 3: Macro Score ── */}
+      <TabsContent value="MACRO_SCORE" keepMounted>
+        <MacroScorePanel
+          historicalData={historicalData}
+          byeyData={byeyData}
+        />
+      </TabsContent>
+
+      {/* ── Tab 4: BY-EY Spread ── */}
       <TabsContent value="BYEY" keepMounted>
         <BYEYPanel
           byeyData={byeyData}
@@ -198,7 +214,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
         />
       </TabsContent>
 
-      {/* ── Tab 4: Daily Data ── */}
+      {/* ── Tab 5: Daily Data ── */}
       <TabsContent value="DAILY_DATA" keepMounted>
         <DailyDataPanel
           historicalData={historicalData}

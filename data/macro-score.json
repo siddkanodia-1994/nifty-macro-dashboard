@@ -1,0 +1,326 @@
+{
+  "rubric": {
+    "EPS_GROWTH": [
+      { "max": 0,   "score": 0.5 },
+      { "max": 10,  "score": 1.0 },
+      { "max": 15,  "score": 2.0 },
+      { "max": 25,  "score": 3.0 },
+      { "max": 999, "score": 4.0 }
+    ],
+    "ROE": [
+      { "max": 10,  "score": 1.0 },
+      { "max": 12,  "score": 1.5 },
+      { "max": 14,  "score": 2.0 },
+      { "max": 16,  "score": 3.0 },
+      { "max": 999, "score": 4.0 }
+    ],
+    "CREDIT_GROWTH": [
+      { "max": 5,   "score": 0.5 },
+      { "max": 10,  "score": 1.0 },
+      { "max": 15,  "score": 2.0 },
+      { "max": 20,  "score": 3.0 },
+      { "max": 999, "score": 2.0 }
+    ],
+    "BOND_YIELD": [
+      { "max": 6,   "score": 3.0 },
+      { "max": 7,   "score": 2.0 },
+      { "max": 8,   "score": 1.0 },
+      { "max": 999, "score": 0.5 }
+    ],
+    "MKTCAP_DEBT": [
+      { "max": 3,   "score": 1.0 },
+      { "max": 4,   "score": 1.5 },
+      { "max": 5,   "score": 2.0 },
+      { "max": 7,   "score": 3.0 },
+      { "max": 999, "score": 4.0 }
+    ]
+  },
+  "weightages": {
+    "EPS_GROWTH":        40,
+    "ROE":               10,
+    "CREDIT_GROWTH":     10,
+    "BOND_YIELD":        10,
+    "MKTCAP_DEBT":       10,
+    "GEO_POLITICS":      10,
+    "DOMESTIC_POLICIES": 10
+  },
+  "years": [
+    {
+      "fy": "FY15",
+      "isEstimate": false,
+      "rawData": {
+        "EPS_GROWTH":    0.0,
+        "ROE":          13.4,
+        "CREDIT_GROWTH": 9.0,
+        "BOND_YIELD":    8.3,
+        "MKTCAP_DEBT":   5.1
+      },
+      "qualLabels": {
+        "GEO_POLITICS":      "",
+        "DOMESTIC_POLICIES": "General Election"
+      },
+      "manualScores": {
+        "EPS_GROWTH":        0.50,
+        "ROE":               2.00,
+        "CREDIT_GROWTH":     1.00,
+        "BOND_YIELD":        1.00,
+        "MKTCAP_DEBT":       2.00,
+        "GEO_POLITICS":      2.00,
+        "DOMESTIC_POLICIES": 3.00
+      }
+    },
+    {
+      "fy": "FY16",
+      "isEstimate": false,
+      "rawData": {
+        "EPS_GROWTH":   -4.0,
+        "ROE":          13.7,
+        "CREDIT_GROWTH":10.9,
+        "BOND_YIELD":    7.7,
+        "MKTCAP_DEBT":   4.5
+      },
+      "qualLabels": {
+        "GEO_POLITICS":      "",
+        "DOMESTIC_POLICIES": ""
+      },
+      "manualScores": {
+        "EPS_GROWTH":        0.25,
+        "ROE":               2.00,
+        "CREDIT_GROWTH":     1.50,
+        "BOND_YIELD":        1.00,
+        "MKTCAP_DEBT":       2.00,
+        "GEO_POLITICS":      2.00,
+        "DOMESTIC_POLICIES": 3.00
+      }
+    },
+    {
+      "fy": "FY17",
+      "isEstimate": false,
+      "rawData": {
+        "EPS_GROWTH":    0.0,
+        "ROE":          12.5,
+        "CREDIT_GROWTH": 5.0,
+        "BOND_YIELD":    7.0,
+        "MKTCAP_DEBT":   4.5
+      },
+      "qualLabels": {
+        "GEO_POLITICS":      "",
+        "DOMESTIC_POLICIES": "Demonetization"
+      },
+      "manualScores": {
+        "EPS_GROWTH":        0.50,
+        "ROE":               1.50,
+        "CREDIT_GROWTH":     1.00,
+        "BOND_YIELD":        1.50,
+        "MKTCAP_DEBT":       2.00,
+        "GEO_POLITICS":      1.50,
+        "DOMESTIC_POLICIES": 2.00
+      }
+    },
+    {
+      "fy": "FY18",
+      "isEstimate": false,
+      "rawData": {
+        "EPS_GROWTH":    8.0,
+        "ROE":          13.0,
+        "CREDIT_GROWTH": 8.0,
+        "BOND_YIELD":    7.2,
+        "MKTCAP_DEBT":   5.0
+      },
+      "qualLabels": {
+        "GEO_POLITICS":      "",
+        "DOMESTIC_POLICIES": "GST Implementation"
+      },
+      "manualScores": {
+        "EPS_GROWTH":        1.00,
+        "ROE":               2.00,
+        "CREDIT_GROWTH":     1.00,
+        "BOND_YIELD":        1.50,
+        "MKTCAP_DEBT":       2.00,
+        "GEO_POLITICS":      2.00,
+        "DOMESTIC_POLICIES": 2.00
+      }
+    },
+    {
+      "fy": "FY19",
+      "isEstimate": false,
+      "rawData": {
+        "EPS_GROWTH":   20.0,
+        "ROE":          13.5,
+        "CREDIT_GROWTH":13.0,
+        "BOND_YIELD":    7.8,
+        "MKTCAP_DEBT":   4.5
+      },
+      "qualLabels": {
+        "GEO_POLITICS":      "US-China Trade War",
+        "DOMESTIC_POLICIES": "NBFC Crisis"
+      },
+      "manualScores": {
+        "EPS_GROWTH":        3.00,
+        "ROE":               2.00,
+        "CREDIT_GROWTH":     2.00,
+        "BOND_YIELD":        1.00,
+        "MKTCAP_DEBT":       2.00,
+        "GEO_POLITICS":      1.50,
+        "DOMESTIC_POLICIES": 2.00
+      }
+    },
+    {
+      "fy": "FY20",
+      "isEstimate": false,
+      "rawData": {
+        "EPS_GROWTH":  -10.0,
+        "ROE":          12.0,
+        "CREDIT_GROWTH": 6.0,
+        "BOND_YIELD":    6.6,
+        "MKTCAP_DEBT":   3.5
+      },
+      "qualLabels": {
+        "GEO_POLITICS":      "COVID Outbreak",
+        "DOMESTIC_POLICIES": "General Election (2019)"
+      },
+      "manualScores": {
+        "EPS_GROWTH":        0.25,
+        "ROE":               1.50,
+        "CREDIT_GROWTH":     1.00,
+        "BOND_YIELD":        2.00,
+        "MKTCAP_DEBT":       1.50,
+        "GEO_POLITICS":      1.50,
+        "DOMESTIC_POLICIES": 3.00
+      }
+    },
+    {
+      "fy": "FY21",
+      "isEstimate": false,
+      "rawData": {
+        "EPS_GROWTH":  -15.0,
+        "ROE":          10.0,
+        "CREDIT_GROWTH": 5.5,
+        "MKTCAP_DEBT":   3.0
+      },
+      "qualLabels": {
+        "GEO_POLITICS":      "COVID Peak",
+        "DOMESTIC_POLICIES": "Lockdowns / Stimulus"
+      },
+      "manualScores": {
+        "EPS_GROWTH":        0.25,
+        "ROE":               1.00,
+        "CREDIT_GROWTH":     1.00,
+        "BOND_YIELD":        3.00,
+        "MKTCAP_DEBT":       1.50,
+        "GEO_POLITICS":      1.00,
+        "DOMESTIC_POLICIES": 2.00
+      }
+    },
+    {
+      "fy": "FY22",
+      "isEstimate": false,
+      "rawData": {
+        "EPS_GROWTH":   35.0,
+        "ROE":          14.0,
+        "CREDIT_GROWTH": 9.0,
+        "MKTCAP_DEBT":   5.5
+      },
+      "qualLabels": {
+        "GEO_POLITICS":      "Russia-Ukraine War",
+        "DOMESTIC_POLICIES": "Post-COVID Recovery"
+      },
+      "manualScores": {
+        "EPS_GROWTH":        4.00,
+        "ROE":               2.00,
+        "CREDIT_GROWTH":     1.00,
+        "BOND_YIELD":        2.00,
+        "MKTCAP_DEBT":       2.00,
+        "GEO_POLITICS":      2.00,
+        "DOMESTIC_POLICIES": 2.50
+      }
+    },
+    {
+      "fy": "FY23",
+      "isEstimate": false,
+      "rawData": {
+        "EPS_GROWTH":   15.0,
+        "ROE":          15.0,
+        "CREDIT_GROWTH":16.0,
+        "MKTCAP_DEBT":   5.5
+      },
+      "qualLabels": {
+        "GEO_POLITICS":      "Russia-Ukraine / Rate Hikes",
+        "DOMESTIC_POLICIES": ""
+      },
+      "manualScores": {
+        "EPS_GROWTH":        2.00,
+        "ROE":               2.50,
+        "CREDIT_GROWTH":     2.00,
+        "BOND_YIELD":        1.50,
+        "MKTCAP_DEBT":       2.00,
+        "GEO_POLITICS":      1.50,
+        "DOMESTIC_POLICIES": 2.00
+      }
+    },
+    {
+      "fy": "FY24",
+      "isEstimate": false,
+      "rawData": {
+        "ROE":          15.5,
+        "CREDIT_GROWTH":16.0,
+        "MKTCAP_DEBT":   5.5
+      },
+      "qualLabels": {
+        "GEO_POLITICS":      "Israel-Gaza War",
+        "DOMESTIC_POLICIES": "General Election (2024)"
+      },
+      "manualScores": {
+        "GEO_POLITICS":      1.50,
+        "DOMESTIC_POLICIES": 3.00
+      }
+    },
+    {
+      "fy": "FY25",
+      "isEstimate": false,
+      "rawData": {
+        "ROE":          16.0,
+        "CREDIT_GROWTH":14.0,
+        "MKTCAP_DEBT":   5.0
+      },
+      "qualLabels": {
+        "GEO_POLITICS":      "",
+        "DOMESTIC_POLICIES": ""
+      },
+      "manualScores": {
+        "GEO_POLITICS":      2.00,
+        "DOMESTIC_POLICIES": 2.00
+      }
+    },
+    {
+      "fy": "FY26",
+      "isEstimate": true,
+      "rawData": {
+        "ROE":          16.0,
+        "CREDIT_GROWTH":12.0,
+        "MKTCAP_DEBT":   4.8
+      },
+      "qualLabels": {
+        "GEO_POLITICS":      "US Tariffs / Global Tensions",
+        "DOMESTIC_POLICIES": ""
+      },
+      "manualScores": {
+        "GEO_POLITICS":      1.50,
+        "DOMESTIC_POLICIES": 2.00
+      }
+    },
+    {
+      "fy": "FY27",
+      "isEstimate": true,
+      "rawData": {},
+      "qualLabels": {
+        "GEO_POLITICS":      "",
+        "DOMESTIC_POLICIES": ""
+      },
+      "manualScores": {
+        "GEO_POLITICS":      2.00,
+        "DOMESTIC_POLICIES": 2.00
+      }
+    }
+  ]
+}

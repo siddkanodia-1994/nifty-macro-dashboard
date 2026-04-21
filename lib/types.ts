@@ -82,6 +82,36 @@ export interface IndexMeta {
   shortLabel: string;
 }
 
+// ─── Macro Score ─────────────────────────────────────────────────────────────
+
+export type MacroParamId =
+  | "EPS_GROWTH"
+  | "ROE"
+  | "CREDIT_GROWTH"
+  | "BOND_YIELD"
+  | "MKTCAP_DEBT"
+  | "GEO_POLITICS"
+  | "DOMESTIC_POLICIES";
+
+export interface RubricBand {
+  max: number;
+  score: number;
+}
+
+export interface MacroYearData {
+  fy: string;
+  isEstimate: boolean;
+  rawData: Partial<Record<MacroParamId, number>>;
+  qualLabels: { GEO_POLITICS?: string; DOMESTIC_POLICIES?: string };
+  manualScores: Partial<Record<MacroParamId, number>>;
+}
+
+export interface MacroScoreData {
+  rubric: Partial<Record<MacroParamId, RubricBand[]>>;
+  weightages: Record<MacroParamId, number>;
+  years: MacroYearData[];
+}
+
 // ─── BY-EY Spread data (one row of byey.json) ────────────────────────────────
 
 export interface BYEYRow {
