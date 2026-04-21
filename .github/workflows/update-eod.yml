@@ -75,6 +75,7 @@ jobs:
             echo "No new data — skipping commit (market holiday or data not yet published)"
           else
             git commit -m "chore: update EOD data $(date -u +%Y-%m-%d)"
+            git pull --rebase origin main
             git push
             echo "Pushed updated historical.json + byey.json — Vercel will redeploy automatically."
           fi
