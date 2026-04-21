@@ -128,3 +128,8 @@
     @apply font-sans;
   }
 }
+
+/* ── Fixed 17px base for dense data cards (immune to global Aa font-scale) ── */
+[data-compact-text] .text-base { font-size: 17px; line-height: 1.4; }
+[data-compact-text] .text-sm   { font-size: 15px; line-height: 1.4; }
+[data-compact-text] .text-xs   { font-size: 13px; line-height: 1.4; }

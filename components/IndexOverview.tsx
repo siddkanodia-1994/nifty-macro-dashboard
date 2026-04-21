@@ -241,7 +241,7 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
 
   return (
     <div className="pt-2">
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm bg-white dark:bg-zinc-900 overflow-hidden">
+      <div data-compact-text className="rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm bg-white dark:bg-zinc-900 overflow-hidden">
 
         {/* Header strip */}
         <div className="border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
