@@ -350,7 +350,7 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                   {/* Index name */}
                   <td className="px-6 py-4 cursor-pointer" onClick={() => onSelectIndex(meta.key)}>
                     <div className="flex items-center gap-2.5">
-                      <span className="text-sm font-bold text-[#001d3d] dark:text-zinc-100 whitespace-nowrap tracking-tight hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                      <span className="text-sm font-bold text-[#0077b6] dark:text-zinc-100 whitespace-nowrap tracking-tight hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                         {meta.label}
                       </span>
                       {isLive && liveMarketOpen && (
