@@ -81,6 +81,7 @@ interface EditCellProps {
   displayText: string;
   inputType?: "number" | "text";
   step?: string;
+  wrap?: boolean;
   onSave: (val: string) => void;
   onRestore?: () => void;
   className?: string;
@@ -93,6 +94,7 @@ function EditCell({
   displayText,
   inputType = "number",
   step,
+  wrap,
   onSave,
   onRestore,
   className,
@@ -133,7 +135,8 @@ function EditCell({
   return (
     <td
       className={cn(
-        "px-2 py-1 text-right text-xs cursor-pointer select-none whitespace-nowrap",
+        "px-2 py-1 text-right text-xs font-medium text-zinc-800 dark:text-zinc-200 cursor-pointer select-none",
+        wrap ? "whitespace-normal break-words" : "whitespace-nowrap",
         isEstimate && "italic opacity-60",
         className
       )}
@@ -293,14 +296,29 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
     });
   }
 
+  function changeSlabCount(param: MacroParamId, newCount: number) {
+    setData((prev) => {
+      const bands = [...(prev.rubric[param] ?? [])];
+      if (newCount > bands.length) {
+        while (bands.length < newCount) {
+          const last = bands[bands.length - 1];
+          bands.push({ max: (last?.max ?? 10) + 10, score: last?.score ?? 1.0 });
+        }
+      } else {
+        bands.splice(newCount);
+      }
+      return { ...prev, rubric: { ...prev.rubric, [param]: bands } };
+    });
+  }
+
   function handleReset() {
     if (!confirm("Reset all data to defaults? This cannot be undone.")) return;
     resetMacroScoreData();
     setData(defaultJson as MacroScoreData);
   }
 
-  const tableHeaderCls = "sticky left-0 z-10 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-left text-xs font-medium text-zinc-600 dark:text-zinc-400 whitespace-nowrap min-w-[160px]";
-  const thCls = "px-2 py-1.5 text-right text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap";
+  const tableHeaderCls = "sticky left-0 z-10 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-left text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap w-[164px] min-w-[164px] max-w-[164px]";
+  const thCls = "px-2 py-1.5 text-right text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px]";
   const separatorRow = "border-t-2 border-zinc-300 dark:border-zinc-600";
 
   return (
@@ -331,7 +349,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
         </CardHeader>
         <CardContent className="px-0 pb-4">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse table-fixed">
               <thead>
                 <tr className="border-b border-zinc-200 dark:border-zinc-700">
                   <th className={tableHeaderCls}>Parameter</th>
@@ -382,6 +400,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                           value={label}
                           displayText={label || "—"}
                           inputType="text"
+                          wrap
                           isEstimate={y.isEstimate}
                           onSave={(v) => setQualLabel(y.fy, param as "GEO_POLITICS" | "DOMESTIC_POLICIES", v)}
                           className="text-left"
@@ -405,7 +424,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
         </CardHeader>
         <CardContent className="px-0 pb-4">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse table-fixed">
               <thead>
                 <tr className="border-b border-zinc-200 dark:border-zinc-700">
                   <th className={tableHeaderCls}>Parameter</th>
@@ -414,7 +433,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                       {y.fy}
                     </th>
                   ))}
-                  <th className={cn(thCls, "bg-zinc-50 dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700")}>
+                  <th className={cn(thCls, "bg-zinc-50 dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700 w-[88px] min-w-[88px] max-w-[88px]")}>
                     Weight
                   </th>
                 </tr>
@@ -498,16 +517,16 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
 
                 {/* Analysis rows */}
                 <tr className={cn(separatorRow)}>
-                  <td className={cn(tableHeaderCls, "text-zinc-500 dark:text-zinc-400")}>Nifty PE AVG</td>
+                  <td className={cn(tableHeaderCls, "text-zinc-700 dark:text-zinc-300")}>Nifty PE AVG</td>
                   {years.map((y) => (
-                    <td key={y.fy} className={cn("px-2 py-1.5 text-right text-xs text-zinc-500 dark:text-zinc-400", y.isEstimate && "italic opacity-60")}>
+                    <td key={y.fy} className={cn("px-2 py-1.5 text-right text-xs font-medium text-zinc-700 dark:text-zinc-300", y.isEstimate && "italic opacity-60")}>
                       {autoPEAvg[y.fy] != null ? fmt(autoPEAvg[y.fy], 1) : "—"}
                     </td>
                   ))}
                   <td className="px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700" />
                 </tr>
                 <tr>
-                  <td className={cn(tableHeaderCls, "text-zinc-500 dark:text-zinc-400")}>Nifty Returns</td>
+                  <td className={cn(tableHeaderCls, "text-zinc-700 dark:text-zinc-300")}>Nifty Returns</td>
                   {years.map((y) => {
                     const r = autoReturn[y.fy];
                     return (
@@ -523,7 +542,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                   <td className="px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700" />
                 </tr>
                 <tr>
-                  <td className={cn(tableHeaderCls, "text-zinc-500 dark:text-zinc-400")}>Score Growth YoY</td>
+                  <td className={cn(tableHeaderCls, "text-zinc-700 dark:text-zinc-300")}>Score Growth YoY</td>
                   {years.map((y, i) => {
                     const curr = finalScores[y.fy];
                     const prev = i > 0 ? finalScores[years[i - 1].fy] : null;
@@ -563,9 +582,23 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                 const bands = data.rubric[param] ?? [];
                 return (
                   <div key={param}>
-                    <h4 className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                      {PARAM_LABELS[param]}
-                    </h4>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                        {PARAM_LABELS[param]}
+                      </h4>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400">Slabs:</span>
+                        <select
+                          value={bands.length}
+                          onChange={(e) => changeSlabCount(param, parseInt(e.target.value))}
+                          className="rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-1.5 py-0.5 text-xs text-zinc-700 dark:text-zinc-300 outline-none focus:border-blue-400"
+                        >
+                          {[3, 4, 5, 6, 7, 8].map((n) => (
+                            <option key={n} value={n}>{n} slabs</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                     <table className="text-xs border-collapse">
                       <thead>
                         <tr className="text-zinc-500 dark:text-zinc-400">
