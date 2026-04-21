@@ -392,7 +392,12 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const forwardLabel   = isPE ? "Forward EPS" : "Forward BV";
   const rawBase        = current ? (isPE ? current.impliedEPS : current.impliedBV) : null;
   const effectiveBase  = current ? (isPE ? (proj.baseEPS ?? current.impliedEPS) : (proj.baseBV ?? current.impliedBV)) : null;
-  const currentMult    = current ? (isPE ? current.pe : current.pb) : null;
+  const currentMult = !current ? null
+    : ratioMode === "FWD" && isPE && current.impliedEPS
+      ? current.close / (current.impliedEPS * (1 + proj.base.growthPct / 100))
+    : ratioMode === "FWD" && !isPE && current.impliedBV
+      ? current.close / (current.impliedBV  * (1 + proj.base.growthPct / 100))
+    : isPE ? current.pe : current.pb;
 
   return (
     <div className="space-y-4 pt-2">
