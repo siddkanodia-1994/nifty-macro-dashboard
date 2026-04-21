@@ -175,6 +175,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
     loadMacroScoreData(defaultJson as MacroScoreData)
   );
   const [showRubric, setShowRubric] = useState(false);
+  const [showInlineRaw, setShowInlineRaw] = useState(false);
   const [ownerMode, setOwnerMode] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const cronSecret = useRef<string | null>(null);
@@ -506,10 +507,22 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
 
       {/* ── Card 2: Scoring Sheet ── */}
       <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-sm">
-        <CardHeader className="px-5 pt-4 pb-2">
+        <CardHeader className="px-5 pt-4 pb-2 flex flex-row items-center justify-between">
           <h3 className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 uppercase tracking-wide">
             Scoring Sheet
           </h3>
+          <button
+            onClick={() => setShowInlineRaw((v) => !v)}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors",
+              showInlineRaw
+                ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
+                : "border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            )}
+          >
+            {showInlineRaw ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            Raw Data
+          </button>
         </CardHeader>
         <CardContent className="px-0 pb-4">
           <div className="overflow-x-auto">
@@ -528,6 +541,67 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                 </tr>
               </thead>
               <tbody>
+                {/* ── Inline Raw Data section (toggle) ── */}
+                {showInlineRaw && (
+                  <>
+                    {QUANT_PARAMS.map((param) => (
+                      <tr key={`raw-${param}`} className="border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/30 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/60">
+                        <td className={cn(tableHeaderCls, "text-zinc-500 dark:text-zinc-400 italic")}>
+                          {PARAM_LABELS[param]}
+                        </td>
+                        {years.map((y) => {
+                          const effVal = getEffectiveRaw(y, param);
+                          const isAuto = AUTO_RAW_PARAMS.includes(param) && isAutoRaw(y, param);
+                          const hasOverride = AUTO_RAW_PARAMS.includes(param) && y.rawData[param] != null;
+                          const isPct = param === "EPS_GROWTH" || param === "BOND_YIELD" || param === "CREDIT_GROWTH" || param === "ROE";
+                          const display = effVal != null ? (isPct ? fmtPct(effVal) : fmt(effVal)) : "—";
+                          return (
+                            <EditCell
+                              key={y.fy}
+                              value={effVal != null ? String(effVal) : ""}
+                              displayText={display}
+                              isAuto={isAuto}
+                              isEstimate={y.isEstimate}
+                              isManualOverride={hasOverride}
+                              onSave={(v) => setRawData(y.fy, param, v)}
+                              onRestore={isAuto || hasOverride ? () => restoreAutoRaw(y.fy, param) : undefined}
+                              className="text-zinc-500 dark:text-zinc-400"
+                            />
+                          );
+                        })}
+                        <td className="border-r border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800" />
+                      </tr>
+                    ))}
+                    {QUAL_PARAMS.map((param) => (
+                      <tr key={`raw-${param}`} className="border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/30 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/60">
+                        <td className={cn(tableHeaderCls, "text-zinc-500 dark:text-zinc-400 italic")}>
+                          {PARAM_LABELS[param]}
+                        </td>
+                        {years.map((y) => {
+                          const label = y.qualLabels[param as keyof typeof y.qualLabels] ?? "";
+                          return (
+                            <EditCell
+                              key={y.fy}
+                              value={label}
+                              displayText={label || "—"}
+                              inputType="text"
+                              wrap
+                              isEstimate={y.isEstimate}
+                              onSave={(v) => setQualLabel(y.fy, param as "GEO_POLITICS" | "DOMESTIC_POLICIES", v)}
+                              className="text-left text-zinc-500 dark:text-zinc-400"
+                            />
+                          );
+                        })}
+                        <td className="border-r border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800" />
+                      </tr>
+                    ))}
+                    {/* Separator between raw and scores */}
+                    <tr className="border-t-2 border-zinc-400 dark:border-zinc-500">
+                      <td colSpan={years.length + 2} className="py-0" />
+                    </tr>
+                  </>
+                )}
+
                 {/* Score rows per param */}
                 {ALL_PARAMS.map((param) => (
                   <tr key={param} className="border-b border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
