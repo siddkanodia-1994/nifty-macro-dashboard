@@ -1,6 +1,6 @@
-// GitHub Actions: fetches live prices from NSE India API and writes to Vercel Blob.
+// GitHub Actions: fetches live prices from NSE India API and writes to Upstash Redis.
 // Runs every 5 min during market hours (3:00–10:59 UTC Mon–Fri).
-import { put, list, del } from "@vercel/blob";
+import { Redis } from "@upstash/redis";
 
 const INDEX_NAME_MAP = {
   "NIFTY 50":           "NIFTY_50",
@@ -60,18 +60,15 @@ for (const entry of json.data ?? []) {
 
 const anyValid = Object.values(prices).some((p) => p !== null);
 if (!anyValid) {
-  console.error("All prices null — skipping blob write.");
+  console.error("All prices null — skipping write.");
   process.exit(1);
 }
 
-// Delete stale blobs before writing so list() always returns exactly one entry
-const { blobs: existing } = await list({ prefix: "live-prices.json" });
-if (existing.length > 0) await del(existing.map((b) => b.url));
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 
-await put(
-  "live-prices.json",
-  JSON.stringify({ ...prices, marketOpen: true, asOf: new Date().toISOString() }),
-  { access: "public", allowOverwrite: true, contentType: "application/json" }
-);
+await redis.set("live-prices", { ...prices, marketOpen: true, asOf: new Date().toISOString() });
 
-console.log("Written to Vercel Blob.");
+console.log("Written to Upstash Redis.");

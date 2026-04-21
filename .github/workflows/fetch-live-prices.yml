@@ -22,7 +22,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Fetch prices and write to Vercel Blob
+      - name: Fetch prices and write to Upstash Redis
         run: node scripts/fetch-live-prices.mjs
         env:
-          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}

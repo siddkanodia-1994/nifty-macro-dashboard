@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { put, list, del } from "@vercel/blob";
+import { Redis } from "@upstash/redis";
 import { isMarketOpen } from "@/lib/marketHours";
 import type { IndexKey } from "@/lib/types";
 
@@ -19,6 +19,8 @@ const NSE_HEADERS = {
   "Accept-Language": "en-US,en;q=0.9",
   "Referer": "https://www.nseindia.com",
 };
+
+const redis = Redis.fromEnv();
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -65,17 +67,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ skipped: true, reason: "all prices null" });
     }
 
-    // Delete stale blobs before writing so list() always returns exactly one entry
-    try {
-      const { blobs: existing } = await list({ prefix: "live-prices.json" });
-      if (existing.length > 0) await del(existing.map((b) => b.url));
-    } catch {}
-
-    await put(
-      "live-prices.json",
-      JSON.stringify({ ...prices, marketOpen: true, asOf: now.toISOString() }),
-      { access: "public", allowOverwrite: true, contentType: "application/json" }
-    );
+    await redis.set("live-prices", { ...prices, marketOpen: true, asOf: now.toISOString() });
 
     return NextResponse.json({ ok: true, asOf: now.toISOString(), prices });
   } catch (err) {
