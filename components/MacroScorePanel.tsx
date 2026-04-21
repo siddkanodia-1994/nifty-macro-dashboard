@@ -22,6 +22,7 @@ import type {
   MacroParamId,
   MacroYearData,
   RubricBand,
+  AnalysisOverrides,
 } from "@/lib/types";
 import defaultJson from "@/data/macro-score.json";
 import { ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
@@ -61,6 +62,15 @@ function scoreColor(score: number | null): string {
   if (score < 3)  return "bg-yellow-50 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-500";
   if (score < 4)  return "bg-green-50  dark:bg-green-950/40  text-green-700  dark:text-green-400";
   return              "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400";
+}
+
+function scoreFgColor(score: number | null): string {
+  if (score == null) return "";
+  if (score < 1)  return "text-red-700    dark:text-red-400";
+  if (score < 2)  return "text-amber-700  dark:text-amber-400";
+  if (score < 3)  return "text-yellow-600 dark:text-yellow-500";
+  if (score < 4)  return "text-green-700  dark:text-green-400";
+  return              "text-emerald-700 dark:text-emerald-400";
 }
 
 function fmt(n: number | null, decimals = 2): string {
@@ -363,6 +373,22 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
     setData(defaultJson as MacroScoreData);
   }
 
+  function setAnalysisOverride(fy: string, field: keyof AnalysisOverrides, val: string) {
+    const n = parseFloat(val);
+    updateYear(fy, (y) => ({
+      ...y,
+      analysisOverrides: { ...y.analysisOverrides, [field]: isNaN(n) ? undefined : n },
+    }));
+  }
+
+  function restoreAnalysisOverride(fy: string, field: keyof AnalysisOverrides) {
+    updateYear(fy, (y) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [field]: _removed, ...rest } = y.analysisOverrides ?? {};
+      return { ...y, analysisOverrides: rest as AnalysisOverrides };
+    });
+  }
+
   const tableHeaderCls = "sticky left-0 z-10 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-left text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap w-[164px] min-w-[164px] max-w-[164px]";
   const thCls = "px-2 py-1.5 text-center text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px] border-r border-zinc-200 dark:border-zinc-700";
   const separatorRow = "border-t-2 border-zinc-300 dark:border-zinc-600";
@@ -563,8 +589,8 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                         key={y.fy}
                         className={cn(
                           "px-2 py-1.5 text-center text-xs font-semibold border-r border-zinc-200 dark:border-zinc-700",
+                          !y.isEstimate && scoreFgColor(fs),
                           y.isEstimate && "text-blue-600 dark:text-blue-400",
-                          scoreColor(fs)
                         )}
                       >
                         {fs != null ? fmt(fs) : "—"}
@@ -578,29 +604,53 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                   </td>
                 </tr>
 
-                {/* Analysis rows */}
+                {/* Analysis rows — auto-computed but manually overridable */}
                 <tr className={cn(separatorRow)}>
                   <td className={cn(tableHeaderCls, "text-zinc-700 dark:text-zinc-300")}>Nifty PE AVG</td>
-                  {years.map((y) => (
-                    <td key={y.fy} className={cn("px-2 py-1.5 text-center text-xs font-medium text-zinc-700 dark:text-zinc-300 border-r border-zinc-200 dark:border-zinc-700", y.isEstimate && "text-blue-600 dark:text-blue-400")}>
-                      {autoPEAvg[y.fy] != null ? fmt(autoPEAvg[y.fy], 1) : "—"}
-                    </td>
-                  ))}
+                  {years.map((y) => {
+                    const autoVal = autoPEAvg[y.fy] ?? null;
+                    const override = y.analysisOverrides?.peAvg;
+                    const effective = override != null ? override : autoVal;
+                    const isAuto = autoVal != null && override == null;
+                    const display = effective != null ? fmt(effective, 1) : "—";
+                    return (
+                      <EditCell
+                        key={y.fy}
+                        value={override != null ? String(override) : ""}
+                        displayText={display}
+                        isAuto={isAuto}
+                        isEstimate={y.isEstimate}
+                        isManualOverride={override != null && autoVal != null}
+                        onSave={(v) => setAnalysisOverride(y.fy, "peAvg", v)}
+                        onRestore={override != null ? () => restoreAnalysisOverride(y.fy, "peAvg") : undefined}
+                      />
+                    );
+                  })}
                   <td className="px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border-l border-r border-zinc-200 dark:border-zinc-700" />
                 </tr>
                 <tr>
                   <td className={cn(tableHeaderCls, "text-zinc-700 dark:text-zinc-300")}>Nifty Returns</td>
                   {years.map((y) => {
-                    const r = autoReturn[y.fy];
+                    const autoVal = autoReturn[y.fy] != null ? autoReturn[y.fy]! * 100 : null;
+                    const override = y.analysisOverrides?.niftyReturn;
+                    const effective = override != null ? override : autoVal;
+                    const isAuto = autoVal != null && override == null;
+                    const display = effective != null ? fmtPct(effective, 1) : "—";
+                    const isPositive = effective != null && effective >= 0;
                     return (
-                      <td key={y.fy} className={cn(
-                        "px-2 py-1.5 text-center text-xs font-medium border-r border-zinc-200 dark:border-zinc-700",
-                        y.isEstimate
-                          ? "text-blue-600 dark:text-blue-400"
-                          : r != null ? (r >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400") : "text-zinc-400"
-                      )}>
-                        {r != null ? fmtPct(r * 100, 1) : "—"}
-                      </td>
+                      <EditCell
+                        key={y.fy}
+                        value={override != null ? String(override) : ""}
+                        displayText={display}
+                        isAuto={isAuto}
+                        isEstimate={y.isEstimate}
+                        isManualOverride={override != null && autoVal != null}
+                        onSave={(v) => setAnalysisOverride(y.fy, "niftyReturn", v)}
+                        onRestore={override != null ? () => restoreAnalysisOverride(y.fy, "niftyReturn") : undefined}
+                        className={cn(
+                          !y.isEstimate && effective != null && (isPositive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")
+                        )}
+                      />
                     );
                   })}
                   <td className="px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border-l border-r border-zinc-200 dark:border-zinc-700" />
@@ -610,16 +660,26 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                   {years.map((y, i) => {
                     const curr = finalScores[y.fy];
                     const prev = i > 0 ? finalScores[years[i - 1].fy] : null;
-                    const g = curr != null && prev != null && prev !== 0 ? ((curr - prev) / prev) * 100 : null;
+                    const autoVal = curr != null && prev != null && prev !== 0 ? ((curr - prev) / prev) * 100 : null;
+                    const override = y.analysisOverrides?.scoreGrowthYoY;
+                    const effective = override != null ? override : autoVal;
+                    const isAuto = autoVal != null && override == null;
+                    const display = effective != null ? fmtPct(effective, 1) : "—";
+                    const isPositive = effective != null && effective >= 0;
                     return (
-                      <td key={y.fy} className={cn(
-                        "px-2 py-1.5 text-center text-xs font-medium border-r border-zinc-200 dark:border-zinc-700",
-                        y.isEstimate
-                          ? "text-blue-600 dark:text-blue-400"
-                          : g != null ? (g >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400") : "text-zinc-400"
-                      )}>
-                        {g != null ? fmtPct(g, 1) : "—"}
-                      </td>
+                      <EditCell
+                        key={y.fy}
+                        value={override != null ? String(override) : ""}
+                        displayText={display}
+                        isAuto={isAuto}
+                        isEstimate={y.isEstimate}
+                        isManualOverride={override != null && autoVal != null}
+                        onSave={(v) => setAnalysisOverride(y.fy, "scoreGrowthYoY", v)}
+                        onRestore={override != null ? () => restoreAnalysisOverride(y.fy, "scoreGrowthYoY") : undefined}
+                        className={cn(
+                          !y.isEstimate && effective != null && (isPositive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")
+                        )}
+                      />
                     );
                   })}
                   <td className="px-2 py-1 bg-zinc-50 dark:bg-zinc-800 border-l border-r border-zinc-200 dark:border-zinc-700" />

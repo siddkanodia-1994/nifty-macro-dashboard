@@ -98,12 +98,19 @@ export interface RubricBand {
   score: number;
 }
 
+export interface AnalysisOverrides {
+  peAvg?: number | null;       // stored as-is (e.g. 21.0)
+  niftyReturn?: number | null; // stored as percent (e.g. 28.6 for 28.6%)
+  scoreGrowthYoY?: number | null; // stored as percent (e.g. 8.3 for 8.3%)
+}
+
 export interface MacroYearData {
   fy: string;
   isEstimate: boolean;
   rawData: Partial<Record<MacroParamId, number>>;
   qualLabels: { GEO_POLITICS?: string; DOMESTIC_POLICIES?: string };
   manualScores: Partial<Record<MacroParamId, number>>;
+  analysisOverrides?: AnalysisOverrides;
 }
 
 export interface MacroScoreData {
