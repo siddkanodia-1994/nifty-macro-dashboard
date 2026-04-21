@@ -14,7 +14,7 @@ interface FontScaleState {
 
 export const PRESET_PX: Record<FontPreset, number> = { S: 16, M: 18, L: 20, XL: 22 };
 const LS_KEY = "nifty-font-scale";
-const DEFAULT: FontPreset = "L";
+const DEFAULT: FontPreset = "M";
 
 const FontScaleContext = createContext<FontScaleState>({
   preset: DEFAULT,

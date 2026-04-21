@@ -137,3 +137,6 @@
 [data-compact-text] th         { padding-left: 10px; padding-right: 10px; }
 [data-compact-text] td:first-child,
 [data-compact-text] th:first-child { padding-left: 16px; }
+
+/* ── Tab nav buttons fixed at L (20px base) regardless of Aa toggle ── */
+[data-tab-nav] .text-xs { font-size: 15px; line-height: 1.4; }

@@ -87,7 +87,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
       onValueChange={(v) => setActiveMainTab(v as MainTab)}
     >
       {/* ── Main tab bar ── */}
-      <TabsList className="flex h-auto gap-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl p-1 w-full mb-5">
+      <TabsList data-tab-nav className="flex h-auto gap-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl p-1 w-full mb-5">
         <TabsTrigger
           value="INDEX_LEVELS"
           className="flex-1 rounded-lg px-4 py-2 text-xs font-medium data-active:bg-zinc-900 dark:data-active:bg-zinc-100 data-active:text-white dark:data-active:text-zinc-900 text-zinc-800 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
