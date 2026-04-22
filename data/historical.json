@@ -52206,5 +52206,57 @@
       "impliedEPS": 827.04,
       "impliedBV": 7046.56
     }
+  },
+  {
+    "date": "2026-04-22",
+    "NIFTY_50": {
+      "close": 24378.1,
+      "pe": 21.28,
+      "pb": 3.33,
+      "impliedEPS": 1145.59,
+      "impliedBV": 7320.75
+    },
+    "NIFTY_BANK": {
+      "close": 57124.45,
+      "pe": 15.06,
+      "pb": 1.95,
+      "impliedEPS": 3793.12,
+      "impliedBV": 29294.59
+    },
+    "NIFTY_IT": {
+      "close": 30496.25,
+      "pe": 21.51,
+      "pb": 5.66,
+      "impliedEPS": 1417.77,
+      "impliedBV": 5388.03
+    },
+    "NIFTY_MIDCAP_150": {
+      "close": 22191.05,
+      "pe": 34.75,
+      "pb": 4.75,
+      "impliedEPS": 638.59,
+      "impliedBV": 4671.8
+    },
+    "NIFTY_SMALLCAP_250": {
+      "close": 16683.45,
+      "pe": 30.16,
+      "pb": 3.48,
+      "impliedEPS": 553.16,
+      "impliedBV": 4794.09
+    },
+    "NIFTY_PSU_BANK": {
+      "close": 9022.2,
+      "pe": 8.86,
+      "pb": 1.46,
+      "impliedEPS": 1018.31,
+      "impliedBV": 6179.59
+    },
+    "NIFTY_MICROCAP_250": {
+      "close": 22911.05,
+      "pe": 27.71,
+      "pb": 3.25,
+      "impliedEPS": 826.82,
+      "impliedBV": 7049.55
+    }
   }
 ]
