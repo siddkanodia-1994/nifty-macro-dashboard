@@ -15,7 +15,7 @@ export type MetricKey = "close" | "pe" | "pb" | "impliedEPS" | "impliedBV";
 
 // ─── Time Windows ────────────────────────────────────────────────────────────
 
-export type TimeWindow = "3M" | "6M" | "1Y" | "2Y" | "3Y" | "5Y" | "ALL";
+export type TimeWindow = "3M" | "6M" | "1Y" | "2Y" | "3Y" | "4Y" | "ALL";
 
 // ─── Per-index metrics for one trading day ───────────────────────────────────
 

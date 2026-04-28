@@ -34,7 +34,7 @@ interface DailyDataPanelProps {
 export function DailyDataPanel({ historicalData, liveData }: DailyDataPanelProps) {
   const [selectedIndex, setSelectedIndex] = useState<IndexKey>("NIFTY_50");
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>("close");
-  const [timeWindow, setTimeWindow] = useState<TimeWindow>("1Y");
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>("4Y");
   const [newestFirst, setNewestFirst] = useState(true);
   const [page, setPage] = useState(1);
 

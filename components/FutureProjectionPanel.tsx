@@ -102,9 +102,11 @@ interface FutureProjectionPanelProps {
   liveData: Partial<Record<IndexKey, number>> | null;
   timeWindow: TimeWindow;
   onTimeWindowChange: (w: TimeWindow) => void;
+  externalGrowthPct?: Partial<Record<IndexKey, number>>;
+  onGrowthPctChange?: (key: IndexKey, val: number) => void;
 }
 
-export function FutureProjectionPanel({ historicalData, liveData, timeWindow, onTimeWindowChange }: FutureProjectionPanelProps) {
+export function FutureProjectionPanel({ historicalData, liveData, timeWindow, onTimeWindowChange, externalGrowthPct, onGrowthPctChange }: FutureProjectionPanelProps) {
   const [selectedIndex, setSelectedIndex] = useState<IndexKey>("NIFTY_50");
   const [projections, setProjections] = useState<ProjectionsMap>(() =>
     buildDefaults(historicalData)
@@ -118,6 +120,8 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const cronSecret = useRef<string | null>(null);
   const visitorDiff = useRef<VisitorDiff>({});
   const isMounted = useRef(false);
+  const prevExternalGrowth = useRef<Partial<Record<IndexKey, number>>>({});
+  const isSelfEditing = useRef(false);
 
   // Detect owner mode immediately (synchronous, separate from async init)
   useEffect(() => {
@@ -143,26 +147,61 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       } catch {}
 
       // Owner mode: always use Blob defaults (skip localStorage)
-      if (key) { setProjections(kv ?? buildDefaults(historicalData)); return; }
+      if (key) {
+        const resolved = kv ?? buildDefaults(historicalData);
+        setProjections(resolved);
+        for (const meta of INDEX_META) {
+          const g = resolved[meta.key]?.base?.growthPct;
+          if (typeof g === "number") onGrowthPctChange?.(meta.key, g);
+        }
+        return;
+      }
 
       // Visitor mode: Blob is base; apply visitor's sparse override diff on top
       const base = kv ?? buildDefaults(historicalData);
+      let resolved: ProjectionsMap = base;
       try {
         const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
         if (stored) {
           const diff = JSON.parse(stored) as VisitorDiff;
           visitorDiff.current = diff;
-          setProjections(mergeWithDiff(base, diff));
-        } else {
-          setProjections(base);
+          resolved = mergeWithDiff(base, diff);
         }
-      } catch {
-        setProjections(base);
+      } catch {}
+      setProjections(resolved);
+      for (const meta of INDEX_META) {
+        const g = resolved[meta.key]?.base?.growthPct;
+        if (typeof g === "number") onGrowthPctChange?.(meta.key, g);
       }
     }
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // External sync — responds to EPS Est. edits from IndexOverview
+  useEffect(() => {
+    if (!externalGrowthPct || isSelfEditing.current) return;
+    setProjections((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const meta of INDEX_META) {
+        const newVal = externalGrowthPct[meta.key];
+        if (newVal == null) continue;
+        if (newVal === prevExternalGrowth.current[meta.key]) continue;
+        changed = true;
+        next[meta.key] = {
+          ...next[meta.key],
+          base: { ...next[meta.key].base, growthPct: newVal },
+          bear: { ...next[meta.key].bear, growthPct: parseFloat((newVal - 3).toFixed(2)) },
+          bull: { ...next[meta.key].bull, growthPct: parseFloat((newVal + 3).toFixed(2)) },
+        };
+      }
+      if (!changed) return prev;
+      prevExternalGrowth.current = { ...externalGrowthPct };
+      return next;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalGrowthPct]);
 
   // Persist only visitor's explicit override diff (not full state)
   useEffect(() => {
@@ -340,8 +379,14 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       if (field === "multiple") {
         setManualCells((prev) => new Set(prev).add(`${selectedIndex}_${scenario}`));
       }
+      // Sync base growthPct back to Overview's EPS Est. column
+      if (scenario === "base" && field === "growthPct") {
+        isSelfEditing.current = true;
+        onGrowthPctChange?.(selectedIndex, value);
+        setTimeout(() => { isSelfEditing.current = false; }, 0);
+      }
     },
-    [selectedIndex]
+    [selectedIndex, onGrowthPctChange]
   );
 
   const updateBase = useCallback((raw: string) => {
@@ -364,8 +409,16 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     visitorDiff.current = {};
     userHasEdited.current = false;
     setManualCells(new Set());
-    setProjections(ownerDefaults ?? buildDefaults(historicalData));
-  }, [ownerDefaults, historicalData]);
+    const resetTo = ownerDefaults ?? buildDefaults(historicalData);
+    setProjections(resetTo);
+    // Sync reset growthPct values back to the shared state (and Overview EPS Est.)
+    isSelfEditing.current = true;
+    for (const meta of INDEX_META) {
+      const g = resetTo[meta.key]?.base?.growthPct;
+      if (typeof g === "number") onGrowthPctChange?.(meta.key, g);
+    }
+    setTimeout(() => { isSelfEditing.current = false; }, 0);
+  }, [ownerDefaults, historicalData, onGrowthPctChange]);
 
   const computed = useMemo(() => {
     if (!current) return null;

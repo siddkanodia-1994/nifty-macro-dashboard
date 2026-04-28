@@ -40,6 +40,8 @@ interface IndexOverviewProps {
   timeWindow: TimeWindow;
   onTimeWindowChange: (w: TimeWindow) => void;
   projectionDefaults?: Partial<Record<IndexKey, { base?: { growthPct?: number } }>> | null;
+  epsGrowthPct?: Partial<Record<IndexKey, number>>;
+  onEpsGrowthChange?: (key: IndexKey, val: number) => void;
 }
 
 function ZBadge({ z }: { z: number | null }) {
@@ -70,7 +72,7 @@ function UpsideBadge({ pct }: { pct: number | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold tabular-nums text-zinc-600 dark:text-zinc-400">{label}</span>;
 }
 
-export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSelectIndex, timeWindow, onTimeWindowChange, projectionDefaults }: IndexOverviewProps) {
+export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSelectIndex, timeWindow, onTimeWindowChange, projectionDefaults, epsGrowthPct, onEpsGrowthChange }: IndexOverviewProps) {
   const [multipleTarget, setMultipleTarget] = useState<MultipleTarget>("mean");
   const [forwardMode, setForwardMode] = useState(false);
   const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
@@ -114,16 +116,31 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
     })();
   }, [forwardMode]);
 
+  // On mount: read visitor localStorage overrides and push them into sharedGrowthPct
+  useEffect(() => {
+    if (!onEpsGrowthChange) return;
+    try {
+      const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
+      if (!stored) return;
+      const diff = JSON.parse(stored) as Record<string, { base?: { growthPct?: number } }>;
+      for (const key of Object.keys(diff) as IndexKey[]) {
+        const g = diff[key]?.base?.growthPct;
+        if (typeof g === "number") onEpsGrowthChange(key, g);
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Forward PE/PB series for all indices (only computed in FWD mode)
   const fwdSeriesMap = useMemo(() => {
     if (ratioMode !== "FWD") return null;
     const result = {} as Record<IndexKey, { date: string; fwdPE: number | null; fwdPB: number | null }[]>;
     for (const meta of INDEX_META) {
-      const growthPct = projectionDefaults?.[meta.key]?.base?.growthPct ?? 0;
+      const growthPct = epsGrowthPct?.[meta.key] ?? projectionDefaults?.[meta.key]?.base?.growthPct ?? 0;
       result[meta.key] = buildForwardRatioSeries(historicalData, meta.key, growthPct);
     }
     return result;
-  }, [ratioMode, historicalData, projectionDefaults]);
+  }, [ratioMode, historicalData, projectionDefaults, epsGrowthPct]);
 
   const lastRow = historicalData[historicalData.length - 1] ?? null;
 
@@ -230,6 +247,15 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowRows, lastRow, liveData, multipleTarget, forwardMode, forwardBases, ratioMode, fwdSeriesMap]);
 
+  function writeVisitorGrowthPct(key: IndexKey, val: number) {
+    try {
+      const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
+      const diff: Record<string, any> = stored ? JSON.parse(stored) : {};
+      diff[key] = { ...diff[key], base: { ...diff[key]?.base, growthPct: val } };
+      localStorage.setItem(VISITOR_STORAGE_KEY, JSON.stringify(diff));
+    } catch {}
+  }
+
   function ratioColor(current: number | null, m: number | null, sd: number | null) {
     if (current == null || m == null || sd == null || sd === 0) return "text-zinc-900 dark:text-zinc-100";
     if (current > m + sd)  return "text-red-700 dark:text-red-400";
@@ -299,9 +325,9 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                 >
                   Close
                 </th>
-                {/* P/E group — 6 cols */}
+                {/* P/E group — 7 cols (incl. EPS Est.) */}
                 <th
-                  colSpan={6}
+                  colSpan={7}
                   className="px-5 py-2 text-center text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-200 border-l border-zinc-200 dark:border-zinc-700"
                 >
                   P / E  R A T I O
@@ -322,6 +348,7 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
+                <th className="px-5 pb-2.5 pt-1 text-center text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">EPS<br />Est. %</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">
                   Upside % <span className="text-zinc-500 dark:text-zinc-500 font-normal">({multipleLabel})</span>
@@ -395,6 +422,24 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                   {/* PE Z */}
                   <td className="px-5 py-4 text-right">
                     <ZBadge z={peZ} />
+                  </td>
+                  {/* EPS Est. % — editable, shared with Future Projections base case */}
+                  <td className="px-3 py-4 text-center">
+                    <div className="flex items-center justify-center gap-0.5">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={epsGrowthPct?.[meta.key] ?? 0}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (isNaN(val)) return;
+                          writeVisitorGrowthPct(meta.key, val);
+                          onEpsGrowthChange?.(meta.key, val);
+                        }}
+                        className="w-14 text-right text-sm tabular-nums bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600 text-zinc-800 dark:text-zinc-200"
+                      />
+                      <span className="text-xs text-zinc-400">%</span>
+                    </div>
                   </td>
                   {/* PE Target Price */}
                   <td className="px-5 py-4 text-right">

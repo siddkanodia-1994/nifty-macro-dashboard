@@ -72,7 +72,7 @@ export function filterByWindow(rows: HistoricalRow[], window: TimeWindow): Histo
     case "1Y": cutoff = subYears(now, 1);   break;
     case "2Y": cutoff = subYears(now, 2);   break;
     case "3Y": cutoff = subYears(now, 3);   break;
-    case "5Y": cutoff = subYears(now, 5);   break;
+    case "4Y": cutoff = subYears(now, 4);   break;
     default:   return rows;
   }
 
@@ -196,7 +196,7 @@ export function filterBYEYByWindow(rows: BYEYRow[], window: TimeWindow): BYEYRow
     case "1Y": cutoff = subYears(now, 1);   break;
     case "2Y": cutoff = subYears(now, 2);   break;
     case "3Y": cutoff = subYears(now, 3);   break;
-    case "5Y": cutoff = subYears(now, 5);   break;
+    case "4Y": cutoff = subYears(now, 4);   break;
     default:   return rows;
   }
 

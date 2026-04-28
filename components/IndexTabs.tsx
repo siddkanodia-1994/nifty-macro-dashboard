@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { IndexPanel } from "@/components/IndexPanel";
 import { IndexOverview } from "@/components/IndexOverview";
@@ -26,12 +26,14 @@ interface IndexTabsProps {
 export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
   const [activeMainTab, setActiveMainTab]       = useState<MainTab>("INDEX_LEVELS");
   const [activeIndexTab, setActiveIndexTab]     = useState<IndexSubTab>("OVERVIEW");
-  const [timeWindow, setTimeWindow]             = useState<TimeWindow>("1Y");
-  const [overviewTimeWindow, setOverviewTimeWindow] = useState<TimeWindow>("2Y");
+  const [timeWindow, setTimeWindow]             = useState<TimeWindow>("4Y");
+  const [overviewTimeWindow, setOverviewTimeWindow] = useState<TimeWindow>("4Y");
   const [liveData, setLiveData]             = useState<Partial<Record<IndexKey, number>> | null>(null);
   const [liveMarketOpen, setLiveMarketOpen] = useState(false);
   const [liveBondYield, setLiveBondYield]   = useState<number | null>(null);
   const [projectionDefaults, setProjectionDefaults] = useState<ProjectionDefaultsMap | null>(null);
+  const [sharedGrowthPct, setSharedGrowthPct] = useState<Partial<Record<IndexKey, number>>>({});
+  const growthPctInitialized = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -39,7 +41,18 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
         const res = await fetch("/api/projection-defaults", { cache: "no-store" });
         if (res.ok) {
           const json = await res.json();
-          if (json) setProjectionDefaults(json as ProjectionDefaultsMap);
+          if (json) {
+            setProjectionDefaults(json as ProjectionDefaultsMap);
+            if (!growthPctInitialized.current) {
+              const initial: Partial<Record<IndexKey, number>> = {};
+              for (const key of Object.keys(json) as IndexKey[]) {
+                const g = (json as any)[key]?.base?.growthPct;
+                if (typeof g === "number") initial[key] = g;
+              }
+              setSharedGrowthPct(initial);
+              growthPctInitialized.current = true;
+            }
+          }
         }
       } catch {}
     })();
@@ -79,6 +92,10 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
       if (!isMarketOpen()) setLiveMarketOpen(false);
     }, 60_000);
     return () => clearInterval(id);
+  }, []);
+
+  const handleGrowthPctChange = useCallback((key: IndexKey, val: number) => {
+    setSharedGrowthPct(prev => ({ ...prev, [key]: val }));
   }, []);
 
   return (
@@ -163,6 +180,8 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
               timeWindow={overviewTimeWindow}
               onTimeWindowChange={setOverviewTimeWindow}
               projectionDefaults={projectionDefaults}
+              epsGrowthPct={sharedGrowthPct}
+              onEpsGrowthChange={handleGrowthPctChange}
             />
           </TabsContent>
 
@@ -190,6 +209,8 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
           liveData={liveData}
           timeWindow={overviewTimeWindow}
           onTimeWindowChange={setOverviewTimeWindow}
+          externalGrowthPct={sharedGrowthPct}
+          onGrowthPctChange={handleGrowthPctChange}
         />
       </TabsContent>
 

@@ -132,7 +132,7 @@ export function formatMetric(metric: MetricKey, value: number | null | undefined
 
 // ─── Time window utilities ────────────────────────────────────────────────────
 
-export const TIME_WINDOWS: TimeWindow[] = ["3M", "6M", "1Y", "2Y", "3Y", "5Y", "ALL"];
+export const TIME_WINDOWS: TimeWindow[] = ["3M", "6M", "1Y", "2Y", "3Y", "4Y", "ALL"];
 
 export function getWindowLabel(w: TimeWindow): string {
   return w;
