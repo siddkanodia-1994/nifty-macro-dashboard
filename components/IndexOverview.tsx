@@ -74,7 +74,7 @@ function UpsideBadge({ pct }: { pct: number | null }) {
 
 export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSelectIndex, timeWindow, onTimeWindowChange, projectionDefaults, epsGrowthPct, onEpsGrowthChange }: IndexOverviewProps) {
   const [multipleTarget, setMultipleTarget] = useState<MultipleTarget>("mean");
-  const [forwardMode, setForwardMode] = useState(false);
+  const [forwardMode, setForwardMode] = useState(true);
   const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
   const { ratioMode } = useRatioMode();
 
@@ -220,13 +220,14 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
       const trailingEPS = hist?.impliedEPS ?? null;
       const trailingBV  = hist?.impliedBV  ?? null;
 
-      let baseEPS: number | null = trailingEPS;
-      let baseBV:  number | null = trailingBV;
+      const growthPct = epsGrowthPct?.[key] ?? projEntry?.base?.growthPct ?? 0;
+
+      let baseEPS: number | null = trailingEPS != null ? trailingEPS * (1 + growthPct / 100) : null;
+      let baseBV:  number | null = trailingBV  != null ? trailingBV  * (1 + growthPct / 100) : null;
 
       if (forwardMode) {
         const rawEPS = projEntry?.baseEPS ?? trailingEPS;
         const rawBV  = projEntry?.baseBV  ?? trailingBV;
-        const growthPct = projEntry?.base?.growthPct ?? 0;
         baseEPS = rawEPS != null ? rawEPS * (1 + growthPct / 100) : null;
         baseBV  = rawBV  != null ? rawBV  * (1 + growthPct / 100) : null;
       }
@@ -245,7 +246,7 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
       return { meta, key, close, isLive, pe: currentPE, peMean, peSD, peZ, peTargetPrice, peUpside, pb: currentPB, pbMean, pbSD, pbZ, pbTargetPrice, pbUpside };
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [windowRows, lastRow, liveData, multipleTarget, forwardMode, forwardBases, ratioMode, fwdSeriesMap]);
+  }, [windowRows, lastRow, liveData, multipleTarget, forwardMode, forwardBases, ratioMode, fwdSeriesMap, epsGrowthPct]);
 
   function writeVisitorGrowthPct(key: IndexKey, val: number) {
     try {
