@@ -248,6 +248,25 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowRows, lastRow, liveData, multipleTarget, forwardMode, forwardBases, ratioMode, fwdSeriesMap, epsGrowthPct]);
 
+  function handleEpsReset() {
+    try {
+      const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
+      const diff: Record<string, any> = stored ? JSON.parse(stored) : {};
+      for (const meta of INDEX_META) {
+        if (diff[meta.key]?.base) {
+          delete diff[meta.key].base.growthPct;
+          if (Object.keys(diff[meta.key].base).length === 0) delete diff[meta.key].base;
+          if (Object.keys(diff[meta.key]).length === 0) delete diff[meta.key];
+        }
+      }
+      localStorage.setItem(VISITOR_STORAGE_KEY, JSON.stringify(diff));
+    } catch {}
+    for (const meta of INDEX_META) {
+      const ownerVal = projectionDefaults?.[meta.key]?.base?.growthPct ?? 0;
+      onEpsGrowthChange?.(meta.key, ownerVal);
+    }
+  }
+
   function writeVisitorGrowthPct(key: IndexKey, val: number) {
     try {
       const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
@@ -307,6 +326,13 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
               )}
             >
               Forward EPS/BV
+            </button>
+
+            <button
+              onClick={handleEpsReset}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-100"
+            >
+              Reset EPS
             </button>
 
             <TimeWindowSelector value={timeWindow} onChange={onTimeWindowChange} />
