@@ -35,6 +35,13 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
   const [sharedGrowthPct, setSharedGrowthPct] = useState<Partial<Record<IndexKey, number>>>({});
   const [ownerEpsOverride, setOwnerEpsOverride] = useState<{ key: IndexKey; base: number; ts: number } | null>(null);
   const growthPctInitialized = useRef(false);
+  const isOwnerMode = useRef(false);
+
+  // Detect owner mode synchronously on mount (mirrors FutureProjectionPanel)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("key")) isOwnerMode.current = true;
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -50,6 +57,17 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
                 const g = (json as any)[key]?.base?.growthPct;
                 if (typeof g === "number") initial[key] = g;
               }
+              // Visitor localStorage overrides take precedence over Redis defaults
+              try {
+                const stored = localStorage.getItem("nifty-projections-visitor-v2");
+                if (stored) {
+                  const diff = JSON.parse(stored) as Record<string, { base?: { growthPct?: number } }>;
+                  for (const key of Object.keys(diff) as IndexKey[]) {
+                    const g = diff[key]?.base?.growthPct;
+                    if (typeof g === "number") initial[key] = g;
+                  }
+                }
+              } catch {}
               setSharedGrowthPct(initial);
               growthPctInitialized.current = true;
             }
@@ -95,10 +113,10 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
     return () => clearInterval(id);
   }, []);
 
-  // Overview edits → visual sync + signal FutureProjectionPanel to save (owner mode)
+  // Overview edits → visual sync + signal FutureProjectionPanel to save (owner mode only)
   const handleOverviewEpsChange = useCallback((key: IndexKey, val: number) => {
     setSharedGrowthPct(prev => ({ ...prev, [key]: val }));
-    setOwnerEpsOverride({ key, base: val, ts: Date.now() });
+    if (isOwnerMode.current) setOwnerEpsOverride({ key, base: val, ts: Date.now() });
   }, []);
 
   // FutureProjectionPanel edits → visual sync only (FPP owns its own save)
