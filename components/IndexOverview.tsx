@@ -222,8 +222,8 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
 
       const growthPct = epsGrowthPct?.[key] ?? projEntry?.base?.growthPct ?? 0;
 
-      let baseEPS: number | null = trailingEPS != null ? trailingEPS * (1 + growthPct / 100) : null;
-      let baseBV:  number | null = trailingBV  != null ? trailingBV  * (1 + growthPct / 100) : null;
+      let baseEPS: number | null = trailingEPS;
+      let baseBV:  number | null = trailingBV;
 
       if (forwardMode) {
         const rawEPS = projEntry?.baseEPS ?? trailingEPS;
