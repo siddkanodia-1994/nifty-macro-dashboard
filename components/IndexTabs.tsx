@@ -33,6 +33,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
   const [liveBondYield, setLiveBondYield]   = useState<number | null>(null);
   const [projectionDefaults, setProjectionDefaults] = useState<ProjectionDefaultsMap | null>(null);
   const [sharedGrowthPct, setSharedGrowthPct] = useState<Partial<Record<IndexKey, number>>>({});
+  const [ownerEpsOverride, setOwnerEpsOverride] = useState<{ key: IndexKey; base: number; ts: number } | null>(null);
   const growthPctInitialized = useRef(false);
 
   useEffect(() => {
@@ -94,7 +95,14 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
     return () => clearInterval(id);
   }, []);
 
-  const handleGrowthPctChange = useCallback((key: IndexKey, val: number) => {
+  // Overview edits → visual sync + signal FutureProjectionPanel to save (owner mode)
+  const handleOverviewEpsChange = useCallback((key: IndexKey, val: number) => {
+    setSharedGrowthPct(prev => ({ ...prev, [key]: val }));
+    setOwnerEpsOverride({ key, base: val, ts: Date.now() });
+  }, []);
+
+  // FutureProjectionPanel edits → visual sync only (FPP owns its own save)
+  const handleFutureProjectionGrowthChange = useCallback((key: IndexKey, val: number) => {
     setSharedGrowthPct(prev => ({ ...prev, [key]: val }));
   }, []);
 
@@ -181,7 +189,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
               onTimeWindowChange={setOverviewTimeWindow}
               projectionDefaults={projectionDefaults}
               epsGrowthPct={sharedGrowthPct}
-              onEpsGrowthChange={handleGrowthPctChange}
+              onEpsGrowthChange={handleOverviewEpsChange}
             />
           </TabsContent>
 
@@ -210,7 +218,8 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
           timeWindow={overviewTimeWindow}
           onTimeWindowChange={setOverviewTimeWindow}
           externalGrowthPct={sharedGrowthPct}
-          onGrowthPctChange={handleGrowthPctChange}
+          onGrowthPctChange={handleFutureProjectionGrowthChange}
+          ownerEpsOverride={ownerEpsOverride}
         />
       </TabsContent>
 

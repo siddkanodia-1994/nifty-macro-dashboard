@@ -104,9 +104,10 @@ interface FutureProjectionPanelProps {
   onTimeWindowChange: (w: TimeWindow) => void;
   externalGrowthPct?: Partial<Record<IndexKey, number>>;
   onGrowthPctChange?: (key: IndexKey, val: number) => void;
+  ownerEpsOverride?: { key: IndexKey; base: number; ts: number } | null;
 }
 
-export function FutureProjectionPanel({ historicalData, liveData, timeWindow, onTimeWindowChange, externalGrowthPct, onGrowthPctChange }: FutureProjectionPanelProps) {
+export function FutureProjectionPanel({ historicalData, liveData, timeWindow, onTimeWindowChange, externalGrowthPct, onGrowthPctChange, ownerEpsOverride }: FutureProjectionPanelProps) {
   const [selectedIndex, setSelectedIndex] = useState<IndexKey>("NIFTY_50");
   const [projections, setProjections] = useState<ProjectionsMap>(() =>
     buildDefaults(historicalData)
@@ -202,6 +203,37 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalGrowthPct]);
+
+  // Owner EPS Est. edits from Overview → update projections + trigger 600ms auto-save
+  useEffect(() => {
+    if (!ownerEpsOverride || !ownerMode) return;
+    const { key, base } = ownerEpsOverride;
+    const bear = parseFloat((base - 3).toFixed(2));
+    const bull = parseFloat((base + 3).toFixed(2));
+
+    setProjections((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        base: { ...prev[key].base, growthPct: base },
+        bear: { ...prev[key].bear, growthPct: bear },
+        bull: { ...prev[key].bull, growthPct: bull },
+      },
+    }));
+
+    const cur = visitorDiff.current[key] ?? {};
+    visitorDiff.current = {
+      ...visitorDiff.current,
+      [key]: {
+        ...cur,
+        base: { ...(cur.base ?? {}), growthPct: base },
+        bear: { ...(cur.bear ?? {}), growthPct: bear },
+        bull: { ...(cur.bull ?? {}), growthPct: bull },
+      },
+    };
+    userHasEdited.current = true;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownerEpsOverride, ownerMode]);
 
   // Persist only visitor's explicit override diff (not full state)
   useEffect(() => {
