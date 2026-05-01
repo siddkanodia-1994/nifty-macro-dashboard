@@ -62,6 +62,26 @@ function ZBadge({ z }: { z: number | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 tabular-nums">{label}</span>;
 }
 
+function ChangePill({ pct }: { pct: number | null }) {
+  if (pct == null || pct === 0) {
+    return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 tabular-nums whitespace-nowrap">
+        0.00%
+      </span>
+    );
+  }
+  const arrow = pct > 0 ? "▲" : "▼";
+  const sign  = pct > 0 ? "+" : "−";
+  const color = pct > 0
+    ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+    : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800";
+  return (
+    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold border tabular-nums whitespace-nowrap ${color}`}>
+      {arrow} {sign}{Math.abs(pct).toFixed(2)}%
+    </span>
+  );
+}
+
 function UpsideBadge({ pct }: { pct: number | null }) {
   if (pct == null) return <span className="text-zinc-400 text-sm">—</span>;
   const label = (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%";
@@ -243,7 +263,13 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
       const pbUpside = pbTargetPrice != null && close != null
         ? ((pbTargetPrice - close) / close) * 100 : null;
 
-      return { meta, key, close, isLive, pe: currentPE, peMean, peSD, peZ, peTargetPrice, peUpside, pb: currentPB, pbMean, pbSD, pbZ, pbTargetPrice, pbUpside };
+      // % change vs previous trading day's EOD close (liveData retained post-market)
+      const prevClose = hist?.close ?? null;
+      const changePct = isLive && liveClose != null && prevClose != null && prevClose !== 0
+        ? ((liveClose - prevClose) / prevClose) * 100
+        : null;
+
+      return { meta, key, close, isLive, pe: currentPE, peMean, peSD, peZ, peTargetPrice, peUpside, pb: currentPB, pbMean, pbSD, pbZ, pbTargetPrice, pbUpside, changePct };
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowRows, lastRow, liveData, multipleTarget, forwardMode, forwardBases, ratioMode, fwdSeriesMap, epsGrowthPct]);
@@ -393,7 +419,7 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
             </thead>
 
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {stats.map(({ meta, close, isLive, pe, peMean, peSD, peZ, peTargetPrice, peUpside, pb, pbMean, pbSD, pbZ, pbTargetPrice, pbUpside }, idx) => (
+              {stats.map(({ meta, close, isLive, pe, peMean, peSD, peZ, peTargetPrice, peUpside, pb, pbMean, pbSD, pbZ, pbTargetPrice, pbUpside, changePct }, idx) => (
                 <tr
                   key={meta.key}
                   className={cn(
@@ -422,6 +448,7 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                           CLO
                         </span>
                       )}
+                      {isLive && <ChangePill pct={changePct} />}
                     </div>
                   </td>
 
