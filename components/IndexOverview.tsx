@@ -376,7 +376,7 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                   className="px-5 py-2 text-right text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-300 align-bottom"
                   rowSpan={2}
                 >
-                  Close
+                  Day Chg / Close
                 </th>
                 {/* P/E group — 7 cols (incl. EPS Est.) */}
                 <th
@@ -448,15 +448,17 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                           CLO
                         </span>
                       )}
-                      {isLive && <ChangePill pct={changePct} />}
                     </div>
                   </td>
 
-                  {/* Close */}
-                  <td className="px-5 py-4 text-right">
-                    <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
-                      {close != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(close)) : "—"}
-                    </span>
+                  {/* Day Chg + Close */}
+                  <td className="px-5 py-4">
+                    <div className="flex items-center justify-end gap-2">
+                      {isLive && <ChangePill pct={changePct} />}
+                      <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
+                        {close != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(close)) : "—"}
+                      </span>
+                    </div>
                   </td>
 
                   {/* PE Current */}
