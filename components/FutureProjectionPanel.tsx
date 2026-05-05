@@ -148,8 +148,10 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       } catch {}
 
       // Owner mode: always use Blob defaults (skip localStorage)
+      // Merge kv ON TOP of buildDefaults so new indices (not yet in Redis) always have state
       if (key) {
-        const resolved = kv ?? buildDefaults(historicalData);
+        const defaults = buildDefaults(historicalData);
+        const resolved = kv ? { ...defaults, ...kv } : defaults;
         setProjections(resolved);
         for (const meta of INDEX_META) {
           const g = resolved[meta.key]?.base?.growthPct;
@@ -159,7 +161,9 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       }
 
       // Visitor mode: Blob is base; apply visitor's sparse override diff on top
-      const base = kv ?? buildDefaults(historicalData);
+      // Merge kv ON TOP of buildDefaults so new indices always have state
+      const defaults = buildDefaults(historicalData);
+      const base = kv ? { ...defaults, ...kv } : defaults;
       let resolved: ProjectionsMap = base;
       try {
         const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
@@ -190,11 +194,13 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         if (newVal == null) continue;
         if (newVal === prevExternalGrowth.current[meta.key]) continue;
         changed = true;
+        const cur = next[meta.key];
+        if (!cur) continue;
         next[meta.key] = {
-          ...next[meta.key],
-          base: { ...next[meta.key].base, growthPct: newVal },
-          bear: { ...next[meta.key].bear, growthPct: parseFloat((newVal - 3).toFixed(2)) },
-          bull: { ...next[meta.key].bull, growthPct: parseFloat((newVal + 3).toFixed(2)) },
+          ...cur,
+          base: { ...cur.base, growthPct: newVal },
+          bear: { ...cur.bear, growthPct: parseFloat((newVal - 3).toFixed(2)) },
+          bull: { ...cur.bull, growthPct: parseFloat((newVal + 3).toFixed(2)) },
         };
       }
       if (!changed) return prev;
@@ -211,15 +217,19 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     const bear = parseFloat((base - 3).toFixed(2));
     const bull = parseFloat((base + 3).toFixed(2));
 
-    setProjections((prev) => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        base: { ...prev[key].base, growthPct: base },
-        bear: { ...prev[key].bear, growthPct: bear },
-        bull: { ...prev[key].bull, growthPct: bull },
-      },
-    }));
+    setProjections((prev) => {
+      const existing = prev[key];
+      if (!existing) return prev;
+      return {
+        ...prev,
+        [key]: {
+          ...existing,
+          base: { ...existing.base, growthPct: base },
+          bear: { ...existing.bear, growthPct: bear },
+          bull: { ...existing.bull, growthPct: bull },
+        },
+      };
+    });
 
     const cur = visitorDiff.current[key] ?? {};
     visitorDiff.current = {
