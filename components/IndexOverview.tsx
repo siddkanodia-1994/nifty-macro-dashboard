@@ -95,6 +95,22 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
   const [forwardMode, setForwardMode] = useState(true);
   const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
   const { ratioMode } = useRatioMode();
+  type SortCol = "pe" | "pb";
+  type SortDir = "desc" | "asc";
+  const [sortCol, setSortCol] = useState<SortCol | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir | null>(null);
+
+  function handleSortClick(col: SortCol) {
+    if (sortCol !== col) { setSortCol(col); setSortDir("desc"); }
+    else if (sortDir === "desc") { setSortDir("asc"); }
+    else { setSortCol(null); setSortDir(null); }
+  }
+
+  // Reset sort when window or mode changes
+  useEffect(() => {
+    setSortCol(null);
+    setSortDir(null);
+  }, [timeWindow, forwardMode, ratioMode]);
 
   // Load forward bases when "Forward EPS/BV" toggle is active
   useEffect(() => {
@@ -272,6 +288,18 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowRows, lastRow, liveData, multipleTarget, forwardMode, forwardBases, ratioMode, fwdSeriesMap, epsGrowthPct]);
 
+  const sortedStats = useMemo(() => {
+    if (!sortCol || !sortDir) return stats;
+    return [...stats].sort((a, b) => {
+      const va = sortCol === "pe" ? a.peUpside : a.pbUpside;
+      const vb = sortCol === "pe" ? b.peUpside : b.pbUpside;
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return sortDir === "desc" ? vb - va : va - vb;
+    });
+  }, [stats, sortCol, sortDir]);
+
   function handleEpsReset() {
     try {
       const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
@@ -401,8 +429,12 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
                 <th className="px-5 pb-2.5 pt-1 text-center text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">EPS<br />Est. %</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">
-                  Upside % <span className="text-zinc-500 dark:text-zinc-500 font-normal">({multipleLabel})</span>
+                <th
+                  onClick={() => handleSortClick("pe")}
+                  className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide max-w-[72px] cursor-pointer select-none transition-colors text-zinc-900 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400"
+                >
+                  Upside % <span className="font-normal opacity-60">({multipleLabel})</span>{" "}
+                  <span className="ml-0.5">{sortCol === "pe" ? (sortDir === "desc" ? "▼" : "▲") : <span className="opacity-30">⇅</span>}</span>
                 </th>
                 {/* PB cols */}
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current</th>
@@ -410,14 +442,18 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">
-                  Upside % <span className="text-zinc-500 dark:text-zinc-500 font-normal">({multipleLabel})</span>
+                <th
+                  onClick={() => handleSortClick("pb")}
+                  className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide max-w-[72px] cursor-pointer select-none transition-colors text-zinc-900 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400"
+                >
+                  Upside % <span className="font-normal opacity-60">({multipleLabel})</span>{" "}
+                  <span className="ml-0.5">{sortCol === "pb" ? (sortDir === "desc" ? "▼" : "▲") : <span className="opacity-30">⇅</span>}</span>
                 </th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {stats.map(({ meta, close, isLive, pe, peMean, peSD, peZ, peTargetPrice, peUpside, pb, pbMean, pbSD, pbZ, pbTargetPrice, pbUpside, changePct }, idx) => (
+              {sortedStats.map(({ meta, close, isLive, pe, peMean, peSD, peZ, peTargetPrice, peUpside, pb, pbMean, pbSD, pbZ, pbTargetPrice, pbUpside, changePct }, idx) => (
                 <tr
                   key={meta.key}
                   className={cn(
