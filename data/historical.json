@@ -95220,5 +95220,99 @@
       "impliedEPS": 159.05,
       "impliedBV": 751.33
     }
+  },
+  {
+    "date": "2026-05-05",
+    "NIFTY_50": {
+      "close": 24032.8,
+      "pe": 20.95,
+      "pb": 3.29,
+      "impliedEPS": 1147.15,
+      "impliedBV": 7304.8
+    },
+    "NIFTY_BANK": {
+      "close": 54547.05,
+      "pe": 13.79,
+      "pb": 1.86,
+      "impliedEPS": 3955.55,
+      "impliedBV": 29326.37
+    },
+    "NIFTY_IT": {
+      "close": 29107.3,
+      "pe": 19.96,
+      "pb": 5.4,
+      "impliedEPS": 1458.28,
+      "impliedBV": 5390.24
+    },
+    "NIFTY_MIDCAP_150": {
+      "close": 22180.25,
+      "pe": 33.65,
+      "pb": 4.74,
+      "impliedEPS": 659.15,
+      "impliedBV": 4679.38
+    },
+    "NIFTY_SMALLCAP_250": {
+      "close": 16928.2,
+      "pe": 30.14,
+      "pb": 3.58,
+      "impliedEPS": 561.65,
+      "impliedBV": 4728.55
+    },
+    "NIFTY_PSU_BANK": {
+      "close": 8439.25,
+      "pe": 8.25,
+      "pb": 1.37,
+      "impliedEPS": 1022.94,
+      "impliedBV": 6160.04
+    },
+    "NIFTY_MICROCAP_250": {
+      "close": 23280.35,
+      "pe": 27.63,
+      "pb": 3.3,
+      "impliedEPS": 842.58,
+      "impliedBV": 7054.65
+    },
+    "NIFTY_AUTO": {
+      "close": 26192.1,
+      "pe": 31.04,
+      "pb": 4.49,
+      "impliedEPS": 843.82,
+      "impliedBV": 5833.43
+    },
+    "NIFTY_FIN_SERVICE": {
+      "close": 25716.9,
+      "pe": 16.64,
+      "pb": 2.76,
+      "impliedEPS": 1545.49,
+      "impliedBV": 9317.72
+    },
+    "NIFTY_REALTY": {
+      "close": 801.25,
+      "pe": 37.23,
+      "pb": 3.84,
+      "impliedEPS": 21.52,
+      "impliedBV": 208.66
+    },
+    "NIFTY_METAL": {
+      "close": 12989.6,
+      "pe": 22.56,
+      "pb": 3.41,
+      "impliedEPS": 575.78,
+      "impliedBV": 3809.27
+    },
+    "NIFTY_CAPITAL_MARKETS": {
+      "close": 5329.1,
+      "pe": 47.97,
+      "pb": 13.54,
+      "impliedEPS": 111.09,
+      "impliedBV": 393.58
+    },
+    "NIFTY_INDIA_DEFENCE": {
+      "close": 9093.2,
+      "pe": 57.18,
+      "pb": 12.1,
+      "impliedEPS": 159.03,
+      "impliedBV": 751.5
+    }
   }
 ]
