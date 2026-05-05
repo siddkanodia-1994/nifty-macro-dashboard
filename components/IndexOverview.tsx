@@ -62,21 +62,19 @@ function ZBadge({ z }: { z: number | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 tabular-nums">{label}</span>;
 }
 
-function ChangePill({ pct }: { pct: number | null }) {
-  if (pct == null || pct === 0) {
-    return (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 tabular-nums whitespace-nowrap">
-        0.00%
-      </span>
-    );
+function DayChange({ pct }: { pct: number | null }) {
+  if (pct == null) {
+    return <span className="w-[68px] text-right text-sm tabular-nums text-zinc-300 dark:text-zinc-600 select-none">—</span>;
   }
   const arrow = pct > 0 ? "▲" : "▼";
   const sign  = pct > 0 ? "+" : "−";
   const color = pct > 0
-    ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-    : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800";
+    ? "text-emerald-600 dark:text-emerald-400"
+    : pct < 0
+    ? "text-red-600 dark:text-red-400"
+    : "text-zinc-400 dark:text-zinc-500";
   return (
-    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold border tabular-nums whitespace-nowrap ${color}`}>
+    <span className={`w-[68px] text-right text-sm font-medium tabular-nums whitespace-nowrap ${color}`}>
       {arrow} {sign}{Math.abs(pct).toFixed(2)}%
     </span>
   );
@@ -451,10 +449,11 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
                     </div>
                   </td>
 
-                  {/* Day Chg + Close */}
+                  {/* Day Chg | Close */}
                   <td className="px-5 py-4">
-                    <div className="flex items-center justify-end gap-2">
-                      {isLive && <ChangePill pct={changePct} />}
+                    <div className="flex items-center justify-end gap-0">
+                      <DayChange pct={isLive ? changePct : null} />
+                      <span className="mx-2.5 text-zinc-300 dark:text-zinc-600 font-light select-none">|</span>
                       <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
                         {close != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(close)) : "—"}
                       </span>
