@@ -312,6 +312,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const current = useMemo(() => {
     if (!lastRow) return null;
     const m = lastRow[selectedIndex];
+    if (!m) return null;
     const liveClose = liveData?.[selectedIndex] ?? null;
     const close = liveClose ?? m.close;
     const pe = liveClose && m.impliedEPS ? liveClose / m.impliedEPS : m.pe;
@@ -351,7 +352,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
           bull: parseFloat((mv + sd).toFixed(2)),
         };
       } else {
-        const mkt = newPath === "pe_eps" ? (m.pe ?? 20) : (m.pb ?? 3);
+        const mkt = newPath === "pe_eps" ? (m?.pe ?? 20) : (m?.pb ?? 3);
         newMultiples = {
           bear: parseFloat((mkt * 0.85).toFixed(2)),
           base: parseFloat(mkt.toFixed(2)),

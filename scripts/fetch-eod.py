@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 fetch-eod.py
-Fetches today's (or a specified date's) EOD close + P/E + P/B for all 7 indices.
+Fetches today's (or a specified date's) EOD close + P/E + P/B for all 13 indices.
 
 Strategy (in order — stops as soon as all 7 indices have data):
   1. niftyindices.com HTTP GET — Fetches /reports/daily-reports (publicly accessible,
@@ -46,23 +46,35 @@ except ImportError:
 # ─── Index symbol maps ────────────────────────────────────────────────────────
 
 NIFTYINDICES_NAMES: dict[str, str] = {
-    "NIFTY_50":           "NIFTY 50",
-    "NIFTY_BANK":         "NIFTY BANK",
-    "NIFTY_IT":           "NIFTY IT",
-    "NIFTY_MIDCAP_150":   "Nifty Midcap 150",
-    "NIFTY_SMALLCAP_250": "Nifty Smallcap 250",
-    "NIFTY_PSU_BANK":     "Nifty PSU Bank",
-    "NIFTY_MICROCAP_250": "Nifty Microcap 250",
+    "NIFTY_50":             "NIFTY 50",
+    "NIFTY_BANK":           "NIFTY BANK",
+    "NIFTY_IT":             "NIFTY IT",
+    "NIFTY_MIDCAP_150":     "Nifty Midcap 150",
+    "NIFTY_SMALLCAP_250":   "Nifty Smallcap 250",
+    "NIFTY_PSU_BANK":       "Nifty PSU Bank",
+    "NIFTY_MICROCAP_250":   "Nifty Microcap 250",
+    "NIFTY_AUTO":           "Nifty Auto",
+    "NIFTY_FIN_SERVICE":    "Nifty Financial Services",
+    "NIFTY_REALTY":         "Nifty Realty",
+    "NIFTY_METAL":          "Nifty Metal",
+    "NIFTY_CAPITAL_MARKETS":"Nifty Capital Markets",
+    "NIFTY_INDIA_DEFENCE":  "Nifty India Defence",
 }
 
 YAHOO_SYMBOLS: dict[str, str] = {
-    "NIFTY_50":           "^NSEI",
-    "NIFTY_BANK":         "^NSEBANK",
-    "NIFTY_IT":           "^CNXIT",
-    "NIFTY_MIDCAP_150":   "NIFTYMIDCAP150.NS",
-    "NIFTY_PSU_BANK":     "^CNXPSUBANK",
-    "NIFTY_MICROCAP_250": "NIFTY_MICROCAP250.NS",
-    "NIFTY_SMALLCAP_250": "NIFTYSMLCAP250.NS",
+    "NIFTY_50":             "^NSEI",
+    "NIFTY_BANK":           "^NSEBANK",
+    "NIFTY_IT":             "^CNXIT",
+    "NIFTY_MIDCAP_150":     "NIFTYMIDCAP150.NS",
+    "NIFTY_PSU_BANK":       "^CNXPSUBANK",
+    "NIFTY_MICROCAP_250":   "NIFTY_MICROCAP250.NS",
+    "NIFTY_SMALLCAP_250":   "NIFTYSMLCAP250.NS",
+    "NIFTY_AUTO":           "^CNXAUTO",
+    "NIFTY_FIN_SERVICE":    "NIFTYFINSERVICE.NS",
+    "NIFTY_REALTY":         "^CNXREALTY",
+    "NIFTY_METAL":          "^CNXMETAL",
+    "NIFTY_CAPITAL_MARKETS":"NIFTYCAPMKT.NS",
+    "NIFTY_INDIA_DEFENCE":  "NIFTYINDIADEFENCE.NS",
 }
 
 TARGET_KEYS = list(NIFTYINDICES_NAMES.keys())
@@ -75,20 +87,32 @@ COL_PE    = 10
 COL_PB    = 11
 
 CSV_NAME_MAP: dict[str, str] = {
-    "Nifty 50":           "NIFTY_50",
-    "Nifty Bank":         "NIFTY_BANK",
-    "Nifty IT":           "NIFTY_IT",
-    "Nifty Midcap 150":   "NIFTY_MIDCAP_150",
-    "Nifty Smallcap 250": "NIFTY_SMALLCAP_250",
-    "Nifty PSU Bank":     "NIFTY_PSU_BANK",
-    "Nifty Microcap 250": "NIFTY_MICROCAP_250",
-    "NIFTY 50":           "NIFTY_50",
-    "NIFTY BANK":         "NIFTY_BANK",
-    "NIFTY IT":           "NIFTY_IT",
-    "Nifty MidCap 150":   "NIFTY_MIDCAP_150",
-    "Nifty SmallCap 250": "NIFTY_SMALLCAP_250",
-    "NIFTY PSU Bank":     "NIFTY_PSU_BANK",
-    "NIFTY Microcap 250": "NIFTY_MICROCAP_250",
+    "Nifty 50":                 "NIFTY_50",
+    "Nifty Bank":               "NIFTY_BANK",
+    "Nifty IT":                 "NIFTY_IT",
+    "Nifty Midcap 150":         "NIFTY_MIDCAP_150",
+    "Nifty Smallcap 250":       "NIFTY_SMALLCAP_250",
+    "Nifty PSU Bank":           "NIFTY_PSU_BANK",
+    "Nifty Microcap 250":       "NIFTY_MICROCAP_250",
+    "NIFTY 50":                 "NIFTY_50",
+    "NIFTY BANK":               "NIFTY_BANK",
+    "NIFTY IT":                 "NIFTY_IT",
+    "Nifty MidCap 150":         "NIFTY_MIDCAP_150",
+    "Nifty SmallCap 250":       "NIFTY_SMALLCAP_250",
+    "NIFTY PSU Bank":           "NIFTY_PSU_BANK",
+    "NIFTY Microcap 250":       "NIFTY_MICROCAP_250",
+    "Nifty Auto":               "NIFTY_AUTO",
+    "NIFTY AUTO":               "NIFTY_AUTO",
+    "Nifty Financial Services": "NIFTY_FIN_SERVICE",
+    "NIFTY FIN SERVICE":        "NIFTY_FIN_SERVICE",
+    "Nifty Realty":             "NIFTY_REALTY",
+    "NIFTY REALTY":             "NIFTY_REALTY",
+    "Nifty Metal":              "NIFTY_METAL",
+    "NIFTY METAL":              "NIFTY_METAL",
+    "Nifty Capital Markets":    "NIFTY_CAPITAL_MARKETS",
+    "NIFTY CAPITAL MARKETS":    "NIFTY_CAPITAL_MARKETS",
+    "Nifty India Defence":      "NIFTY_INDIA_DEFENCE",
+    "NIFTY INDIA DEFENCE":      "NIFTY_INDIA_DEFENCE",
 }
 
 DAILY_REPORTS_URL = "https://www.niftyindices.com/reports/daily-reports"

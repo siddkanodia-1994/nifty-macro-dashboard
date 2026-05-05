@@ -7,7 +7,13 @@ export type IndexKey =
   | "NIFTY_SMALLCAP_250"
   | "NIFTY_IT"
   | "NIFTY_PSU_BANK"
-  | "NIFTY_MICROCAP_250";
+  | "NIFTY_MICROCAP_250"
+  | "NIFTY_AUTO"
+  | "NIFTY_FIN_SERVICE"
+  | "NIFTY_REALTY"
+  | "NIFTY_METAL"
+  | "NIFTY_CAPITAL_MARKETS"
+  | "NIFTY_INDIA_DEFENCE";
 
 // ─── Metric Keys ─────────────────────────────────────────────────────────────
 
@@ -38,6 +44,12 @@ export interface HistoricalRow {
   NIFTY_IT: IndexMetrics;
   NIFTY_PSU_BANK: IndexMetrics;
   NIFTY_MICROCAP_250: IndexMetrics;
+  NIFTY_AUTO: IndexMetrics | null;
+  NIFTY_FIN_SERVICE: IndexMetrics | null;
+  NIFTY_REALTY: IndexMetrics | null;
+  NIFTY_METAL: IndexMetrics | null;
+  NIFTY_CAPITAL_MARKETS: IndexMetrics | null;
+  NIFTY_INDIA_DEFENCE: IndexMetrics | null;
 }
 
 // ─── Statistics over a selected window ───────────────────────────────────────

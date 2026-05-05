@@ -53,7 +53,9 @@ export function extractValues(
 ): number[] {
   const result: number[] = [];
   for (const row of rows) {
-    const v = row[indexKey][metric];
+    const entry = row[indexKey];
+    if (!entry) continue;
+    const v = entry[metric];
     if (v != null && isFinite(v)) result.push(v);
   }
   return result;
@@ -175,10 +177,10 @@ export function buildChartData(
   metric: MetricKey
 ): ChartPoint[] {
   return rows
-    .filter((r) => r[indexKey][metric] != null)
+    .filter((r) => r[indexKey]?.[metric] != null)
     .map((r) => ({
       date:  r.date,
-      value: r[indexKey][metric] as number,
+      value: r[indexKey]![metric] as number,
     }));
 }
 
@@ -291,6 +293,7 @@ export function buildForwardRatioSeries(
 ): { date: string; fwdPE: number | null; fwdPB: number | null }[] {
   return rows.map((row) => {
     const m = row[indexKey];
+    if (!m) return { date: row.date, fwdPE: null, fwdPB: null };
     const close = m.close;
     if (close == null) return { date: row.date, fwdPE: null, fwdPB: null };
 
@@ -304,8 +307,8 @@ export function buildForwardRatioSeries(
     let fwdBV: number | null;
 
     if (fwdRow) {
-      fwdEPS = fwdRow[indexKey].impliedEPS;
-      fwdBV  = fwdRow[indexKey].impliedBV;
+      fwdEPS = fwdRow[indexKey]?.impliedEPS ?? null;
+      fwdBV  = fwdRow[indexKey]?.impliedBV  ?? null;
     } else {
       fwdEPS = m.impliedEPS != null ? m.impliedEPS * (1 + baseGrowthPct / 100) : null;
       fwdBV  = m.impliedBV  != null ? m.impliedBV  * (1 + baseGrowthPct / 100) : null;

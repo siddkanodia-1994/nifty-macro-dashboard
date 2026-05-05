@@ -71,7 +71,7 @@ export function IndexPanel({
   // Current metrics = last row of historical data (EOD)
   const currentMetrics = useMemo(() => {
     if (historicalData.length === 0) return null;
-    return historicalData[historicalData.length - 1][indexKey];
+    return historicalData[historicalData.length - 1][indexKey] ?? null;
   }, [historicalData, indexKey]);
 
   // Override with live close price during market hours

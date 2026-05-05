@@ -11,13 +11,19 @@ export function cn(...inputs: ClassValue[]) {
 // ─── Index metadata ───────────────────────────────────────────────────────────
 
 export const INDEX_META: IndexMeta[] = [
-  { key: "NIFTY_50",           label: "NIFTY 50",           shortLabel: "N50"    },
-  { key: "NIFTY_BANK",         label: "NIFTY BANK",         shortLabel: "BANK"   },
-  { key: "NIFTY_PSU_BANK",     label: "NIFTY PSU BANK",     shortLabel: "PSU"    },
-  { key: "NIFTY_MIDCAP_150",   label: "NIFTY MIDCAP 150",   shortLabel: "MID150" },
-  { key: "NIFTY_MICROCAP_250", label: "NIFTY MICROCAP 250", shortLabel: "MIC250" },
-  { key: "NIFTY_SMALLCAP_250", label: "NIFTY SMALLCAP 250", shortLabel: "SML250" },
-  { key: "NIFTY_IT",           label: "NIFTY IT",           shortLabel: "IT"     },
+  { key: "NIFTY_50",             label: "NIFTY 50",             shortLabel: "N50"    },
+  { key: "NIFTY_BANK",           label: "NIFTY BANK",           shortLabel: "BANK"   },
+  { key: "NIFTY_PSU_BANK",       label: "NIFTY PSU BANK",       shortLabel: "PSU"    },
+  { key: "NIFTY_MIDCAP_150",     label: "NIFTY MIDCAP 150",     shortLabel: "MID150" },
+  { key: "NIFTY_MICROCAP_250",   label: "NIFTY MICROCAP 250",   shortLabel: "MIC250" },
+  { key: "NIFTY_SMALLCAP_250",   label: "NIFTY SMALLCAP 250",   shortLabel: "SML250" },
+  { key: "NIFTY_IT",             label: "NIFTY IT",             shortLabel: "IT"     },
+  { key: "NIFTY_AUTO",           label: "NIFTY AUTO",           shortLabel: "AUTO"   },
+  { key: "NIFTY_FIN_SERVICE",    label: "NIFTY FIN SERVICE",    shortLabel: "FIN SVC"},
+  { key: "NIFTY_REALTY",         label: "NIFTY REALTY",         shortLabel: "REALTY" },
+  { key: "NIFTY_METAL",          label: "NIFTY METAL",          shortLabel: "METAL"  },
+  { key: "NIFTY_CAPITAL_MARKETS",label: "NIFTY CAPITAL MARKETS",shortLabel: "CAP MKT"},
+  { key: "NIFTY_INDIA_DEFENCE",  label: "NIFTY INDIA DEFENCE",  shortLabel: "DEFENCE"},
 ];
 
 // ─── Metric display labels ─────────────────────────────────────────────────────
@@ -159,5 +165,8 @@ export function zScoreBgColor(z: number | null): string {
 // ─── Index key guard ─────────────────────────────────────────────────────────
 
 export function isIndexKey(s: string): s is IndexKey {
-  return ["NIFTY_50","NIFTY_BANK","NIFTY_MIDCAP_150","NIFTY_SMALLCAP_250","NIFTY_IT","NIFTY_PSU_BANK","NIFTY_MICROCAP_250"].includes(s);
+  return [
+    "NIFTY_50","NIFTY_BANK","NIFTY_MIDCAP_150","NIFTY_SMALLCAP_250","NIFTY_IT","NIFTY_PSU_BANK","NIFTY_MICROCAP_250",
+    "NIFTY_AUTO","NIFTY_FIN_SERVICE","NIFTY_REALTY","NIFTY_METAL","NIFTY_CAPITAL_MARKETS","NIFTY_INDIA_DEFENCE",
+  ].includes(s);
 }
