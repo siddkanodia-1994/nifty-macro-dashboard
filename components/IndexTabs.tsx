@@ -200,6 +200,8 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
           <TabsContent value="OVERVIEW" keepMounted>
             <IndexOverview
               historicalData={historicalData}
+              byeyData={byeyData}
+              liveBondYield={liveBondYield}
               liveData={liveData}
               liveMarketOpen={liveMarketOpen}
               onSelectIndex={(key) => setActiveIndexTab(key)}

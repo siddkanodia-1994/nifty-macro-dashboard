@@ -9,6 +9,8 @@ import {
   stdDev,
   zScore,
   buildForwardRatioSeries,
+  filterBYEYByWindow,
+  computeBYEYWindowStats,
 } from "@/lib/calculations";
 import {
   INDEX_META,
@@ -18,7 +20,7 @@ import {
   cn,
 } from "@/lib/utils";
 import { useRatioMode } from "@/lib/ratioMode";
-import type { HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
+import type { BYEYRow, HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
 
 type MultipleTarget = "mean" | "sd1u" | "sd1l" | "sd2u" | "sd2l";
 
@@ -34,6 +36,8 @@ const VISITOR_STORAGE_KEY = "nifty-projections-visitor-v2";
 
 interface IndexOverviewProps {
   historicalData: HistoricalRow[];
+  byeyData?: BYEYRow[];
+  liveBondYield?: number | null;
   liveData: Partial<Record<IndexKey, number>> | null;
   liveMarketOpen?: boolean;
   onSelectIndex: (key: IndexKey) => void;
@@ -90,7 +94,7 @@ function UpsideBadge({ pct }: { pct: number | null }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold tabular-nums text-zinc-600 dark:text-zinc-400">{label}</span>;
 }
 
-export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSelectIndex, timeWindow, onTimeWindowChange, projectionDefaults, epsGrowthPct, onEpsGrowthChange }: IndexOverviewProps) {
+export function IndexOverview({ historicalData, byeyData, liveBondYield, liveData, liveMarketOpen, onSelectIndex, timeWindow, onTimeWindowChange, projectionDefaults, epsGrowthPct, onEpsGrowthChange }: IndexOverviewProps) {
   const [multipleTarget, setMultipleTarget] = useState<MultipleTarget>("mean");
   const [forwardMode, setForwardMode] = useState(true);
   const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
@@ -299,6 +303,20 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
       return sortDir === "desc" ? vb - va : va - vb;
     });
   }, [stats, sortCol, sortDir]);
+
+  const byeyStats = useMemo(() => {
+    if (!byeyData?.length) return null;
+    const windowByey = filterBYEYByWindow(byeyData, timeWindow);
+    const liveNifty50 = liveData?.["NIFTY_50"] ?? null;
+    const impliedEPS = lastRow?.["NIFTY_50"]?.impliedEPS ?? null;
+    let currentSpread: number | null = null;
+    if (liveMarketOpen && liveNifty50 != null && impliedEPS != null && impliedEPS !== 0 && (liveBondYield ?? null) != null) {
+      currentSpread = liveBondYield! - (impliedEPS / liveNifty50);
+    } else {
+      currentSpread = byeyData[byeyData.length - 1]?.spread ?? null;
+    }
+    return computeBYEYWindowStats(windowByey, currentSpread);
+  }, [byeyData, timeWindow, liveData, lastRow, liveMarketOpen, liveBondYield]);
 
   function handleEpsReset() {
     try {
@@ -574,6 +592,54 @@ export function IndexOverview({ historicalData, liveData, liveMarketOpen, onSele
 
                 </tr>
               ))}
+
+              {/* BY-EY Spread summary row */}
+              {byeyStats != null && (
+                <tr className="border-t-2 border-zinc-300 dark:border-zinc-600 bg-zinc-50/80 dark:bg-zinc-800/60">
+                  <td className="px-6 py-4">
+                    <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest whitespace-nowrap">
+                      BY-EY Spread
+                    </span>
+                  </td>
+                  {/* Day Chg | Close — dash */}
+                  <td className="px-5 py-4 text-right">
+                    <span className="text-zinc-400 dark:text-zinc-600 text-sm">—</span>
+                  </td>
+                  {/* PE Current = current spread in %-pts */}
+                  <td className="px-5 py-4 text-right border-l border-zinc-100 dark:border-zinc-800">
+                    <span className="text-base font-bold tabular-nums text-zinc-900 dark:text-zinc-100">
+                      {byeyStats.current != null ? byeyStats.current.toFixed(2) + "%" : "—"}
+                    </span>
+                  </td>
+                  {/* PE Mean */}
+                  <td className="px-5 py-4 text-right">
+                    <span className="text-sm text-zinc-700 dark:text-zinc-400 tabular-nums">
+                      {byeyStats.mean != null ? byeyStats.mean.toFixed(2) + "%" : "—"}
+                    </span>
+                  </td>
+                  {/* PE SD */}
+                  <td className="px-5 py-4 text-right">
+                    <span className="text-sm text-zinc-600 dark:text-zinc-400 tabular-nums">
+                      {byeyStats.sd != null ? byeyStats.sd.toFixed(2) + "%" : "—"}
+                    </span>
+                  </td>
+                  {/* PE Z-Score */}
+                  <td className="px-5 py-4 text-right">
+                    <ZBadge z={byeyStats.zScore} />
+                  </td>
+                  {/* EPS Est. %, Target Price, Upside % — dashes */}
+                  <td className="px-3 py-4 text-center"><span className="text-zinc-400 text-sm">—</span></td>
+                  <td className="px-5 py-4 text-right"><span className="text-zinc-400 text-sm">—</span></td>
+                  <td className="px-5 py-4 text-right"><span className="text-zinc-400 text-sm">—</span></td>
+                  {/* PB cols — all dashes */}
+                  <td className="px-5 py-4 text-right border-l border-zinc-100 dark:border-zinc-800"><span className="text-zinc-400 text-sm">—</span></td>
+                  <td className="px-5 py-4 text-right"><span className="text-zinc-400 text-sm">—</span></td>
+                  <td className="px-5 py-4 text-right"><span className="text-zinc-400 text-sm">—</span></td>
+                  <td className="px-5 py-4 text-right"><span className="text-zinc-400 text-sm">—</span></td>
+                  <td className="px-5 py-4 text-right"><span className="text-zinc-400 text-sm">—</span></td>
+                  <td className="px-5 py-4 text-right"><span className="text-zinc-400 text-sm">—</span></td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
