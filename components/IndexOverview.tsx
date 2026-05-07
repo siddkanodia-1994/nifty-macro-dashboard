@@ -412,7 +412,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-10">
               {/* Group headers */}
               <tr className="bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
                 <th className="px-6 py-2 text-left" rowSpan={2} />
@@ -597,7 +597,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
               {byeyStats != null && (
                 <tr className="border-t-2 border-zinc-300 dark:border-zinc-600 bg-zinc-50/80 dark:bg-zinc-800/60">
                   <td className="px-6 py-4">
-                    <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest whitespace-nowrap">
+                    <span className="text-sm font-bold text-[#1e4dc1] dark:text-zinc-100 whitespace-nowrap tracking-tight">
                       BY-EY Spread
                     </span>
                   </td>
