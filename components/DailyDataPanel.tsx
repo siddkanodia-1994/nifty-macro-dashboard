@@ -114,22 +114,24 @@ export function DailyDataPanel({ historicalData, liveData }: DailyDataPanelProps
   }
 
   function downloadCSV() {
-    const headers = ["Date", metricLabel, `Mean (${timeWindow})`, "+2σ", "+1σ", "−1σ", "−2σ", "SD", "Z-Score"];
+    const headers = ["Date", metricLabel, `Mean (${timeWindow})`, "+2SD", "+1SD", "-1SD", "-2SD", "SD", "Z-Score"];
+    const fmt2 = (v: number) => v.toFixed(2);
     const dataRows = getDownloadRows().map(({ date, rowVal, rowZ }) =>
       [
-        date,
-        rowVal ?? "",
-        windowMean.toFixed(4),
-        sd2U.toFixed(4),
-        sd1U.toFixed(4),
-        sd1L.toFixed(4),
-        sd2L.toFixed(4),
-        windowSD.toFixed(4),
+        formatDate(date),
+        rowVal != null ? rowVal.toFixed(2) : "",
+        fmt2(windowMean),
+        fmt2(sd2U),
+        fmt2(sd1U),
+        fmt2(sd1L),
+        fmt2(sd2L),
+        fmt2(windowSD),
         rowZ != null ? rowZ.toFixed(2) : "",
       ].join(",")
     );
     const csv = [headers.join(","), ...dataRows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    // BOM ensures Excel reads UTF-8 correctly
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

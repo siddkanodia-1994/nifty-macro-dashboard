@@ -304,11 +304,12 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
     });
   }, [stats, sortCol, sortDir]);
 
-  const byeyIsLive = useMemo(() => {
+  // True when we have live NIFTY 50 + bond yield data in memory (regardless of market open/close)
+  const byeyHasLiveData = useMemo(() => {
     const liveNifty50 = liveData?.["NIFTY_50"] ?? null;
     const impliedEPS = lastRow?.["NIFTY_50"]?.impliedEPS ?? null;
-    return !!(liveMarketOpen && liveNifty50 != null && impliedEPS != null && impliedEPS !== 0 && (liveBondYield ?? null) != null);
-  }, [liveData, lastRow, liveMarketOpen, liveBondYield]);
+    return liveNifty50 != null && impliedEPS != null && impliedEPS !== 0 && (liveBondYield ?? null) != null;
+  }, [liveData, lastRow, liveBondYield]);
 
   const byeyStats = useMemo(() => {
     if (!byeyData?.length) return null;
@@ -607,7 +608,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                       <span className="text-sm font-bold text-[#1e4dc1] dark:text-zinc-100 whitespace-nowrap tracking-tight">
                         BY-EY Spread
                       </span>
-                      {byeyIsLive && liveMarketOpen && (
+                      {byeyHasLiveData && liveMarketOpen && (
                         <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 whitespace-nowrap bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">
                           <span className="relative flex h-1.5 w-1.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -616,7 +617,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                           LIVE
                         </span>
                       )}
-                      {byeyIsLive && !liveMarketOpen && (
+                      {byeyHasLiveData && !liveMarketOpen && (
                         <span className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 whitespace-nowrap bg-zinc-100 px-1.5 py-0.5 rounded-full border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700">
                           <span className="inline-flex h-1.5 w-1.5 rounded-full bg-zinc-400" />
                           CLO
