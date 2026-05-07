@@ -304,6 +304,12 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
     });
   }, [stats, sortCol, sortDir]);
 
+  const byeyIsLive = useMemo(() => {
+    const liveNifty50 = liveData?.["NIFTY_50"] ?? null;
+    const impliedEPS = lastRow?.["NIFTY_50"]?.impliedEPS ?? null;
+    return !!(liveMarketOpen && liveNifty50 != null && impliedEPS != null && impliedEPS !== 0 && (liveBondYield ?? null) != null);
+  }, [liveData, lastRow, liveMarketOpen, liveBondYield]);
+
   const byeyStats = useMemo(() => {
     if (!byeyData?.length) return null;
     const windowByey = filterBYEYByWindow(byeyData, timeWindow);
@@ -410,7 +416,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-260px)]">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 z-10">
               {/* Group headers */}
@@ -597,9 +603,26 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
               {byeyStats != null && (
                 <tr className="border-t-2 border-zinc-300 dark:border-zinc-600 bg-zinc-50/80 dark:bg-zinc-800/60">
                   <td className="px-6 py-4">
-                    <span className="text-sm font-bold text-[#1e4dc1] dark:text-zinc-100 whitespace-nowrap tracking-tight">
-                      BY-EY Spread
-                    </span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-sm font-bold text-[#1e4dc1] dark:text-zinc-100 whitespace-nowrap tracking-tight">
+                        BY-EY Spread
+                      </span>
+                      {byeyIsLive && liveMarketOpen && (
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 whitespace-nowrap bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                          </span>
+                          LIVE
+                        </span>
+                      )}
+                      {byeyIsLive && !liveMarketOpen && (
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 whitespace-nowrap bg-zinc-100 px-1.5 py-0.5 rounded-full border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700">
+                          <span className="inline-flex h-1.5 w-1.5 rounded-full bg-zinc-400" />
+                          CLO
+                        </span>
+                      )}
+                    </div>
                   </td>
                   {/* Day Chg | Close — dash */}
                   <td className="px-5 py-4 text-right">

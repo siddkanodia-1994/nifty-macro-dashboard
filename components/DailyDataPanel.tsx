@@ -100,6 +100,83 @@ export function DailyDataPanel({ historicalData, liveData }: DailyDataPanelProps
   // Format SD band values using same formatter as the metric
   const fmtBand = (v: number) => formatMetric(selectedMetric, v);
 
+  const indexLabel = INDEX_META.find((m) => m.key === selectedIndex)?.label ?? selectedIndex;
+  const metricLabel = METRIC_LABELS[selectedMetric];
+
+  function getDownloadRows() {
+    const rows = newestFirst ? [...windowRows].reverse() : [...windowRows];
+    return rows.map((row) => {
+      const m = row[selectedIndex];
+      const rowVal = m?.[selectedMetric] ?? null;
+      const rowZ = rowVal != null ? zScore(rowVal, windowMean, windowSD) : null;
+      return { date: row.date, rowVal, rowZ };
+    });
+  }
+
+  function downloadCSV() {
+    const headers = ["Date", metricLabel, `Mean (${timeWindow})`, "+2σ", "+1σ", "−1σ", "−2σ", "SD", "Z-Score"];
+    const dataRows = getDownloadRows().map(({ date, rowVal, rowZ }) =>
+      [
+        date,
+        rowVal ?? "",
+        windowMean.toFixed(4),
+        sd2U.toFixed(4),
+        sd1U.toFixed(4),
+        sd1L.toFixed(4),
+        sd2L.toFixed(4),
+        windowSD.toFixed(4),
+        rowZ != null ? rowZ.toFixed(2) : "",
+      ].join(",")
+    );
+    const csv = [headers.join(","), ...dataRows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${indexLabel}_${metricLabel}_${timeWindow}.csv`.replace(/\s+/g, "_");
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadPDF() {
+    const dataRows = getDownloadRows()
+      .map(
+        ({ date, rowVal, rowZ }) =>
+          `<tr>
+            <td>${formatDate(date)}</td>
+            <td>${rowVal != null ? fmtBand(rowVal) : "—"}</td>
+            <td>${fmtBand(windowMean)}</td>
+            <td style="color:#b91c1c">${fmtBand(sd2U)}</td>
+            <td style="color:#b45309">${fmtBand(sd1U)}</td>
+            <td style="color:#047857">${fmtBand(sd1L)}</td>
+            <td style="color:#047857">${fmtBand(sd2L)}</td>
+            <td>${fmtBand(windowSD)}</td>
+            <td>${rowZ != null ? rowZ.toFixed(2) : "—"}</td>
+          </tr>`
+      )
+      .join("");
+    const html = `<!DOCTYPE html><html><head><title>${indexLabel} — ${metricLabel} — ${timeWindow}</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:10px;margin:20px}
+  h2{font-size:13px;margin-bottom:6px}
+  p{font-size:9px;color:#666;margin-bottom:10px}
+  table{border-collapse:collapse;width:100%}
+  th{background:#f0f0f0;border:1px solid #ccc;padding:5px 8px;text-align:left;font-size:9px;white-space:nowrap}
+  td{border:1px solid #e5e5e5;padding:3px 8px;white-space:nowrap}
+  tr:nth-child(even){background:#fafafa}
+  @media print{@page{size:landscape}}
+</style></head><body>
+<h2>${indexLabel} — ${metricLabel}</h2>
+<p>Time Window: ${timeWindow} · Mean: ${fmtBand(windowMean)} · SD: ${fmtBand(windowSD)} · +2σ: ${fmtBand(sd2U)} · −2σ: ${fmtBand(sd2L)}</p>
+<table><thead><tr>
+  <th>Date</th><th>${metricLabel}</th><th>Mean (${timeWindow})</th>
+  <th>+2σ</th><th>+1σ</th><th>−1σ</th><th>−2σ</th><th>SD</th><th>Z-Score</th>
+</tr></thead><tbody>${dataRows}</tbody></table>
+</body></html>`;
+    const win = window.open("", "_blank");
+    if (win) { win.document.write(html); win.document.close(); win.print(); }
+  }
+
   return (
     <div className="space-y-4 pt-2">
       {/* ── Controls row ── */}
@@ -143,6 +220,30 @@ export function DailyDataPanel({ historicalData, liveData }: DailyDataPanelProps
         >
           {newestFirst ? "↓ Newest first" : "↑ Oldest first"}
         </button>
+
+        {/* Download buttons */}
+        <div className="flex items-center gap-1.5 ml-auto">
+          <button
+            onClick={downloadCSV}
+            className="flex items-center gap-1.5 px-3 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:hover:bg-emerald-900/20 dark:hover:text-emerald-400 transition-colors"
+            title={`Download ${indexLabel} ${metricLabel} ${timeWindow} as CSV`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            CSV
+          </button>
+          <button
+            onClick={downloadPDF}
+            className="flex items-center gap-1.5 px-3 py-2 border border-zinc-200 dark:border-zinc-700 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 transition-colors"
+            title={`Download ${indexLabel} ${metricLabel} ${timeWindow} as PDF`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            PDF
+          </button>
+        </div>
       </div>
 
       {/* ── Stats summary strip ── */}
