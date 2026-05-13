@@ -162,3 +162,41 @@ html[data-font="calibri"] [data-compact-text] .text-xs   { font-size: 12px; }
 
 /* ── Calibri: slightly soften bold weight ── */
 html[data-font="calibri"] .font-bold { font-weight: 650; }
+
+/* ── Number size scale: spans and tds with tabular-nums (inputs excluded by selector) ── */
+
+/* S: 14/12/10px */
+html[data-num-scale="S"]  [data-compact-text] span.tabular-nums.text-base { font-size: 14px; }
+html[data-num-scale="S"]  [data-compact-text] span.tabular-nums.text-sm   { font-size: 12px; }
+html[data-num-scale="S"]  [data-compact-text] span.tabular-nums.text-xs   { font-size: 10px; }
+html[data-num-scale="S"]  span.tabular-nums.text-base                      { font-size: 14px; }
+html[data-num-scale="S"]  span.tabular-nums.text-sm                        { font-size: 12px; }
+html[data-num-scale="S"]  span.tabular-nums.text-xs                        { font-size: 10px; }
+html[data-num-scale="S"]  td.tabular-nums                                  { font-size: 14px; }
+
+/* L: 19/17/15px */
+html[data-num-scale="L"]  [data-compact-text] span.tabular-nums.text-base { font-size: 19px; }
+html[data-num-scale="L"]  [data-compact-text] span.tabular-nums.text-sm   { font-size: 17px; }
+html[data-num-scale="L"]  [data-compact-text] span.tabular-nums.text-xs   { font-size: 15px; }
+html[data-num-scale="L"]  span.tabular-nums.text-base                      { font-size: 19px; }
+html[data-num-scale="L"]  span.tabular-nums.text-sm                        { font-size: 17px; }
+html[data-num-scale="L"]  span.tabular-nums.text-xs                        { font-size: 15px; }
+html[data-num-scale="L"]  td.tabular-nums                                  { font-size: 19px; }
+
+/* XL: 21/19/17px */
+html[data-num-scale="XL"] [data-compact-text] span.tabular-nums.text-base { font-size: 21px; }
+html[data-num-scale="XL"] [data-compact-text] span.tabular-nums.text-sm   { font-size: 19px; }
+html[data-num-scale="XL"] [data-compact-text] span.tabular-nums.text-xs   { font-size: 17px; }
+html[data-num-scale="XL"] span.tabular-nums.text-base                      { font-size: 21px; }
+html[data-num-scale="XL"] span.tabular-nums.text-sm                        { font-size: 19px; }
+html[data-num-scale="XL"] span.tabular-nums.text-xs                        { font-size: 17px; }
+html[data-num-scale="XL"] td.tabular-nums                                  { font-size: 21px; }
+
+/* Custom: CSS variables set by JS */
+html[data-num-scale="custom"] [data-compact-text] span.tabular-nums.text-base { font-size: var(--num-px-base, 17px); }
+html[data-num-scale="custom"] [data-compact-text] span.tabular-nums.text-sm   { font-size: var(--num-px-sm,   15px); }
+html[data-num-scale="custom"] [data-compact-text] span.tabular-nums.text-xs   { font-size: var(--num-px-xs,   13px); }
+html[data-num-scale="custom"] span.tabular-nums.text-base                      { font-size: var(--num-px-base, 17px); }
+html[data-num-scale="custom"] span.tabular-nums.text-sm                        { font-size: var(--num-px-sm,   15px); }
+html[data-num-scale="custom"] span.tabular-nums.text-xs                        { font-size: var(--num-px-xs,   13px); }
+html[data-num-scale="custom"] td.tabular-nums                                  { font-size: var(--num-px-base, 17px); }

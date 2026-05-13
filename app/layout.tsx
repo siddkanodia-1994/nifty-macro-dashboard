@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import { ThemeProvider } from "@/lib/theme";
 import { RatioModeProvider } from "@/lib/ratioMode";
 import { FontScaleProvider } from "@/lib/fontScale";
+import { NumScaleProvider } from "@/lib/numScale";
 import { FontFamilyProvider } from "@/lib/fontFamily";
 import "./globals.css";
 
@@ -37,7 +38,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-[#e6ccb2] dark:bg-[#1c1c2e] text-zinc-900 dark:text-zinc-100">
-        <ThemeProvider><RatioModeProvider><FontScaleProvider><FontFamilyProvider>{children}</FontFamilyProvider></FontScaleProvider></RatioModeProvider></ThemeProvider>
+        <ThemeProvider><RatioModeProvider><FontScaleProvider><NumScaleProvider><FontFamilyProvider>{children}</FontFamilyProvider></NumScaleProvider></FontScaleProvider></RatioModeProvider></ThemeProvider>
       </body>
     </html>
   );
