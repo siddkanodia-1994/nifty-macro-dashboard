@@ -439,16 +439,16 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                 {/* P/E group — 7 cols (incl. EPS Est.) */}
                 <th
                   colSpan={7}
-                  className="px-5 py-2 text-center text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-200 border-l border-zinc-200 dark:border-zinc-700"
+                  className="px-5 py-2 text-center text-sm font-bold tracking-wide text-zinc-900 dark:text-zinc-200 border-l border-zinc-200 dark:border-zinc-700"
                 >
-                  P / E  R A T I O
+                  P/E Ratio
                 </th>
                 {/* P/B group — 6 cols */}
                 <th
                   colSpan={6}
-                  className="px-5 py-2 text-center text-sm font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-200 border-l border-zinc-200 dark:border-zinc-700"
+                  className="px-5 py-2 text-center text-sm font-bold tracking-wide text-zinc-900 dark:text-zinc-200 border-l border-zinc-200 dark:border-zinc-700"
                 >
-                  P / B  R A T I O
+                  P/B Ratio
                 </th>
               </tr>
 
