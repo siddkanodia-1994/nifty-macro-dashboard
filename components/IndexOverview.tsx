@@ -88,10 +88,10 @@ function UpsideBadge({ pct }: { pct: number | null }) {
   if (pct == null) return <span className="text-zinc-400 text-sm">—</span>;
   const label = (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%";
   if (pct > 0)
-    return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{label}</span>;
+    return <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{label}</span>;
   if (pct < 0)
-    return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold tabular-nums text-red-700 dark:text-red-400">{label}</span>;
-  return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold tabular-nums text-zinc-600 dark:text-zinc-400">{label}</span>;
+    return <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold tabular-nums text-red-700 dark:text-red-400">{label}</span>;
+  return <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold tabular-nums text-zinc-600 dark:text-zinc-400">{label}</span>;
 }
 
 export function IndexOverview({ historicalData, byeyData, liveBondYield, liveData, liveMarketOpen, onSelectIndex, timeWindow, onTimeWindowChange, projectionDefaults, epsGrowthPct, onEpsGrowthChange }: IndexOverviewProps) {
@@ -559,7 +559,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                   </td>
                   {/* PE Target Price */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 tabular-nums">
+                    <span className="text-base font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
                       {peTargetPrice != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(peTargetPrice)) : "—"}
                     </span>
                   </td>
@@ -588,7 +588,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                   </td>
                   {/* PB Target Price */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200 tabular-nums">
+                    <span className="text-base font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
                       {pbTargetPrice != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(pbTargetPrice)) : "—"}
                     </span>
                   </td>
