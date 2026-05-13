@@ -20,6 +20,7 @@ import {
   cn,
 } from "@/lib/utils";
 import { useRatioMode } from "@/lib/ratioMode";
+import { useColBold, type ColKey } from "@/lib/colBold";
 import type { BYEYRow, HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
 
 type MultipleTarget = "mean" | "sd1u" | "sd1l" | "sd2u" | "sd2l";
@@ -48,25 +49,26 @@ interface IndexOverviewProps {
   onEpsGrowthChange?: (key: IndexKey, val: number) => void;
 }
 
-function ZBadge({ z }: { z: number | null }) {
+function ZBadge({ z, bold = true }: { z: number | null; bold?: boolean }) {
   if (z == null) return <span className="text-zinc-400 text-sm">—</span>;
   const abs = Math.abs(z);
   const label = formatZScore(z);
+  const w = bold ? "font-semibold" : "font-normal";
 
   if (abs >= 1.5) {
     return z > 0
-      ? <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 tabular-nums">{label}</span>
-      : <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 tabular-nums">{label}</span>;
+      ? <span className={`inline-flex items-center px-2 py-0.5 rounded text-sm ${w} bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 tabular-nums`}>{label}</span>
+      : <span className={`inline-flex items-center px-2 py-0.5 rounded text-sm ${w} bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 tabular-nums`}>{label}</span>;
   }
   if (abs >= 0.5) {
     return z > 0
-      ? <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 tabular-nums">{label}</span>
-      : <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 tabular-nums">{label}</span>;
+      ? <span className={`inline-flex items-center px-2 py-0.5 rounded text-sm ${w} bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 tabular-nums`}>{label}</span>
+      : <span className={`inline-flex items-center px-2 py-0.5 rounded text-sm ${w} bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 tabular-nums`}>{label}</span>;
   }
-  return <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 tabular-nums">{label}</span>;
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded text-sm ${w} bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 tabular-nums`}>{label}</span>;
 }
 
-function DayChange({ pct }: { pct: number | null }) {
+function DayChange({ pct, bold = true }: { pct: number | null; bold?: boolean }) {
   if (pct == null) {
     return <span className="w-[68px] text-right text-sm tabular-nums text-zinc-300 dark:text-zinc-600 select-none">—</span>;
   }
@@ -78,20 +80,37 @@ function DayChange({ pct }: { pct: number | null }) {
     ? "text-red-600 dark:text-red-400"
     : "text-zinc-400 dark:text-zinc-500";
   return (
-    <span className={`w-[68px] text-right text-sm font-medium tabular-nums whitespace-nowrap ${color}`}>
+    <span className={`w-[68px] text-right text-sm ${bold ? "font-bold" : "font-medium"} tabular-nums whitespace-nowrap ${color}`}>
       {arrow} {sign}{Math.abs(pct).toFixed(2)}%
     </span>
   );
 }
 
-function UpsideBadge({ pct }: { pct: number | null }) {
+function UpsideBadge({ pct, bold = true }: { pct: number | null; bold?: boolean }) {
   if (pct == null) return <span className="text-zinc-400 text-sm">—</span>;
   const label = (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%";
+  const w = bold ? "font-semibold" : "font-normal";
   if (pct > 0)
-    return <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{label}</span>;
+    return <span className={`inline-flex items-center px-2 py-0.5 rounded text-sm ${w} tabular-nums text-emerald-700 dark:text-emerald-400`}>{label}</span>;
   if (pct < 0)
-    return <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold tabular-nums text-red-700 dark:text-red-400">{label}</span>;
-  return <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold tabular-nums text-zinc-600 dark:text-zinc-400">{label}</span>;
+    return <span className={`inline-flex items-center px-2 py-0.5 rounded text-sm ${w} tabular-nums text-red-700 dark:text-red-400`}>{label}</span>;
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded text-sm ${w} tabular-nums text-zinc-600 dark:text-zinc-400`}>{label}</span>;
+}
+
+function BoldToggle({ col, boldCols, toggleBold }: { col: ColKey; boldCols: Set<ColKey>; toggleBold: (c: ColKey) => void }) {
+  const active = boldCols.has(col);
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); toggleBold(col); }}
+      className={cn(
+        "ml-1 inline-flex items-center justify-center h-3.5 w-3.5 rounded text-[9px] font-bold transition-colors",
+        active
+          ? "bg-zinc-600 dark:bg-zinc-300 text-white dark:text-zinc-900"
+          : "text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400"
+      )}
+      title={active ? "Remove bold" : "Make bold"}
+    >B</button>
+  );
 }
 
 export function IndexOverview({ historicalData, byeyData, liveBondYield, liveData, liveMarketOpen, onSelectIndex, timeWindow, onTimeWindowChange, projectionDefaults, epsGrowthPct, onEpsGrowthChange }: IndexOverviewProps) {
@@ -99,6 +118,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
   const [forwardMode, setForwardMode] = useState(true);
   const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
   const { ratioMode } = useRatioMode();
+  const { boldCols, toggleBold } = useColBold();
   type SortCol = "pe" | "pb" | "close";
   type SortDir = "desc" | "asc";
   const [sortCol, setSortCol] = useState<SortCol | null>(null);
@@ -428,8 +448,9 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                   onClick={() => handleSortClick("close")}
                   className="px-5 py-2 text-right text-xs font-bold uppercase tracking-wider align-bottom cursor-pointer select-none transition-colors text-zinc-900 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400"
                 >
-                  Day Chg / Close{" "}
-                  <span className="ml-0.5">{sortCol === "close" ? (sortDir === "desc" ? "▼" : "▲") : <span className="opacity-30">⇅</span>}</span>
+                  Day Chg / Close
+                  <BoldToggle col="close" boldCols={boldCols} toggleBold={toggleBold} />
+                  {" "}<span className="ml-0.5">{sortCol === "close" ? (sortDir === "desc" ? "▼" : "▲") : <span className="opacity-30">⇅</span>}</span>
                 </th>
                 {/* P/E group — 7 cols (incl. EPS Est.) */}
                 <th
@@ -450,30 +471,32 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
               {/* Column headers */}
               <tr className="bg-zinc-50 dark:bg-zinc-800 border-b-2 border-zinc-200 dark:border-zinc-700">
                 {/* PE cols */}
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current <BoldToggle col="current" boldCols={boldCols} toggleBold={toggleBold} /></th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean <BoldToggle col="mean" boldCols={boldCols} toggleBold={toggleBold} /></th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD <BoldToggle col="sd" boldCols={boldCols} toggleBold={toggleBold} /></th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score <BoldToggle col="zscore" boldCols={boldCols} toggleBold={toggleBold} /></th>
                 <th className="px-5 pb-2.5 pt-1 text-center text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">EPS<br />Est. %</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price <BoldToggle col="target" boldCols={boldCols} toggleBold={toggleBold} /></th>
                 <th
                   onClick={() => handleSortClick("pe")}
                   className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide max-w-[72px] cursor-pointer select-none transition-colors text-zinc-900 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400"
                 >
-                  Upside % <span className="font-normal opacity-60">({multipleLabel})</span>{" "}
+                  Upside % <span className="font-normal opacity-60">({multipleLabel})</span>
+                  <BoldToggle col="upside" boldCols={boldCols} toggleBold={toggleBold} />{" "}
                   <span className="ml-0.5">{sortCol === "pe" ? (sortDir === "desc" ? "▼" : "▲") : <span className="opacity-30">⇅</span>}</span>
                 </th>
                 {/* PB cols */}
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current <BoldToggle col="current" boldCols={boldCols} toggleBold={toggleBold} /></th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean <BoldToggle col="mean" boldCols={boldCols} toggleBold={toggleBold} /></th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD <BoldToggle col="sd" boldCols={boldCols} toggleBold={toggleBold} /></th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score <BoldToggle col="zscore" boldCols={boldCols} toggleBold={toggleBold} /></th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price <BoldToggle col="target" boldCols={boldCols} toggleBold={toggleBold} /></th>
                 <th
                   onClick={() => handleSortClick("pb")}
                   className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide max-w-[72px] cursor-pointer select-none transition-colors text-zinc-900 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400"
                 >
-                  Upside % <span className="font-normal opacity-60">({multipleLabel})</span>{" "}
+                  Upside % <span className="font-normal opacity-60">({multipleLabel})</span>
+                  <BoldToggle col="upside" boldCols={boldCols} toggleBold={toggleBold} />{" "}
                   <span className="ml-0.5">{sortCol === "pb" ? (sortDir === "desc" ? "▼" : "▲") : <span className="opacity-30">⇅</span>}</span>
                 </th>
               </tr>
@@ -515,9 +538,9 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                   {/* Day Chg | Close */}
                   <td className="px-5 py-4">
                     <div className="flex items-center justify-end gap-0">
-                      <DayChange pct={isLive ? changePct : null} />
+                      <DayChange pct={isLive ? changePct : null} bold={boldCols.has("close")} />
                       <span className="mx-2.5 text-zinc-300 dark:text-zinc-600 font-light select-none">|</span>
-                      <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
+                      <span className={cn("text-sm tabular-nums text-zinc-900 dark:text-zinc-100", boldCols.has("close") ? "font-bold" : "font-normal")}>
                         {close != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(close)) : "—"}
                       </span>
                     </div>
@@ -525,21 +548,21 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
 
                   {/* PE Current */}
                   <td className="px-5 py-4 text-right border-l border-zinc-100 dark:border-zinc-800">
-                    <span className={cn("text-sm font-bold tabular-nums", ratioColor(pe, peMean, peSD))}>
+                    <span className={cn("text-sm tabular-nums", boldCols.has("current") ? "font-bold" : "font-normal", ratioColor(pe, peMean, peSD))}>
                       {formatRatio(pe)}
                     </span>
                   </td>
                   {/* PE Mean */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm text-zinc-700 dark:text-zinc-400 tabular-nums">{formatRatio(peMean)}</span>
+                    <span className={cn("text-sm tabular-nums text-zinc-700 dark:text-zinc-400", boldCols.has("mean") ? "font-bold" : "font-normal")}>{formatRatio(peMean)}</span>
                   </td>
                   {/* PE SD */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm text-zinc-600 dark:text-zinc-400 tabular-nums">{formatRatio(peSD)}</span>
+                    <span className={cn("text-sm tabular-nums text-zinc-600 dark:text-zinc-400", boldCols.has("sd") ? "font-bold" : "font-normal")}>{formatRatio(peSD)}</span>
                   </td>
                   {/* PE Z */}
                   <td className="px-5 py-4 text-right">
-                    <ZBadge z={peZ} />
+                    <ZBadge z={peZ} bold={boldCols.has("zscore")} />
                   </td>
                   {/* EPS Est. % — editable, shared with Future Projections base case */}
                   <td className="px-3 py-4 text-center">
@@ -561,42 +584,42 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                   </td>
                   {/* PE Target Price */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
+                    <span className={cn("text-sm tabular-nums text-zinc-800 dark:text-zinc-200", boldCols.has("target") ? "font-semibold" : "font-normal")}>
                       {peTargetPrice != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(peTargetPrice)) : "—"}
                     </span>
                   </td>
                   {/* PE Upside % */}
                   <td className="px-5 py-4 text-right">
-                    <UpsideBadge pct={peUpside} />
+                    <UpsideBadge pct={peUpside} bold={boldCols.has("upside")} />
                   </td>
 
                   {/* PB Current */}
                   <td className="px-5 py-4 text-right border-l border-zinc-100 dark:border-zinc-800">
-                    <span className={cn("text-sm font-bold tabular-nums", ratioColor(pb, pbMean, pbSD))}>
+                    <span className={cn("text-sm tabular-nums", boldCols.has("current") ? "font-bold" : "font-normal", ratioColor(pb, pbMean, pbSD))}>
                       {formatRatio(pb)}
                     </span>
                   </td>
                   {/* PB Mean */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm text-zinc-700 dark:text-zinc-400 tabular-nums">{formatRatio(pbMean)}</span>
+                    <span className={cn("text-sm tabular-nums text-zinc-700 dark:text-zinc-400", boldCols.has("mean") ? "font-bold" : "font-normal")}>{formatRatio(pbMean)}</span>
                   </td>
                   {/* PB SD */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm text-zinc-600 dark:text-zinc-400 tabular-nums">{formatRatio(pbSD)}</span>
+                    <span className={cn("text-sm tabular-nums text-zinc-600 dark:text-zinc-400", boldCols.has("sd") ? "font-bold" : "font-normal")}>{formatRatio(pbSD)}</span>
                   </td>
                   {/* PB Z */}
                   <td className="px-5 py-4 text-right">
-                    <ZBadge z={pbZ} />
+                    <ZBadge z={pbZ} bold={boldCols.has("zscore")} />
                   </td>
                   {/* PB Target Price */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
+                    <span className={cn("text-sm tabular-nums text-zinc-800 dark:text-zinc-200", boldCols.has("target") ? "font-semibold" : "font-normal")}>
                       {pbTargetPrice != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(pbTargetPrice)) : "—"}
                     </span>
                   </td>
                   {/* PB Upside % */}
                   <td className="px-5 py-4 text-right">
-                    <UpsideBadge pct={pbUpside} />
+                    <UpsideBadge pct={pbUpside} bold={boldCols.has("upside")} />
                   </td>
 
                 </tr>
@@ -633,25 +656,25 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                   </td>
                   {/* PE Current = current spread in %-pts */}
                   <td className="px-5 py-4 text-right border-l border-zinc-100 dark:border-zinc-800">
-                    <span className="text-sm font-bold tabular-nums text-zinc-900 dark:text-zinc-100">
+                    <span className={cn("text-sm tabular-nums text-zinc-900 dark:text-zinc-100", boldCols.has("current") ? "font-bold" : "font-normal")}>
                       {byeyStats.current != null ? byeyStats.current.toFixed(2) + "%" : "—"}
                     </span>
                   </td>
                   {/* PE Mean */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm text-zinc-700 dark:text-zinc-400 tabular-nums">
+                    <span className={cn("text-sm tabular-nums text-zinc-700 dark:text-zinc-400", boldCols.has("mean") ? "font-bold" : "font-normal")}>
                       {byeyStats.mean != null ? byeyStats.mean.toFixed(2) + "%" : "—"}
                     </span>
                   </td>
                   {/* PE SD */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-sm text-zinc-600 dark:text-zinc-400 tabular-nums">
+                    <span className={cn("text-sm tabular-nums text-zinc-600 dark:text-zinc-400", boldCols.has("sd") ? "font-bold" : "font-normal")}>
                       {byeyStats.sd != null ? byeyStats.sd.toFixed(2) + "%" : "—"}
                     </span>
                   </td>
                   {/* PE Z-Score */}
                   <td className="px-5 py-4 text-right">
-                    <ZBadge z={byeyStats.zScore} />
+                    <ZBadge z={byeyStats.zScore} bold={boldCols.has("zscore")} />
                   </td>
                   {/* EPS Est. %, Target Price, Upside % — dashes */}
                   <td className="px-3 py-4 text-center"><span className="text-zinc-400 text-sm">—</span></td>
