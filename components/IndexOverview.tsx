@@ -20,7 +20,7 @@ import {
   cn,
 } from "@/lib/utils";
 import { useRatioMode } from "@/lib/ratioMode";
-import { useColBold, type ColKey } from "@/lib/colBold";
+import { useColBold } from "@/lib/colBold";
 import type { BYEYRow, HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
 
 type MultipleTarget = "mean" | "sd1u" | "sd1l" | "sd2u" | "sd2l";
@@ -97,28 +97,13 @@ function UpsideBadge({ pct, bold = true }: { pct: number | null; bold?: boolean 
   return <span className={`inline-flex items-center px-2 py-0.5 rounded text-sm ${w} tabular-nums text-zinc-600 dark:text-zinc-400`}>{label}</span>;
 }
 
-function BoldToggle({ col, boldCols, toggleBold }: { col: ColKey; boldCols: Set<ColKey>; toggleBold: (c: ColKey) => void }) {
-  const active = boldCols.has(col);
-  return (
-    <button
-      onClick={(e) => { e.stopPropagation(); toggleBold(col); }}
-      className={cn(
-        "ml-1 inline-flex items-center justify-center h-3.5 w-3.5 rounded text-[9px] font-bold transition-colors",
-        active
-          ? "bg-zinc-600 dark:bg-zinc-300 text-white dark:text-zinc-900"
-          : "text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400"
-      )}
-      title={active ? "Remove bold" : "Make bold"}
-    >B</button>
-  );
-}
 
 export function IndexOverview({ historicalData, byeyData, liveBondYield, liveData, liveMarketOpen, onSelectIndex, timeWindow, onTimeWindowChange, projectionDefaults, epsGrowthPct, onEpsGrowthChange }: IndexOverviewProps) {
   const [multipleTarget, setMultipleTarget] = useState<MultipleTarget>("mean");
   const [forwardMode, setForwardMode] = useState(true);
   const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
   const { ratioMode } = useRatioMode();
-  const { boldCols, toggleBold } = useColBold();
+  const { boldCols } = useColBold();
   type SortCol = "pe" | "pb" | "close";
   type SortDir = "desc" | "asc";
   const [sortCol, setSortCol] = useState<SortCol | null>(null);
@@ -449,7 +434,6 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                   className="px-5 py-2 text-right text-xs font-bold uppercase tracking-wider align-bottom cursor-pointer select-none transition-colors text-zinc-900 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400"
                 >
                   Day Chg / Close
-                  <BoldToggle col="close" boldCols={boldCols} toggleBold={toggleBold} />
                   {" "}<span className="ml-0.5">{sortCol === "close" ? (sortDir === "desc" ? "▼" : "▲") : <span className="opacity-30">⇅</span>}</span>
                 </th>
                 {/* P/E group — 7 cols (incl. EPS Est.) */}
@@ -471,32 +455,30 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
               {/* Column headers */}
               <tr className="bg-zinc-50 dark:bg-zinc-800 border-b-2 border-zinc-200 dark:border-zinc-700">
                 {/* PE cols */}
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current <BoldToggle col="current" boldCols={boldCols} toggleBold={toggleBold} /></th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean <BoldToggle col="mean" boldCols={boldCols} toggleBold={toggleBold} /></th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD <BoldToggle col="sd" boldCols={boldCols} toggleBold={toggleBold} /></th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score <BoldToggle col="zscore" boldCols={boldCols} toggleBold={toggleBold} /></th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
                 <th className="px-5 pb-2.5 pt-1 text-center text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">EPS<br />Est. %</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price <BoldToggle col="target" boldCols={boldCols} toggleBold={toggleBold} /></th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price</th>
                 <th
                   onClick={() => handleSortClick("pe")}
                   className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide max-w-[72px] cursor-pointer select-none transition-colors text-zinc-900 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400"
                 >
-                  Upside % <span className="font-normal opacity-60">({multipleLabel})</span>
-                  <BoldToggle col="upside" boldCols={boldCols} toggleBold={toggleBold} />{" "}
+                  Upside % <span className="font-normal opacity-60">({multipleLabel})</span>{" "}
                   <span className="ml-0.5">{sortCol === "pe" ? (sortDir === "desc" ? "▼" : "▲") : <span className="opacity-30">⇅</span>}</span>
                 </th>
                 {/* PB cols */}
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current <BoldToggle col="current" boldCols={boldCols} toggleBold={toggleBold} /></th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean <BoldToggle col="mean" boldCols={boldCols} toggleBold={toggleBold} /></th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD <BoldToggle col="sd" boldCols={boldCols} toggleBold={toggleBold} /></th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score <BoldToggle col="zscore" boldCols={boldCols} toggleBold={toggleBold} /></th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price <BoldToggle col="target" boldCols={boldCols} toggleBold={toggleBold} /></th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price</th>
                 <th
                   onClick={() => handleSortClick("pb")}
                   className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide max-w-[72px] cursor-pointer select-none transition-colors text-zinc-900 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400"
                 >
-                  Upside % <span className="font-normal opacity-60">({multipleLabel})</span>
-                  <BoldToggle col="upside" boldCols={boldCols} toggleBold={toggleBold} />{" "}
+                  Upside % <span className="font-normal opacity-60">({multipleLabel})</span>{" "}
                   <span className="ml-0.5">{sortCol === "pb" ? (sortDir === "desc" ? "▼" : "▲") : <span className="opacity-30">⇅</span>}</span>
                 </th>
               </tr>

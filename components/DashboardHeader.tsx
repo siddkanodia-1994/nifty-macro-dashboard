@@ -8,6 +8,7 @@ import { useRatioMode } from "@/lib/ratioMode";
 import { useFontScale, PRESET_PX, type FontPreset } from "@/lib/fontScale";
 import { useFontFamily, FONT_OPTIONS } from "@/lib/fontFamily";
 import { useNumScale, NUM_PRESET_PX, type NumPreset } from "@/lib/numScale";
+import { useColBold, type ColKey } from "@/lib/colBold";
 import { isMarketOpen } from "@/lib/marketHours";
 import { BarChart3, Calendar, Moon, Sun } from "lucide-react";
 
@@ -191,6 +192,74 @@ function NumScaleDropdown() {
   );
 }
 
+const COL_BOLD_OPTIONS: { key: ColKey; label: string }[] = [
+  { key: "close",   label: "Day Chg / Close"      },
+  { key: "current", label: "Current (PE & PB)"     },
+  { key: "mean",    label: "Mean (PE & PB)"         },
+  { key: "sd",      label: "SD (PE & PB)"           },
+  { key: "zscore",  label: "Z-Score (PE & PB)"      },
+  { key: "target",  label: "Target Price (PE & PB)" },
+  { key: "upside",  label: "Upside % (PE & PB)"     },
+];
+
+function BoldColsDropdown() {
+  const { boldCols, toggleBold } = useColBold();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex items-center gap-1.5 border rounded-lg px-3 py-1.5 transition-colors",
+          open
+            ? "bg-zinc-900 dark:bg-zinc-100 border-zinc-900 dark:border-zinc-100 text-white dark:text-zinc-900"
+            : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+        )}
+        title="Bold columns"
+      >
+        <span className="text-xs font-bold tracking-tight">B</span>
+        <span className="text-xs font-medium hidden sm:inline">{boldCols.size}/{COL_BOLD_OPTIONS.length}</span>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 z-50 w-52 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden">
+          <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Bold Columns</span>
+          </div>
+          {COL_BOLD_OPTIONS.map(({ key, label }) => {
+            const active = boldCols.has(key);
+            return (
+              <button
+                key={key}
+                onClick={() => toggleBold(key)}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs transition-colors text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              >
+                <span className={active ? "font-semibold text-zinc-900 dark:text-zinc-100" : ""}>{label}</span>
+                <span className={cn(
+                  "h-4 w-4 rounded text-[9px] font-bold flex items-center justify-center flex-shrink-0",
+                  active
+                    ? "bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900"
+                    : "bg-zinc-100 dark:bg-zinc-700 text-zinc-400 dark:text-zinc-500"
+                )}>B</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FontFamilyDropdown() {
   const { fontFamily, setFontFamily } = useFontFamily();
   const [open, setOpen] = useState(false);
@@ -322,6 +391,9 @@ export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
 
           {/* Number size toggle */}
           <NumScaleDropdown />
+
+          {/* Bold columns toggle */}
+          <BoldColsDropdown />
 
           {/* Font family toggle */}
           <FontFamilyDropdown />
