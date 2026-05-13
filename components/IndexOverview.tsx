@@ -55,15 +55,15 @@ function ZBadge({ z }: { z: number | null }) {
 
   if (abs >= 1.5) {
     return z > 0
-      ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 tabular-nums">{label}</span>
-      : <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 tabular-nums">{label}</span>;
+      ? <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 tabular-nums">{label}</span>
+      : <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 tabular-nums">{label}</span>;
   }
   if (abs >= 0.5) {
     return z > 0
-      ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 tabular-nums">{label}</span>
-      : <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 tabular-nums">{label}</span>;
+      ? <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 tabular-nums">{label}</span>
+      : <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 tabular-nums">{label}</span>;
   }
-  return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 tabular-nums">{label}</span>;
+  return <span className="inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 tabular-nums">{label}</span>;
 }
 
 function DayChange({ pct }: { pct: number | null }) {
@@ -99,7 +99,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
   const [forwardMode, setForwardMode] = useState(true);
   const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
   const { ratioMode } = useRatioMode();
-  type SortCol = "pe" | "pb";
+  type SortCol = "pe" | "pb" | "close";
   type SortDir = "desc" | "asc";
   const [sortCol, setSortCol] = useState<SortCol | null>(null);
   const [sortDir, setSortDir] = useState<SortDir | null>(null);
@@ -295,8 +295,8 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
   const sortedStats = useMemo(() => {
     if (!sortCol || !sortDir) return stats;
     return [...stats].sort((a, b) => {
-      const va = sortCol === "pe" ? a.peUpside : a.pbUpside;
-      const vb = sortCol === "pe" ? b.peUpside : b.pbUpside;
+      const va = sortCol === "close" ? a.changePct : sortCol === "pe" ? a.peUpside : a.pbUpside;
+      const vb = sortCol === "close" ? b.changePct : sortCol === "pe" ? b.peUpside : b.pbUpside;
       if (va == null && vb == null) return 0;
       if (va == null) return 1;
       if (vb == null) return -1;
@@ -424,10 +424,12 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
               <tr className="bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
                 <th className="px-6 py-2 text-left" rowSpan={2} />
                 <th
-                  className="px-5 py-2 text-right text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-300 align-bottom"
                   rowSpan={2}
+                  onClick={() => handleSortClick("close")}
+                  className="px-5 py-2 text-right text-xs font-bold uppercase tracking-wider align-bottom cursor-pointer select-none transition-colors text-zinc-900 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400"
                 >
-                  Day Chg / Close
+                  Day Chg / Close{" "}
+                  <span className="ml-0.5">{sortCol === "close" ? (sortDir === "desc" ? "▼" : "▲") : <span className="opacity-30">⇅</span>}</span>
                 </th>
                 {/* P/E group — 7 cols (incl. EPS Est.) */}
                 <th
@@ -515,7 +517,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                     <div className="flex items-center justify-end gap-0">
                       <DayChange pct={isLive ? changePct : null} />
                       <span className="mx-2.5 text-zinc-300 dark:text-zinc-600 font-light select-none">|</span>
-                      <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
+                      <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
                         {close != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(close)) : "—"}
                       </span>
                     </div>
@@ -523,7 +525,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
 
                   {/* PE Current */}
                   <td className="px-5 py-4 text-right border-l border-zinc-100 dark:border-zinc-800">
-                    <span className={cn("text-base font-bold tabular-nums", ratioColor(pe, peMean, peSD))}>
+                    <span className={cn("text-sm font-bold tabular-nums", ratioColor(pe, peMean, peSD))}>
                       {formatRatio(pe)}
                     </span>
                   </td>
@@ -559,7 +561,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                   </td>
                   {/* PE Target Price */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-base font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
+                    <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
                       {peTargetPrice != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(peTargetPrice)) : "—"}
                     </span>
                   </td>
@@ -570,7 +572,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
 
                   {/* PB Current */}
                   <td className="px-5 py-4 text-right border-l border-zinc-100 dark:border-zinc-800">
-                    <span className={cn("text-base font-bold tabular-nums", ratioColor(pb, pbMean, pbSD))}>
+                    <span className={cn("text-sm font-bold tabular-nums", ratioColor(pb, pbMean, pbSD))}>
                       {formatRatio(pb)}
                     </span>
                   </td>
@@ -588,7 +590,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                   </td>
                   {/* PB Target Price */}
                   <td className="px-5 py-4 text-right">
-                    <span className="text-base font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
+                    <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
                       {pbTargetPrice != null ? new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(pbTargetPrice)) : "—"}
                     </span>
                   </td>
@@ -631,7 +633,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                   </td>
                   {/* PE Current = current spread in %-pts */}
                   <td className="px-5 py-4 text-right border-l border-zinc-100 dark:border-zinc-800">
-                    <span className="text-base font-bold tabular-nums text-zinc-900 dark:text-zinc-100">
+                    <span className="text-sm font-bold tabular-nums text-zinc-900 dark:text-zinc-100">
                       {byeyStats.current != null ? byeyStats.current.toFixed(2) + "%" : "—"}
                     </span>
                   </td>
