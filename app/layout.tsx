@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Inter } from "next/font/google";
 import { ThemeProvider } from "@/lib/theme";
 import { RatioModeProvider } from "@/lib/ratioMode";
 import { FontScaleProvider } from "@/lib/fontScale";
+import { FontFamilyProvider } from "@/lib/fontFamily";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,6 +13,11 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -28,10 +34,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-[#e6ccb2] dark:bg-[#1c1c2e] text-zinc-900 dark:text-zinc-100">
-        <ThemeProvider><RatioModeProvider><FontScaleProvider>{children}</FontScaleProvider></RatioModeProvider></ThemeProvider>
+        <ThemeProvider><RatioModeProvider><FontScaleProvider><FontFamilyProvider>{children}</FontFamilyProvider></FontScaleProvider></RatioModeProvider></ThemeProvider>
       </body>
     </html>
   );

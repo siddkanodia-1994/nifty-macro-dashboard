@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "@/lib/theme";
 import { useRatioMode } from "@/lib/ratioMode";
 import { useFontScale, PRESET_PX, type FontPreset } from "@/lib/fontScale";
+import { useFontFamily, FONT_OPTIONS } from "@/lib/fontFamily";
 import { isMarketOpen } from "@/lib/marketHours";
 import { BarChart3, Calendar, Moon, Sun } from "lucide-react";
 
@@ -100,6 +101,60 @@ function FontScaleDropdown() {
   );
 }
 
+function FontFamilyDropdown() {
+  const { fontFamily, setFontFamily } = useFontFamily();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, []);
+
+  const activeLabel = FONT_OPTIONS.find((o) => o.key === fontFamily)?.label ?? "Geist";
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex items-center gap-1 border rounded-lg px-3 py-1.5 transition-colors",
+          open
+            ? "bg-zinc-900 dark:bg-zinc-100 border-zinc-900 dark:border-zinc-100 text-white dark:text-zinc-900"
+            : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+        )}
+        title="Font family"
+      >
+        <span className="text-xs font-semibold hidden sm:inline">{activeLabel}</span>
+        <span className="text-[10px] opacity-60">▾</span>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 z-50 w-36 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden">
+          {FONT_OPTIONS.map(({ key, label, previewStack }) => (
+            <button
+              key={key}
+              onClick={() => { setFontFamily(key); setOpen(false); }}
+              style={{ fontFamily: previewStack }}
+              className={cn(
+                "w-full text-left px-3 py-2.5 text-xs transition-colors",
+                fontFamily === key
+                  ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-semibold"
+                  : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface DashboardHeaderProps {
   dataAsOf: string; // ISO date of last row in historical.json
 }
@@ -174,6 +229,9 @@ export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
 
           {/* Font size toggle */}
           <FontScaleDropdown />
+
+          {/* Font family toggle */}
+          <FontFamilyDropdown />
 
           {/* Dark mode toggle */}
           <button
