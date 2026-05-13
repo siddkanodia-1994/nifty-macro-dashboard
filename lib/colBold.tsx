@@ -4,8 +4,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 export type ColKey = "close" | "current" | "mean" | "sd" | "zscore" | "target" | "upside";
 
-const DEFAULT_BOLD: ColKey[] = ["close", "current", "zscore", "target", "upside"];
-const LS_KEY = "nifty-col-bold";
+const DEFAULT_BOLD: ColKey[] = ["close", "current", "target", "upside"];
+const LS_KEY = "nifty-col-bold-v2";
 
 interface ColBoldState {
   boldCols: Set<ColKey>;
