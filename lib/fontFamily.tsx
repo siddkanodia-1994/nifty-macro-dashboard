@@ -36,11 +36,13 @@ export function FontFamilyProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     const opt = FONT_OPTIONS.find((o) => o.key === fontFamily);
+    const el = document.documentElement;
     if (opt?.stack) {
-      document.documentElement.style.setProperty("--font-sans", opt.stack);
+      el.style.setProperty("--font-sans", opt.stack);
     } else {
-      document.documentElement.style.removeProperty("--font-sans");
+      el.style.removeProperty("--font-sans");
     }
+    el.setAttribute("data-font", fontFamily);
     localStorage.setItem(LS_KEY, fontFamily);
   }, [fontFamily]);
 

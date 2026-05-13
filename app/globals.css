@@ -140,3 +140,25 @@
 
 /* ── Tab nav buttons fixed at L (20px base) regardless of Aa toggle ── */
 [data-tab-nav] .text-xs { font-size: 15px; line-height: 1.4; }
+
+/* ── Per-font letter-spacing: tighten loose fonts toward Geist standard ── */
+html[data-font="arial"]   { letter-spacing: -0.018em; }
+html[data-font="calibri"] { letter-spacing: -0.010em; }
+html[data-font="inter"]   { letter-spacing: -0.008em; }
+
+/* ── Arial: scale compact-text down ~8% to match Geist visual size ── */
+html[data-font="arial"] [data-compact-text] .text-base { font-size: 15.5px; }
+html[data-font="arial"] [data-compact-text] .text-sm   { font-size: 13.5px; }
+html[data-font="arial"] [data-compact-text] .text-xs   { font-size: 11.5px; }
+
+/* ── Arial: soften bold — Arial 700 renders far heavier than Geist 700 ── */
+html[data-font="arial"] .font-bold     { font-weight: 600; }
+html[data-font="arial"] .font-semibold { font-weight: 500; }
+
+/* ── Calibri: scale compact-text down ~5% to match Geist visual size ── */
+html[data-font="calibri"] [data-compact-text] .text-base { font-size: 16px; }
+html[data-font="calibri"] [data-compact-text] .text-sm   { font-size: 14px; }
+html[data-font="calibri"] [data-compact-text] .text-xs   { font-size: 12px; }
+
+/* ── Calibri: slightly soften bold weight ── */
+html[data-font="calibri"] .font-bold { font-weight: 650; }
