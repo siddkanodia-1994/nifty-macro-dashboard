@@ -16,8 +16,8 @@ interface FontFamilyState {
   setFontFamily: (f: FontFamilyKey) => void;
 }
 
-const LS_KEY = "nifty-font-family";
-const DEFAULT: FontFamilyKey = "geist";
+const LS_KEY = "nifty-font-family-v2";
+const DEFAULT: FontFamilyKey = "calibri";
 
 const FontFamilyContext = createContext<FontFamilyState>({
   fontFamily: DEFAULT,
