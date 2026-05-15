@@ -12,6 +12,7 @@ import {
   filterByWindow,
   buildChartData,
   buildForwardRatioSeries,
+  computeEpsCagr,
   mean,
   stdDev,
   zScore,
@@ -40,6 +41,45 @@ const CHART_METRICS: { key: MetricKey; label: string }[] = [
   { key: "impliedEPS", label: "Implied EPS" },
   { key: "impliedBV",  label: "Implied BV"  },
 ];
+
+function EpsCagrCard({ data }: {
+  data: { cagr: number; startEPS: number; endEPS: number; years: number } | null;
+}) {
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(n));
+
+  return (
+    <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-sm hover:shadow-md transition-shadow">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 uppercase tracking-wide">
+            EPS CAGR
+          </p>
+        </div>
+        {data == null ? (
+          <p className="text-2xl font-semibold text-zinc-400 dark:text-zinc-600 leading-none">—</p>
+        ) : (
+          <>
+            <p className={cn(
+              "text-2xl font-semibold mb-1 leading-none",
+              data.cagr >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+            )}>
+              {data.cagr >= 0 ? "+" : ""}{(data.cagr * 100).toFixed(1)}%
+            </p>
+            <div className="mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800 space-y-0.5">
+              <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                {fmt(data.startEPS)} → {fmt(data.endEPS)}
+              </p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-500">
+                Over {data.years.toFixed(1)} years
+              </p>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function buildWindowStatsFromVals(vals: number[], current: number | null): WindowStats | null {
   if (vals.length < 2) return null;
@@ -92,6 +132,12 @@ export function IndexPanel({
   const windowRows = useMemo(
     () => filterByWindow(historicalData, timeWindow),
     [historicalData, timeWindow]
+  );
+
+  // EPS CAGR — always uses raw historical impliedEPS, window-aware
+  const epsCagr = useMemo(
+    () => computeEpsCagr(windowRows, indexKey),
+    [windowRows, indexKey]
   );
 
   // Forward PE/PB series (only computed in FWD mode)
@@ -179,7 +225,7 @@ export function IndexPanel({
   return (
     <div className="space-y-5 pt-2">
       {/* ── Metric cards row ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {(["close", "pe", "pb", "impliedEPS", "impliedBV"] as MetricKey[]).map((m) => (
           <MetricCard
             key={m}
@@ -189,6 +235,7 @@ export function IndexPanel({
             isLive={(m === "close" || m === "pe" || m === "pb") && liveClose != null && liveMarketOpen}
           />
         ))}
+        <EpsCagrCard data={epsCagr} />
       </div>
 
       {/* ── Chart card ── */}

@@ -1,4 +1,4 @@
-import { subMonths, subYears, parseISO, isAfter, isEqual } from "date-fns";
+import { subMonths, subYears, parseISO, isAfter, isEqual, differenceInDays } from "date-fns";
 import type {
   BYEYRow,
   HistoricalRow,
@@ -319,4 +319,30 @@ export function buildForwardRatioSeries(
 
     return { date: row.date, fwdPE, fwdPB };
   });
+}
+
+// ─── EPS CAGR ────────────────────────────────────────────────────────────────
+
+export function computeEpsCagr(
+  rows: HistoricalRow[],
+  indexKey: IndexKey
+): { cagr: number; startEPS: number; endEPS: number; years: number } | null {
+  let startEntry: { date: string; eps: number } | null = null;
+  let endEntry:   { date: string; eps: number } | null = null;
+
+  for (const row of rows) {
+    const eps = (row[indexKey] as IndexMetrics | null)?.impliedEPS;
+    if (eps != null && eps > 0) {
+      if (!startEntry) startEntry = { date: row.date, eps };
+      endEntry = { date: row.date, eps };
+    }
+  }
+
+  if (!startEntry || !endEntry || startEntry.date === endEntry.date) return null;
+
+  const years = differenceInDays(parseISO(endEntry.date), parseISO(startEntry.date)) / 365.25;
+  if (years < 0.25) return null;
+
+  const cagr = Math.pow(endEntry.eps / startEntry.eps, 1 / years) - 1;
+  return { cagr, startEPS: startEntry.eps, endEPS: endEntry.eps, years };
 }
