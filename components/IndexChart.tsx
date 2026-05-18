@@ -55,12 +55,12 @@ function CustomTooltip({ active, payload, label, controlLines, showControlLines,
       {showLevels && (
         <div className={`border-t pt-2 space-y-1 ${isDark ? "border-zinc-700" : "border-zinc-100"}`}>
           <div className="flex justify-between gap-4">
-            <span style={{ color: "#b91c1c" }} className="font-semibold">+2σ</span>
-            <span style={{ color: "#b91c1c" }} className="font-semibold">{fmt(controlLines.sd2Upper)}</span>
+            <span style={{ color: "#065f46" }} className="font-semibold">+2σ</span>
+            <span style={{ color: "#065f46" }} className="font-semibold">{fmt(controlLines.sd2Upper)}</span>
           </div>
           <div className="flex justify-between gap-4">
-            <span style={{ color: "#b45309" }} className="font-semibold">+1σ</span>
-            <span style={{ color: "#b45309" }} className="font-semibold">{fmt(controlLines.sd1Upper)}</span>
+            <span style={{ color: "#6ee7b7" }} className="font-semibold">+1σ</span>
+            <span style={{ color: "#6ee7b7" }} className="font-semibold">{fmt(controlLines.sd1Upper)}</span>
           </div>
           <div className="flex justify-between gap-4">
             <span style={{ color: meanColor }} className="font-semibold">Mean</span>
@@ -117,8 +117,8 @@ export function IndexChart({ data, metric, controlLines, showControlLines, value
   const fmt = (v: number) => valueFormatter ? valueFormatter(v) : formatMetric(metric ?? "pe", v);
 
   const controlLevelStrip = showControlLines && controlLines ? [
-    { label: "+2σ", value: controlLines.sd2Upper, color: "#b91c1c" },
-    { label: "+1σ", value: controlLines.sd1Upper, color: "#b45309" },
+    { label: "+2σ", value: controlLines.sd2Upper, color: "#065f46" },
+    { label: "+1σ", value: controlLines.sd1Upper, color: "#6ee7b7" },
     { label: "Mean", value: controlLines.mean,    color: isDark ? "#a1a1aa" : "#6b7280" },
     { label: "−1σ", value: controlLines.sd1Lower, color: "#b45309" },
     { label: "−2σ", value: controlLines.sd2Lower, color: "#b91c1c" },
@@ -197,10 +197,10 @@ export function IndexChart({ data, metric, controlLines, showControlLines, value
             />
             <ReferenceLine
               y={controlLines.sd1Upper}
-              stroke="#f59e0b"
+              stroke="#6ee7b7"
               strokeDasharray="3 5"
               strokeWidth={1}
-              label={{ value: "+1σ", position: "insideTopRight", fontSize: 10, fill: "#f59e0b" }}
+              label={{ value: "+1σ", position: "insideTopRight", fontSize: 10, fill: "#6ee7b7" }}
             />
             <ReferenceLine
               y={controlLines.sd1Lower}
@@ -211,10 +211,10 @@ export function IndexChart({ data, metric, controlLines, showControlLines, value
             />
             <ReferenceLine
               y={controlLines.sd2Upper}
-              stroke="#ef4444"
+              stroke="#065f46"
               strokeDasharray="2 6"
               strokeWidth={1}
-              label={{ value: "+2σ", position: "insideTopRight", fontSize: 10, fill: "#ef4444" }}
+              label={{ value: "+2σ", position: "insideTopRight", fontSize: 10, fill: "#065f46" }}
             />
             <ReferenceLine
               y={controlLines.sd2Lower}
