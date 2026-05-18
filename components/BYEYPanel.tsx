@@ -88,7 +88,12 @@ export function BYEYPanel({
   const [calcSpreadPct, setCalcSpreadPct] = useState<number | null>(null);
   const [calcBondYieldPct, setCalcBondYieldPct] = useState<number | null>(null);
   const [calcEPS, setCalcEPS] = useState<number | null>(null);
+  const [calcOwnerMode, setCalcOwnerMode] = useState(false);
+  const [calcSaveStatus, setCalcSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const calcOwnerDefaults = useRef<{ spreadOption: CalcSDOption; bondYieldPct: number | null; eps: number | null } | null>(null);
+  const calcCronSecret = useRef<string | null>(null);
   const calcInitialised = useRef(false);
+  const calcUserEdited = useRef(false);
 
   // Last row from BY-EY data (most recent historical point)
   const lastByeyRow = byeyData[byeyData.length - 1] ?? null;
@@ -219,34 +224,63 @@ export function BYEYPanel({
     return buildStats(vals, cur);
   }, [ratioMode, fwdPEByDate, windowRows, currentEY]);
 
-  // ── Calculator: load from localStorage on mount ────────────────────────────
+  // ── Detect owner mode synchronously ────────────────────────────────────────
   useEffect(() => {
-    let savedOption: CalcSDOption = "mean";
-    let savedBondYield: number | null = null;
-    let savedEPS: number | null = null;
-    let savedSpread: number | null = null;
+    const params = new URLSearchParams(window.location.search);
+    const key = params.get("key");
+    if (key) { calcCronSecret.current = key; setCalcOwnerMode(true); }
+  }, []);
 
-    try {
-      const raw = localStorage.getItem(BYEY_CALC_LS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (CALC_SD_OPTIONS.some((o) => o.value === parsed.spreadOption)) savedOption = parsed.spreadOption;
-        if (typeof parsed.bondYieldPct === "number") savedBondYield = parsed.bondYieldPct;
-        if (typeof parsed.eps === "number") savedEPS = parsed.eps;
-        if (typeof parsed.spreadPct === "number") savedSpread = parsed.spreadPct;
+  // ── Init: fetch Redis owner defaults, then apply visitor localStorage diff ─
+  useEffect(() => {
+    async function init() {
+      let redisData: Record<string, unknown> | null = null;
+      try {
+        const res = await fetch("/api/projection-defaults", { cache: "no-store" });
+        if (res.ok) redisData = await res.json();
+      } catch {}
+
+      const ownerSaved = redisData?.byeyCalc as { spreadOption?: string; bondYieldPct?: number; eps?: number } | null ?? null;
+      const ownerOption: CalcSDOption = (ownerSaved?.spreadOption && CALC_SD_OPTIONS.some((o) => o.value === ownerSaved.spreadOption))
+        ? ownerSaved.spreadOption as CalcSDOption
+        : "mean";
+      const ownerBondYield = typeof ownerSaved?.bondYieldPct === "number" ? ownerSaved.bondYieldPct : null;
+      const ownerEPS = typeof ownerSaved?.eps === "number" ? ownerSaved.eps : null;
+
+      // Store owner defaults for Reset
+      calcOwnerDefaults.current = { spreadOption: ownerOption, bondYieldPct: ownerBondYield, eps: ownerEPS };
+
+      // System fallbacks (when no owner defaults)
+      const sysOption: CalcSDOption = "mean";
+      const sysBondYield = lastByeyRow?.bondYield != null ? parseFloat((lastByeyRow.bondYield * 100).toFixed(4)) : null;
+      const sysEPS = prevImpliedEPS != null ? parseFloat(prevImpliedEPS.toFixed(2)) : null;
+
+      let startOption = ownerSaved ? ownerOption : sysOption;
+      let startBondYield = ownerBondYield ?? sysBondYield;
+      let startEPS = ownerEPS ?? sysEPS;
+
+      // Visitor: apply localStorage diff on top of owner defaults
+      if (!calcCronSecret.current) {
+        try {
+          const raw = localStorage.getItem(BYEY_CALC_LS_KEY);
+          if (raw) {
+            const diff = JSON.parse(raw);
+            if (diff.spreadOption && CALC_SD_OPTIONS.some((o) => o.value === diff.spreadOption)) startOption = diff.spreadOption;
+            if (typeof diff.bondYieldPct === "number") startBondYield = diff.bondYieldPct;
+            if (typeof diff.eps === "number") startEPS = diff.eps;
+          }
+        } catch {}
       }
-    } catch {}
 
-    setCalcSpreadOption(savedOption);
-    setCalcBondYieldPct(savedBondYield ?? (lastByeyRow?.bondYield != null ? parseFloat((lastByeyRow.bondYield * 100).toFixed(4)) : null));
-    setCalcEPS(savedEPS ?? (prevImpliedEPS != null ? parseFloat(prevImpliedEPS.toFixed(2)) : null));
-    // Use saved spread if available, else compute from SD option + spreadStats
-    if (savedSpread != null) {
-      setCalcSpreadPct(savedSpread);
-    } else if (spreadStats) {
-      setCalcSpreadPct(parseFloat(calcSDToSpread(savedOption, spreadStats.mean, spreadStats.sd).toFixed(4)));
+      setCalcSpreadOption(startOption);
+      setCalcBondYieldPct(startBondYield);
+      setCalcEPS(startEPS);
+      if (spreadStats) {
+        setCalcSpreadPct(parseFloat(calcSDToSpread(startOption, spreadStats.mean, spreadStats.sd).toFixed(4)));
+      }
+      calcInitialised.current = true;
     }
-    calcInitialised.current = true;
+    init();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -257,23 +291,69 @@ export function BYEYPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spreadStats]);
 
-  // Persist calculator state to localStorage
+  // Visitor: persist diff to localStorage when user edits
   useEffect(() => {
-    if (!calcInitialised.current) return;
+    if (!calcInitialised.current || calcOwnerMode || !calcUserEdited.current) return;
     try {
       localStorage.setItem(BYEY_CALC_LS_KEY, JSON.stringify({
         spreadOption: calcSpreadOption,
-        spreadPct:    calcSpreadPct,
         bondYieldPct: calcBondYieldPct,
         eps:          calcEPS,
       }));
     } catch {}
-  }, [calcSpreadOption, calcSpreadPct, calcBondYieldPct, calcEPS]);
+  }, [calcSpreadOption, calcBondYieldPct, calcEPS, calcOwnerMode]);
+
+  // Owner: auto-save to Redis with 600ms debounce
+  useEffect(() => {
+    if (!calcOwnerMode || !calcCronSecret.current) return;
+    if (!calcUserEdited.current) return;
+    setCalcSaveStatus("saving");
+    const id = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/projection-defaults", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${calcCronSecret.current}`,
+          },
+          body: JSON.stringify({
+            byeyCalc: {
+              spreadOption: calcSpreadOption,
+              bondYieldPct: calcBondYieldPct,
+              eps:          calcEPS,
+            },
+          }),
+        });
+        setCalcSaveStatus(res.ok ? "saved" : "error");
+      } catch {
+        setCalcSaveStatus("error");
+      }
+    }, 600);
+    return () => clearTimeout(id);
+  }, [calcSpreadOption, calcBondYieldPct, calcEPS, calcOwnerMode]);
 
   // Derived calculator values
-  const calcEY   = (calcBondYieldPct != null && calcSpreadPct != null) ? calcBondYieldPct - calcSpreadPct : null;
-  const calcPE   = (calcEY != null && calcEY > 0) ? 100 / calcEY : null;
+  const calcEY    = (calcBondYieldPct != null && calcSpreadPct != null) ? calcBondYieldPct - calcSpreadPct : null;
+  const calcPE    = (calcEY != null && calcEY > 0) ? 100 / calcEY : null;
   const calcPrice = (calcPE != null && calcEPS != null) ? calcPE * calcEPS : null;
+
+  function handleCalcReset() {
+    const d = calcOwnerDefaults.current;
+    const resetOption: CalcSDOption = d?.spreadOption ?? "mean";
+    const resetBondYield = d?.bondYieldPct ?? (lastByeyRow?.bondYield != null ? parseFloat((lastByeyRow.bondYield * 100).toFixed(4)) : null);
+    const resetEPS = d?.eps ?? (prevImpliedEPS != null ? parseFloat(prevImpliedEPS.toFixed(2)) : null);
+
+    setCalcSpreadOption(resetOption);
+    setCalcBondYieldPct(resetBondYield);
+    setCalcEPS(resetEPS);
+    if (spreadStats) {
+      setCalcSpreadPct(parseFloat(calcSDToSpread(resetOption, spreadStats.mean, spreadStats.sd).toFixed(4)));
+    }
+    if (!calcOwnerMode) {
+      try { localStorage.removeItem(BYEY_CALC_LS_KEY); } catch {}
+      calcUserEdited.current = false;
+    }
+  }
 
   // Chart data
   const chartData = useMemo(() => {
@@ -425,8 +505,20 @@ export function BYEYPanel({
       {/* ── Target Price Calculator ── */}
       <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-sm">
         <CardHeader className="pb-2 pt-4 px-5">
-          <CardTitle className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          <CardTitle className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
             Nifty 50 Target Price Calculator
+            {calcOwnerMode && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">● Owner</span>
+            )}
+            {calcOwnerMode && calcSaveStatus === "saving" && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">Saving…</span>
+            )}
+            {calcOwnerMode && calcSaveStatus === "saved" && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">Saved ✓</span>
+            )}
+            {calcOwnerMode && calcSaveStatus === "error" && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">Save failed ✗</span>
+            )}
           </CardTitle>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
             EY = Bond Yield − BY-EY Spread · P/E = 1 ÷ EY · Target Price = P/E × EPS
@@ -462,6 +554,7 @@ export function BYEYPanel({
                       <select
                         value={calcSpreadOption}
                         onChange={(e) => {
+                          calcUserEdited.current = true;
                           const opt = e.target.value as CalcSDOption;
                           setCalcSpreadOption(opt);
                           if (spreadStats) {
@@ -479,11 +572,17 @@ export function BYEYPanel({
                           type="number"
                           step="0.01"
                           value={calcSpreadPct ?? ""}
-                          onChange={(e) => setCalcSpreadPct(parseFloat(e.target.value))}
+                          onChange={(e) => { calcUserEdited.current = true; setCalcSpreadPct(parseFloat(e.target.value)); }}
                           className="w-20 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-sm tabular-nums text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500"
                         />
                         <span className="text-xs text-zinc-500">%</span>
                       </div>
+                      <button
+                        onClick={handleCalcReset}
+                        className="self-start text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 underline underline-offset-2 transition-colors"
+                      >
+                        Reset
+                      </button>
                     </div>
                   </td>
 
@@ -494,7 +593,7 @@ export function BYEYPanel({
                         type="number"
                         step="0.01"
                         value={calcBondYieldPct ?? ""}
-                        onChange={(e) => setCalcBondYieldPct(parseFloat(e.target.value))}
+                        onChange={(e) => { calcUserEdited.current = true; setCalcBondYieldPct(parseFloat(e.target.value)); }}
                         className="w-20 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-sm tabular-nums text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500"
                       />
                       <span className="text-xs text-zinc-500">%</span>
@@ -517,7 +616,7 @@ export function BYEYPanel({
                       type="number"
                       step="1"
                       value={calcEPS ?? ""}
-                      onChange={(e) => setCalcEPS(parseFloat(e.target.value))}
+                      onChange={(e) => { calcUserEdited.current = true; setCalcEPS(parseFloat(e.target.value)); }}
                       className="w-24 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-sm tabular-nums text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500"
                     />
                   </td>

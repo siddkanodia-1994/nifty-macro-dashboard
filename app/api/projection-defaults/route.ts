@@ -24,7 +24,9 @@ export async function POST(request: Request) {
   }
   try {
     const body = await request.json();
-    await redis.set(REDIS_KEY, body);
+    // Merge with existing so partial updates (e.g. byeyCalc) don't clobber other fields
+    const existing = (await redis.get<Record<string, unknown>>(REDIS_KEY)) ?? {};
+    await redis.set(REDIS_KEY, { ...existing, ...body });
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 502 });
