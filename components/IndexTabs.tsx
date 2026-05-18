@@ -258,9 +258,9 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
           historicalData={historicalData}
           timeWindow={timeWindow}
           onTimeWindowChange={setTimeWindow}
-          liveNifty50Close={liveData?.["NIFTY_50"] ?? null}
+          liveIndexData={liveData}
           liveBondYield={liveBondYield}
-          nifty50BaseGrowthPct={projectionDefaults?.["NIFTY_50"]?.base?.growthPct ?? 0}
+          growthPctByIndex={sharedGrowthPct}
         />
       </TabsContent>
 

@@ -11,15 +11,20 @@ import {
   computeBYEYWindowStats,
   buildBYEYChartData,
   buildForwardRatioSeries,
+  buildByeyForIndex,
   mean,
   stdDev,
   zScore,
   percentileRank,
 } from "@/lib/calculations";
-import { formatPct, formatPrice, formatRatio, formatZScore, formatPercentile, formatDate, zScoreColor, cn } from "@/lib/utils";
+import { INDEX_META, formatPct, formatPrice, formatRatio, formatZScore, formatPercentile, formatDate, zScoreColor, cn } from "@/lib/utils";
 import { useRatioMode } from "@/lib/ratioMode";
-import type { BYEYRow, HistoricalRow, TimeWindow, WindowStats, ControlLines } from "@/lib/types";
+import type { BYEYRow, HistoricalRow, IndexKey, IndexMetrics, TimeWindow, WindowStats, ControlLines } from "@/lib/types";
 import { Eye, EyeOff } from "lucide-react";
+
+const BYEY_MAJOR_INDICES = INDEX_META.filter((m) =>
+  (["NIFTY_50","NIFTY_BANK","NIFTY_PSU_BANK","NIFTY_MIDCAP_150","NIFTY_MICROCAP_250","NIFTY_SMALLCAP_250","NIFTY_IT"] as string[]).includes(m.key)
+);
 
 type CalcSDOption = "mean" | "+0.25sd" | "+0.5sd" | "+1sd" | "+2sd" | "-0.25sd" | "-0.5sd" | "-1sd" | "-2sd";
 
@@ -63,12 +68,12 @@ function buildStats(vals: (number | null)[], current: number | null): WindowStat
 
 interface BYEYPanelProps {
   byeyData: BYEYRow[];
-  historicalData: HistoricalRow[];  // for lastRow.NIFTY_50.impliedEPS → live PE
+  historicalData: HistoricalRow[];
   timeWindow: TimeWindow;
   onTimeWindowChange: (w: TimeWindow) => void;
-  liveNifty50Close: number | null;
-  liveBondYield: number | null;     // decimal (e.g. 0.0687)
-  nifty50BaseGrowthPct?: number;    // for forward PE extrapolation
+  liveIndexData: Partial<Record<IndexKey, number>> | null;
+  liveBondYield: number | null;
+  growthPctByIndex?: Partial<Record<IndexKey, number>>;
 }
 
 export function BYEYPanel({
@@ -76,12 +81,23 @@ export function BYEYPanel({
   historicalData,
   timeWindow,
   onTimeWindowChange,
-  liveNifty50Close,
+  liveIndexData,
   liveBondYield,
-  nifty50BaseGrowthPct = 0,
+  growthPctByIndex,
 }: BYEYPanelProps) {
   const [showControlLines, setShowControlLines] = useState(true);
+  const [selectedByeyIndex, setSelectedByeyIndex] = useState<IndexKey>("NIFTY_50");
   const { ratioMode } = useRatioMode();
+
+  // Per-index derived inputs
+  const liveClose  = liveIndexData?.[selectedByeyIndex] ?? null;
+  const growthPct  = growthPctByIndex?.[selectedByeyIndex] ?? 0;
+
+  // Build BYEYRow-compatible series for the selected index
+  const activeByeyData = useMemo(
+    () => buildByeyForIndex(historicalData, byeyData, selectedByeyIndex),
+    [historicalData, byeyData, selectedByeyIndex]
+  );
 
   // ── Target Price Calculator state ──────────────────────────────────────────
   const [calcSpreadOption, setCalcSpreadOption] = useState<CalcSDOption>("mean");
@@ -95,20 +111,21 @@ export function BYEYPanel({
   const calcInitialised = useRef(false);
   const calcUserEdited = useRef(false);
 
-  // Last row from BY-EY data (most recent historical point)
-  const lastByeyRow = byeyData[byeyData.length - 1] ?? null;
+  // Last row of the active index's series (most recent)
+  const lastByeyRow = activeByeyData[activeByeyData.length - 1] ?? null;
 
-  // Implied EPS from latest historical row for live PE derivation
+  // Implied EPS from latest historical row for the selected index
   const prevImpliedEPS = useMemo(() => {
     if (historicalData.length === 0) return null;
-    return historicalData[historicalData.length - 1].NIFTY_50.impliedEPS;
-  }, [historicalData]);
+    const m = historicalData[historicalData.length - 1][selectedByeyIndex] as IndexMetrics | null;
+    return m?.impliedEPS ?? null;
+  }, [historicalData, selectedByeyIndex]);
 
-  // Forward PE/PB series for NIFTY_50 (FWD mode only)
+  // Forward PE series for the selected index (FWD mode only)
   const fwdSeries = useMemo(() => {
     if (ratioMode !== "FWD") return null;
-    return buildForwardRatioSeries(historicalData, "NIFTY_50", nifty50BaseGrowthPct);
-  }, [ratioMode, historicalData, nifty50BaseGrowthPct]);
+    return buildForwardRatioSeries(historicalData, selectedByeyIndex, growthPct);
+  }, [ratioMode, historicalData, selectedByeyIndex, growthPct]);
 
   // Build date → fwdPE map for efficient lookup
   const fwdPEByDate = useMemo(() => {
@@ -121,13 +138,13 @@ export function BYEYPanel({
   }, [fwdSeries]);
 
   // Trailing live values
-  const trailingLivePE = liveNifty50Close && prevImpliedEPS
-    ? liveNifty50Close / prevImpliedEPS
+  const trailingLivePE = liveClose && prevImpliedEPS
+    ? liveClose / prevImpliedEPS
     : null;
 
   // Forward live PE: uses extrapolated forward EPS from live close
-  const fwdLivePE = liveNifty50Close && prevImpliedEPS
-    ? liveNifty50Close / (prevImpliedEPS * (1 + nifty50BaseGrowthPct / 100))
+  const fwdLivePE = liveClose && prevImpliedEPS
+    ? liveClose / (prevImpliedEPS * (1 + growthPct / 100))
     : null;
 
   // Last forward PE from series (for non-live current value)
@@ -151,13 +168,13 @@ export function BYEYPanel({
   const currentBondYield = liveBondYield ?? lastByeyRow?.bondYield ?? null;
   const currentEY        = liveEY        ?? (ratioMode === "FWD" && lastFwdPE ? 1 / lastFwdPE : lastByeyRow?.ey) ?? null;
 
-  const isPELive     = liveNifty50Close != null;
+  const isPELive     = liveClose != null;
   const isSpreadLive = isPELive && effectiveLiveBondYield != null;
 
-  // Window-filtered data
+  // Window-filtered data for the selected index
   const windowRows = useMemo(
-    () => filterBYEYByWindow(byeyData, timeWindow),
-    [byeyData, timeWindow]
+    () => filterBYEYByWindow(activeByeyData, timeWindow),
+    [activeByeyData, timeWindow]
   );
 
   // FWD mode: compute forward spread values per date in window
@@ -332,6 +349,13 @@ export function BYEYPanel({
     return () => clearTimeout(id);
   }, [calcSpreadOption, calcBondYieldPct, calcEPS, calcOwnerMode]);
 
+  // Reset calculator EPS to the new index's latest impliedEPS when index changes
+  useEffect(() => {
+    if (!calcInitialised.current) return;
+    setCalcEPS(prevImpliedEPS != null ? parseFloat(prevImpliedEPS.toFixed(2)) : null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedByeyIndex]);
+
   // Derived calculator values
   const calcEY    = (calcBondYieldPct != null && calcSpreadPct != null) ? calcBondYieldPct - calcSpreadPct : null;
   const calcPE    = (calcEY != null && calcEY > 0) ? 100 / calcEY : null;
@@ -374,8 +398,29 @@ export function BYEYPanel({
   const spreadFmt = (v: number | null) => formatPct(v);
   const peFmt     = (v: number | null) => formatRatio(v);
 
+  const selectedMeta = BYEY_MAJOR_INDICES.find((m) => m.key === selectedByeyIndex);
+
   return (
     <div className="space-y-5 pt-2">
+      {/* ── Index selector header strip ── */}
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
+          BY-EY Spread Analysis · {selectedMeta?.label ?? selectedByeyIndex}
+        </p>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">Index</span>
+          <select
+            value={selectedByeyIndex}
+            onChange={(e) => setSelectedByeyIndex(e.target.value as IndexKey)}
+            className="text-xs font-medium border border-zinc-200 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-zinc-300 dark:focus:ring-zinc-600"
+          >
+            {BYEY_MAJOR_INDICES.map((m) => (
+              <option key={m.key} value={m.key}>{m.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* ── Metric cards row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* BY-EY Spread % — full stats */}
@@ -387,9 +432,9 @@ export function BYEYPanel({
           valueFormatter={spreadFmt}
         />
 
-        {/* Nifty 50 P/E */}
+        {/* Selected index P/E */}
         <MetricCard
-          label="Nifty 50 P/E"
+          label={`${selectedMeta?.label ?? selectedByeyIndex} P/E`}
           metric="pe"
           stats={peStats}
           isLive={isPELive}

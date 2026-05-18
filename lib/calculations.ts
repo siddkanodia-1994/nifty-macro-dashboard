@@ -323,6 +323,40 @@ export function buildForwardRatioSeries(
 
 // ─── EPS CAGR ────────────────────────────────────────────────────────────────
 
+/**
+ * Builds a BYEYRow-compatible series for any index.
+ * For NIFTY_50 returns the pre-computed byeyData as-is.
+ * For other indices, derives PE/EY from historicalData and joins bond yield from byeyData by date.
+ */
+export function buildByeyForIndex(
+  historicalData: HistoricalRow[],
+  byeyData: BYEYRow[],
+  indexKey: IndexKey
+): BYEYRow[] {
+  if (indexKey === "NIFTY_50") return byeyData;
+
+  const bondYieldMap = new Map<string, number | null>();
+  for (const row of byeyData) {
+    bondYieldMap.set(row.date, row.bondYield);
+  }
+
+  return historicalData.map((r) => {
+    const m = r[indexKey] as IndexMetrics | null;
+    const bondYield = bondYieldMap.get(r.date) ?? null;
+    const pe = m?.pe ?? null;
+    const ey = pe != null && pe > 0 ? 1 / pe : null;
+    const spread = bondYield != null && ey != null ? bondYield - ey : null;
+    return {
+      date:      r.date,
+      close:     m?.close     ?? null,
+      pe,
+      ey,
+      bondYield,
+      spread,
+    };
+  });
+}
+
 export function computeEpsCagr(
   rows: HistoricalRow[],
   indexKey: IndexKey
