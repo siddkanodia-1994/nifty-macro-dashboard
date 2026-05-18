@@ -78,6 +78,38 @@ const SCENARIO_COLORS: Record<Scenario, string> = {
 
 const VISITOR_STORAGE_KEY = "nifty-projections-visitor-v2";
 
+type SDOption = "mean" | "+0.25sd" | "+0.5sd" | "+1sd" | "+2sd" | "-0.25sd" | "-0.5sd" | "-1sd" | "-2sd";
+type SDSelection = Record<Scenario, SDOption>;
+
+const DEFAULT_SD: SDSelection = { bear: "-1sd", base: "mean", bull: "+1sd" };
+const SD_LS_KEY = "nifty-sd-selection";
+
+const SD_OPTIONS: { value: SDOption; label: string }[] = [
+  { value: "+2sd",    label: "+2 σ"    },
+  { value: "+1sd",    label: "+1 σ"    },
+  { value: "+0.5sd",  label: "+0.5 σ"  },
+  { value: "+0.25sd", label: "+0.25 σ" },
+  { value: "mean",    label: "Mean"    },
+  { value: "-0.25sd", label: "−0.25 σ" },
+  { value: "-0.5sd",  label: "−0.5 σ"  },
+  { value: "-1sd",    label: "−1 σ"    },
+  { value: "-2sd",    label: "−2 σ"    },
+];
+
+function sdToMultiple(option: SDOption, m: number, sd: number): number {
+  switch (option) {
+    case "+2sd":    return m + 2 * sd;
+    case "+1sd":    return m + sd;
+    case "+0.5sd":  return m + 0.5 * sd;
+    case "+0.25sd": return m + 0.25 * sd;
+    case "mean":    return m;
+    case "-0.25sd": return m - 0.25 * sd;
+    case "-0.5sd":  return m - 0.5 * sd;
+    case "-1sd":    return m - sd;
+    case "-2sd":    return m - 2 * sd;
+  }
+}
+
 function buildDefaults(historicalData: HistoricalRow[]): ProjectionsMap {
   const lastRow = historicalData[historicalData.length - 1];
   const defaults = {} as ProjectionsMap;
@@ -117,6 +149,9 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const [ownerMode, setOwnerMode] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const { ratioMode } = useRatioMode();
+  const [sdSelection, setSDSelection] = useState<SDSelection>(DEFAULT_SD);
+  const sdSelectionRef = useRef<SDSelection>(DEFAULT_SD);
+  sdSelectionRef.current = sdSelection;
   const userHasEdited = useRef(false);
   const cronSecret = useRef<string | null>(null);
   const visitorDiff = useRef<VisitorDiff>({});
@@ -132,6 +167,22 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     // Migrate: clear old v1 snapshot so it doesn't interfere
     try { localStorage.removeItem("nifty-projections-visitor-v1"); } catch {}
   }, []);
+
+  // Load SD selection from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SD_LS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as SDSelection;
+        setSDSelection(parsed);
+      }
+    } catch {}
+  }, []);
+
+  // Persist SD selection on change
+  useEffect(() => {
+    try { localStorage.setItem(SD_LS_KEY, JSON.stringify(sdSelection)); } catch {}
+  }, [sdSelection]);
 
   // On mount: fetch owner defaults from API, then load visitor overrides
   useEffect(() => {
@@ -303,11 +354,12 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         if (vals.length < 2) continue;
         const m = mean(vals);
         const sd = stdDev(vals);
+        const sel = sdSelectionRef.current;
         next[key] = {
           ...next[key],
-          bear: { ...next[key].bear, multiple: parseFloat((m - sd).toFixed(2)) },
-          base: { ...next[key].base, multiple: parseFloat(m.toFixed(2)) },
-          bull: { ...next[key].bull, multiple: parseFloat((m + sd).toFixed(2)) },
+          bear: { ...next[key].bear, multiple: parseFloat(sdToMultiple(sel.bear, m, sd).toFixed(2)) },
+          base: { ...next[key].base, multiple: parseFloat(sdToMultiple(sel.base, m, sd).toFixed(2)) },
+          bull: { ...next[key].bull, multiple: parseFloat(sdToMultiple(sel.bull, m, sd).toFixed(2)) },
         };
       }
       return next;
@@ -447,10 +499,48 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     });
   }, [selectedIndex]);
 
+  const applySDToAllIndices = useCallback((scenario: Scenario, option: SDOption) => {
+    setSDSelection((prev) => ({ ...prev, [scenario]: option }));
+    const windowRows = filterByWindow(historicalData, timeWindow);
+    setProjections((prev) => {
+      const next = { ...prev };
+      for (const meta of INDEX_META) {
+        const key = meta.key;
+        const isPEPath = next[key].path === "pe_eps";
+        let vals: number[];
+        if (ratioMode === "FWD") {
+          const fwdSeries = buildForwardRatioSeries(historicalData, key, next[key].base.growthPct);
+          const windowDateSet = new Set(windowRows.map((r) => r.date));
+          vals = fwdSeries
+            .filter((r) => windowDateSet.has(r.date))
+            .map((r) => (isPEPath ? r.fwdPE : r.fwdPB))
+            .filter((v): v is number => v != null);
+        } else {
+          vals = extractValues(windowRows, key, isPEPath ? "pe" : "pb");
+        }
+        if (vals.length < 2) continue;
+        const m = mean(vals);
+        const sd = stdDev(vals);
+        next[key] = {
+          ...next[key],
+          [scenario]: { ...next[key][scenario], multiple: parseFloat(sdToMultiple(option, m, sd).toFixed(2)) },
+        };
+      }
+      return next;
+    });
+    setManualCells((prev) => {
+      const next = new Set(prev);
+      for (const meta of INDEX_META) next.delete(`${meta.key}_${scenario}`);
+      return next;
+    });
+  }, [historicalData, timeWindow, ratioMode]);
+
   const handleReset = useCallback(() => {
     try { localStorage.removeItem(VISITOR_STORAGE_KEY); } catch {}
+    try { localStorage.removeItem(SD_LS_KEY); } catch {}
     visitorDiff.current = {};
     userHasEdited.current = false;
+    setSDSelection(DEFAULT_SD);
     setManualCells(new Set());
     const resetTo = ownerDefaults ?? buildDefaults(historicalData);
     setProjections(resetTo);
@@ -633,18 +723,29 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
                       </td>
 
                       <td className="px-5 py-3">
-                        <input
-                          type="number"
-                          step="0.5"
-                          value={row.multiple}
-                          onChange={(e) => updateScenario(s, "multiple", e.target.value)}
-                          className={cn(
-                            "w-20 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-sm tabular-nums bg-white dark:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500",
-                            manualCells.has(`${selectedIndex}_${s}`)
-                              ? "text-zinc-900 dark:text-zinc-100 font-semibold"
-                              : "text-zinc-400 dark:text-zinc-500"
-                          )}
-                        />
+                        <div className="flex flex-col gap-1.5">
+                          <select
+                            value={sdSelection[s]}
+                            onChange={(e) => applySDToAllIndices(s, e.target.value as SDOption)}
+                            className="text-xs border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-600 cursor-pointer"
+                          >
+                            {SD_OPTIONS.map(({ value, label }) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={row.multiple}
+                            onChange={(e) => updateScenario(s, "multiple", e.target.value)}
+                            className={cn(
+                              "w-20 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-sm tabular-nums bg-white dark:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500",
+                              manualCells.has(`${selectedIndex}_${s}`)
+                                ? "text-zinc-900 dark:text-zinc-100 font-semibold"
+                                : "text-zinc-400 dark:text-zinc-500"
+                            )}
+                          />
+                        </div>
                       </td>
 
                       <td className="px-5 py-3">
