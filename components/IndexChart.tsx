@@ -114,7 +114,29 @@ export function IndexChart({ data, metric, controlLines, showControlLines, value
 
   const chartKey = `${metric}-${minVal.toFixed(2)}-${maxVal.toFixed(2)}-${data.length}-${controlLines?.mean.toFixed(2) ?? "x"}-${showControlLines}-${isDark}`;
 
+  const fmt = (v: number) => valueFormatter ? valueFormatter(v) : formatMetric(metric ?? "pe", v);
+
+  const controlLevelStrip = showControlLines && controlLines ? [
+    { label: "+2σ", value: controlLines.sd2Upper, color: "#b91c1c" },
+    { label: "+1σ", value: controlLines.sd1Upper, color: "#b45309" },
+    { label: "Mean", value: controlLines.mean,    color: isDark ? "#a1a1aa" : "#6b7280" },
+    { label: "−1σ", value: controlLines.sd1Lower, color: "#b45309" },
+    { label: "−2σ", value: controlLines.sd2Lower, color: "#b91c1c" },
+  ] : null;
+
   return (
+    <>
+      {controlLevelStrip && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-4 pt-1 pb-3">
+          {controlLevelStrip.map(({ label, value, color }) => (
+            <span key={label} className="flex items-center gap-1.5 tabular-nums">
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+              <span className="text-xs font-semibold" style={{ color }}>{label}</span>
+              <span className={`text-xs ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>{fmt(value)}</span>
+            </span>
+          ))}
+        </div>
+      )}
     <ResponsiveContainer key={chartKey} width="100%" height={320}>
       <ComposedChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 8 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} vertical={false} />
@@ -205,5 +227,6 @@ export function IndexChart({ data, metric, controlLines, showControlLines, value
         )}
       </ComposedChart>
     </ResponsiveContainer>
+    </>
   );
 }
