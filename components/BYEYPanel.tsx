@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/MetricCard";
 import { IndexChart } from "@/components/IndexChart";
@@ -16,10 +16,40 @@ import {
   zScore,
   percentileRank,
 } from "@/lib/calculations";
-import { formatPct, formatRatio, formatZScore, formatPercentile, formatDate, zScoreColor, cn } from "@/lib/utils";
+import { formatPct, formatPrice, formatRatio, formatZScore, formatPercentile, formatDate, zScoreColor, cn } from "@/lib/utils";
 import { useRatioMode } from "@/lib/ratioMode";
 import type { BYEYRow, HistoricalRow, TimeWindow, WindowStats, ControlLines } from "@/lib/types";
 import { Eye, EyeOff } from "lucide-react";
+
+type CalcSDOption = "mean" | "+0.25sd" | "+0.5sd" | "+1sd" | "+2sd" | "-0.25sd" | "-0.5sd" | "-1sd" | "-2sd";
+
+const CALC_SD_OPTIONS: { value: CalcSDOption; label: string }[] = [
+  { value: "+2sd",    label: "+2 σ"    },
+  { value: "+1sd",    label: "+1 σ"    },
+  { value: "+0.5sd",  label: "+0.5 σ"  },
+  { value: "+0.25sd", label: "+0.25 σ" },
+  { value: "mean",    label: "Mean"    },
+  { value: "-0.25sd", label: "−0.25 σ" },
+  { value: "-0.5sd",  label: "−0.5 σ"  },
+  { value: "-1sd",    label: "−1 σ"    },
+  { value: "-2sd",    label: "−2 σ"    },
+];
+
+function calcSDToSpread(option: CalcSDOption, m: number, sd: number): number {
+  switch (option) {
+    case "+2sd":    return m + 2 * sd;
+    case "+1sd":    return m + sd;
+    case "+0.5sd":  return m + 0.5 * sd;
+    case "+0.25sd": return m + 0.25 * sd;
+    case "mean":    return m;
+    case "-0.25sd": return m - 0.25 * sd;
+    case "-0.5sd":  return m - 0.5 * sd;
+    case "-1sd":    return m - sd;
+    case "-2sd":    return m - 2 * sd;
+  }
+}
+
+const BYEY_CALC_LS_KEY = "nifty-byey-calc";
 
 function buildStats(vals: (number | null)[], current: number | null): WindowStats | null {
   const clean = vals.filter((v): v is number => v != null);
@@ -52,6 +82,13 @@ export function BYEYPanel({
 }: BYEYPanelProps) {
   const [showControlLines, setShowControlLines] = useState(true);
   const { ratioMode } = useRatioMode();
+
+  // ── Target Price Calculator state ──────────────────────────────────────────
+  const [calcSpreadOption, setCalcSpreadOption] = useState<CalcSDOption>("mean");
+  const [calcSpreadPct, setCalcSpreadPct] = useState<number | null>(null);
+  const [calcBondYieldPct, setCalcBondYieldPct] = useState<number | null>(null);
+  const [calcEPS, setCalcEPS] = useState<number | null>(null);
+  const calcInitialised = useRef(false);
 
   // Last row from BY-EY data (most recent historical point)
   const lastByeyRow = byeyData[byeyData.length - 1] ?? null;
@@ -181,6 +218,62 @@ export function BYEYPanel({
     const cur  = currentEY != null ? currentEY * 100 : null;
     return buildStats(vals, cur);
   }, [ratioMode, fwdPEByDate, windowRows, currentEY]);
+
+  // ── Calculator: load from localStorage on mount ────────────────────────────
+  useEffect(() => {
+    let savedOption: CalcSDOption = "mean";
+    let savedBondYield: number | null = null;
+    let savedEPS: number | null = null;
+    let savedSpread: number | null = null;
+
+    try {
+      const raw = localStorage.getItem(BYEY_CALC_LS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (CALC_SD_OPTIONS.some((o) => o.value === parsed.spreadOption)) savedOption = parsed.spreadOption;
+        if (typeof parsed.bondYieldPct === "number") savedBondYield = parsed.bondYieldPct;
+        if (typeof parsed.eps === "number") savedEPS = parsed.eps;
+        if (typeof parsed.spreadPct === "number") savedSpread = parsed.spreadPct;
+      }
+    } catch {}
+
+    setCalcSpreadOption(savedOption);
+    setCalcBondYieldPct(savedBondYield ?? (lastByeyRow?.bondYield != null ? parseFloat((lastByeyRow.bondYield * 100).toFixed(4)) : null));
+    setCalcEPS(savedEPS ?? (prevImpliedEPS != null ? parseFloat(prevImpliedEPS.toFixed(2)) : null));
+    // Use saved spread if available, else compute from SD option + spreadStats
+    if (savedSpread != null) {
+      setCalcSpreadPct(savedSpread);
+    } else if (spreadStats) {
+      setCalcSpreadPct(parseFloat(calcSDToSpread(savedOption, spreadStats.mean, spreadStats.sd).toFixed(4)));
+    }
+    calcInitialised.current = true;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-refill spread when time window changes (spreadStats updates) — skips initial mount
+  useEffect(() => {
+    if (!calcInitialised.current || !spreadStats) return;
+    setCalcSpreadPct(parseFloat(calcSDToSpread(calcSpreadOption, spreadStats.mean, spreadStats.sd).toFixed(4)));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spreadStats]);
+
+  // Persist calculator state to localStorage
+  useEffect(() => {
+    if (!calcInitialised.current) return;
+    try {
+      localStorage.setItem(BYEY_CALC_LS_KEY, JSON.stringify({
+        spreadOption: calcSpreadOption,
+        spreadPct:    calcSpreadPct,
+        bondYieldPct: calcBondYieldPct,
+        eps:          calcEPS,
+      }));
+    } catch {}
+  }, [calcSpreadOption, calcSpreadPct, calcBondYieldPct, calcEPS]);
+
+  // Derived calculator values
+  const calcEY   = (calcBondYieldPct != null && calcSpreadPct != null) ? calcBondYieldPct - calcSpreadPct : null;
+  const calcPE   = (calcEY != null && calcEY > 0) ? 100 / calcEY : null;
+  const calcPrice = (calcPE != null && calcEPS != null) ? calcPE * calcEPS : null;
 
   // Chart data
   const chartData = useMemo(() => {
@@ -328,6 +421,117 @@ export function BYEYPanel({
           </CardContent>
         </Card>
       )}
+
+      {/* ── Target Price Calculator ── */}
+      <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-sm">
+        <CardHeader className="pb-2 pt-4 px-5">
+          <CardTitle className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            Nifty 50 Target Price Calculator
+          </CardTitle>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+            EY = Bond Yield − BY-EY Spread · P/E = 1 ÷ EY · Target Price = P/E × EPS
+          </p>
+        </CardHeader>
+        <CardContent className="px-0 pb-4">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-100 dark:border-zinc-800">
+                  {[
+                    "BY-EY Spread %",
+                    "Bond Yield %",
+                    "Earnings Yield %",
+                    "Implied P/E",
+                    "Nifty EPS",
+                    "Target Price",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="px-5 py-2.5 text-left text-xs font-semibold text-zinc-800 dark:text-zinc-300 uppercase tracking-wide whitespace-nowrap"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors">
+                  {/* BY-EY Target Spread */}
+                  <td className="px-5 py-3">
+                    <div className="flex flex-col gap-1.5">
+                      <select
+                        value={calcSpreadOption}
+                        onChange={(e) => {
+                          const opt = e.target.value as CalcSDOption;
+                          setCalcSpreadOption(opt);
+                          if (spreadStats) {
+                            setCalcSpreadPct(parseFloat(calcSDToSpread(opt, spreadStats.mean, spreadStats.sd).toFixed(4)));
+                          }
+                        }}
+                        className="text-xs border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-600 cursor-pointer"
+                      >
+                        {CALC_SD_OPTIONS.map(({ value, label }) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={calcSpreadPct ?? ""}
+                          onChange={(e) => setCalcSpreadPct(parseFloat(e.target.value))}
+                          className="w-20 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-sm tabular-nums text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+                        />
+                        <span className="text-xs text-zinc-500">%</span>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Bond Yield */}
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={calcBondYieldPct ?? ""}
+                        onChange={(e) => setCalcBondYieldPct(parseFloat(e.target.value))}
+                        className="w-20 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-sm tabular-nums text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+                      />
+                      <span className="text-xs text-zinc-500">%</span>
+                    </div>
+                  </td>
+
+                  {/* Earnings Yield — auto */}
+                  <td className="px-5 py-3 tabular-nums font-medium text-zinc-800 dark:text-zinc-200">
+                    {calcEY != null ? calcEY.toFixed(2) + "%" : "—"}
+                  </td>
+
+                  {/* Implied P/E — auto */}
+                  <td className="px-5 py-3 tabular-nums font-semibold text-zinc-900 dark:text-zinc-100">
+                    {calcPE != null ? formatRatio(calcPE) : "—"}
+                  </td>
+
+                  {/* Nifty EPS */}
+                  <td className="px-5 py-3">
+                    <input
+                      type="number"
+                      step="1"
+                      value={calcEPS ?? ""}
+                      onChange={(e) => setCalcEPS(parseFloat(e.target.value))}
+                      className="w-24 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-sm tabular-nums text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+                    />
+                  </td>
+
+                  {/* Target Price — auto */}
+                  <td className="px-5 py-3 tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">
+                    {calcPrice != null ? formatPrice(calcPrice) : "—"}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
