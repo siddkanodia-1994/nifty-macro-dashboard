@@ -23,15 +23,21 @@ import { useRatioMode } from "@/lib/ratioMode";
 import { useColBold } from "@/lib/colBold";
 import type { BYEYRow, HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
 
-type MultipleTarget = "mean" | "sd1u" | "sd1l" | "sd2u" | "sd2l";
+type MultipleTarget = "mean" | "sd1u" | "sd1l" | "sd2u" | "sd2l" | "sd05u" | "sd025u" | "sd05l" | "sd025l";
 
 const MULTIPLE_OPTIONS: { value: MultipleTarget; label: string }[] = [
-  { value: "mean",  label: "Mean"  },
-  { value: "sd1u",  label: "+1σ"   },
-  { value: "sd2u",  label: "+2σ"   },
-  { value: "sd1l",  label: "−1σ"   },
-  { value: "sd2l",  label: "−2σ"   },
+  { value: "sd2u",   label: "+2σ"    },
+  { value: "sd1u",   label: "+1σ"    },
+  { value: "sd05u",  label: "+0.5σ"  },
+  { value: "sd025u", label: "+0.25σ" },
+  { value: "mean",   label: "Mean"   },
+  { value: "sd025l", label: "−0.25σ" },
+  { value: "sd05l",  label: "−0.5σ"  },
+  { value: "sd1l",   label: "−1σ"    },
+  { value: "sd2l",   label: "−2σ"    },
 ];
+
+const UPSIDE_TARGET_LS_KEY = "nifty-upside-target";
 
 const VISITOR_STORAGE_KEY = "nifty-projections-visitor-v2";
 
@@ -99,7 +105,13 @@ function UpsideBadge({ pct, bold = true }: { pct: number | null; bold?: boolean 
 
 
 export function IndexOverview({ historicalData, byeyData, liveBondYield, liveData, liveMarketOpen, onSelectIndex, timeWindow, onTimeWindowChange, projectionDefaults, epsGrowthPct, onEpsGrowthChange }: IndexOverviewProps) {
-  const [multipleTarget, setMultipleTarget] = useState<MultipleTarget>("mean");
+  const [multipleTarget, setMultipleTarget] = useState<MultipleTarget>(() => {
+    try {
+      const saved = typeof window !== "undefined" ? localStorage.getItem(UPSIDE_TARGET_LS_KEY) : null;
+      if (saved && MULTIPLE_OPTIONS.some((o) => o.value === saved)) return saved as MultipleTarget;
+    } catch {}
+    return "mean";
+  });
   const [forwardMode, setForwardMode] = useState(true);
   const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
   const { ratioMode } = useRatioMode();
@@ -114,6 +126,11 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
     else if (sortDir === "desc") { setSortDir("asc"); }
     else { setSortCol(null); setSortDir(null); }
   }
+
+  // Persist upside target selection
+  useEffect(() => {
+    try { localStorage.setItem(UPSIDE_TARGET_LS_KEY, multipleTarget); } catch {}
+  }, [multipleTarget]);
 
   // Reset sort when window or mode changes
   useEffect(() => {
@@ -195,11 +212,15 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
   function applyTarget(m: number | null, sd: number | null): number | null {
     if (m == null || sd == null) return null;
     switch (multipleTarget) {
-      case "mean": return m;
-      case "sd1u": return m + sd;
-      case "sd1l": return m - sd;
-      case "sd2u": return m + 2 * sd;
-      case "sd2l": return m - 2 * sd;
+      case "mean":   return m;
+      case "sd1u":   return m + sd;
+      case "sd1l":   return m - sd;
+      case "sd2u":   return m + 2 * sd;
+      case "sd2l":   return m - 2 * sd;
+      case "sd05u":  return m + 0.5 * sd;
+      case "sd025u": return m + 0.25 * sd;
+      case "sd05l":  return m - 0.5 * sd;
+      case "sd025l": return m - 0.25 * sd;
     }
   }
 
