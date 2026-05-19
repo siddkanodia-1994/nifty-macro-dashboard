@@ -132,7 +132,7 @@ export function IndexChart({ data, metric, controlLines, showControlLines, value
             <span key={label} className="flex items-center gap-1.5 tabular-nums">
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
               <span className="text-xs font-semibold" style={{ color }}>{label}</span>
-              <span className={`text-xs ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>{fmt(value)}</span>
+              <span className={`text-xs font-bold ${isDark ? "text-zinc-400" : "text-zinc-500"}`}>{fmt(value)}</span>
             </span>
           ))}
         </div>
