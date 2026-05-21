@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { IndexPanel } from "@/components/IndexPanel";
 import { IndexOverview } from "@/components/IndexOverview";
+import { PeriodReturnsPanel } from "@/components/PeriodReturnsPanel";
 import { BYEYPanel } from "@/components/BYEYPanel";
 import { FutureProjectionPanel } from "@/components/FutureProjectionPanel";
 import { DailyDataPanel } from "@/components/DailyDataPanel";
@@ -13,7 +14,7 @@ import { isMarketOpen } from "@/lib/marketHours";
 import type { BYEYRow, HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
 
 type MainTab = "INDEX_LEVELS" | "FUTURE_PROJECTION" | "MACRO_SCORE" | "BYEY" | "DAILY_DATA";
-type IndexSubTab = IndexKey | "OVERVIEW";
+type IndexSubTab = IndexKey | "OVERVIEW" | "RETURNS";
 
 type ProjectionDefaultEntry = { base?: { growthPct?: number }; baseEPS?: number | null; baseBV?: number | null };
 type ProjectionDefaultsMap = Partial<Record<IndexKey, ProjectionDefaultEntry>>;
@@ -183,6 +184,12 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
               >
                 Overview
               </TabsTrigger>
+              <TabsTrigger
+                value="RETURNS"
+                className="rounded-md px-4 py-1.5 text-xs font-medium data-active:bg-white dark:data-active:bg-zinc-900 data-active:text-zinc-900 dark:data-active:text-zinc-100 data-active:shadow-sm text-zinc-700 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors whitespace-nowrap"
+              >
+                Period Returns
+              </TabsTrigger>
               {INDEX_META.map((meta) => (
                 <TabsTrigger
                   key={meta.key}
@@ -211,6 +218,11 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
               epsGrowthPct={sharedGrowthPct}
               onEpsGrowthChange={handleOverviewEpsChange}
             />
+          </TabsContent>
+
+          {/* Period Returns sub-tab */}
+          <TabsContent value="RETURNS" keepMounted>
+            <PeriodReturnsPanel historicalData={historicalData} />
           </TabsContent>
 
           {/* Individual index sub-tabs */}
