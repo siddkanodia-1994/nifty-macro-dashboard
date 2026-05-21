@@ -66,6 +66,14 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
     endRow:   findRowOnOrBefore(historicalData, endDate),
   }), [historicalData, startDate, endDate]);
 
+  const numDays = startRow && endRow
+    ? Math.round(
+        (new Date(endRow.date).getTime() - new Date(startRow.date).getTime()) /
+        (1000 * 60 * 60 * 24)
+      )
+    : null;
+  const years = numDays != null ? (numDays / 365.25).toFixed(1) : null;
+
   const rows = useMemo(() => {
     const base = INDEX_META.map((meta) => {
       const sc = startRow?.[meta.key]?.close      ?? null;
@@ -134,6 +142,16 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
             <span className="text-xs text-zinc-400 mt-0.5">Using: {formatDate(endRow.date)}</span>
           )}
         </div>
+
+        {numDays != null && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Duration</span>
+            <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
+              {numDays.toLocaleString()} days
+            </span>
+            <span className="text-xs text-zinc-400 mt-0.5">({years} yrs)</span>
+          </div>
+        )}
       </div>
 
       {/* Table */}
