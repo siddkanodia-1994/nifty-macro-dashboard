@@ -36,6 +36,21 @@ function formatDate(iso: string): string {
   });
 }
 
+const PRESETS = [
+  { label: "1M", months: 1  },
+  { label: "3M", months: 3  },
+  { label: "6M", months: 6  },
+  { label: "1Y", months: 12 },
+  { label: "2Y", months: 24 },
+  { label: "4Y", months: 48 },
+] as const;
+
+function shiftBack(fromDate: string, months: number): string {
+  const d = new Date(fromDate + "T00:00:00");
+  d.setMonth(d.getMonth() - months);
+  return d.toISOString().slice(0, 10);
+}
+
 interface Props {
   historicalData: HistoricalRow[];
 }
@@ -73,6 +88,7 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
       )
     : null;
   const years = numDays != null ? (numDays / 365.25).toFixed(1) : null;
+  const activePreset = PRESETS.find((p) => shiftBack(endDate, p.months) === startDate)?.label ?? null;
 
   const rows = useMemo(() => {
     const base = INDEX_META.map((meta) => {
@@ -152,6 +168,28 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
             <span className="text-xs text-zinc-400 mt-0.5">({years} yrs)</span>
           </div>
         )}
+
+        <div className="hidden sm:block self-stretch w-px bg-zinc-200 dark:bg-zinc-700 mx-1" />
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Quick Select</span>
+          <div className="flex flex-wrap gap-1.5">
+            {PRESETS.map(({ label, months }) => (
+              <button
+                key={label}
+                onClick={() => setStartDate(shiftBack(endDate, months))}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                  activePreset === label
+                    ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
+                    : "border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Table */}
