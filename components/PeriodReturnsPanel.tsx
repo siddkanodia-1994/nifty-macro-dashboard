@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { INDEX_META, formatPrice, cn } from "@/lib/utils";
+import { INDEX_META, formatPrice, formatRatio, cn } from "@/lib/utils";
 import type { HistoricalRow } from "@/lib/types";
 
 function findRowOnOrBefore(rows: HistoricalRow[], target: string): HistoricalRow | null {
@@ -69,6 +69,7 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
   const [endDate, setEndDate]     = useState(lastDate);
   const [sortCol, setSortCol]     = useState<SortCol>(null);
   const [sortDir, setSortDir]     = useState<SortDir>("desc");
+  const [showPE, setShowPE]       = useState(false);
 
   function handleSort(col: SortCol) {
     if (sortCol !== col) { setSortCol(col); setSortDir("desc"); }
@@ -96,6 +97,8 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
       const ec = endRow?.[meta.key]?.close        ?? null;
       const se = startRow?.[meta.key]?.impliedEPS ?? null;
       const ee = endRow?.[meta.key]?.impliedEPS   ?? null;
+      const sp = startRow?.[meta.key]?.pe         ?? null;
+      const ep = endRow?.[meta.key]?.pe           ?? null;
       return {
         meta,
         startClose:  sc,
@@ -104,6 +107,9 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
         startEPS:    se,
         endEPS:      ee,
         epsGrowth:   se != null && ee != null && se !== 0 ? (ee / se - 1) * 100 : null,
+        startPE:     sp,
+        endPE:       ep,
+        peGrowth:    sp != null && ep != null && sp !== 0 ? (ep / sp - 1) * 100 : null,
       };
     });
 
@@ -216,12 +222,34 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
               >
                 EPS Growth % <SortIcon col="epsGrowth" />
               </th>
+              {!showPE ? (
+                <th
+                  onClick={() => setShowPE(true)}
+                  className="px-4 py-3 text-xs font-medium text-zinc-400 dark:text-zinc-500 whitespace-nowrap cursor-pointer select-none hover:text-zinc-600 dark:hover:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700 text-right"
+                >
+                  P/E Details ▶
+                </th>
+              ) : (
+                <>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 whitespace-nowrap text-right border-l border-zinc-200 dark:border-zinc-700">
+                    P/E Start
+                  </th>
+                  <th className={thCls}>P/E End</th>
+                  <th
+                    onClick={() => setShowPE(false)}
+                    className={cn(thCls, "cursor-pointer select-none hover:text-zinc-700 dark:hover:text-zinc-200")}
+                  >
+                    P/E Growth % ◀
+                  </th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {rows.map(({ meta, startClose, endClose, indexReturn, startEPS, endEPS, epsGrowth }) => {
+            {rows.map(({ meta, startClose, endClose, indexReturn, startEPS, endEPS, epsGrowth, startPE, endPE, peGrowth }) => {
               const ret = formatPct(indexReturn);
               const eps = formatPct(epsGrowth);
+              const pe  = formatPct(peGrowth);
               return (
                 <tr
                   key={meta.key}
@@ -248,6 +276,21 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
                   <td className={`px-4 py-3 text-right tabular-nums font-semibold ${eps.color}`}>
                     {eps.label}
                   </td>
+                  {!showPE ? (
+                    <td className="border-l border-zinc-100 dark:border-zinc-800" />
+                  ) : (
+                    <>
+                      <td className="px-4 py-3 text-right tabular-nums text-zinc-700 dark:text-zinc-300 border-l border-zinc-100 dark:border-zinc-800">
+                        {startPE != null ? formatRatio(startPE) : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
+                        {endPE != null ? formatRatio(endPE) : "—"}
+                      </td>
+                      <td className={`px-4 py-3 text-right tabular-nums font-semibold ${pe.color}`}>
+                        {pe.label}
+                      </td>
+                    </>
+                  )}
                 </tr>
               );
             })}
