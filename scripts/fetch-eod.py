@@ -68,11 +68,12 @@ YAHOO_SYMBOLS: dict[str, str] = {
     "NIFTY_IT":             "^CNXIT",
     "NIFTY_MIDCAP_150":     "NIFTYMIDCAP150.NS",
     "NIFTY_PSU_BANK":       "^CNXPSUBANK",
-    "NIFTY_PVT_BANK":       "NIFTYPVTBANK.NS",
+    # NIFTY_PVT_BANK: no correct Yahoo symbol — NIFTYPVTBANK.NS tracks a different instrument
+
     "NIFTY_MICROCAP_250":   "NIFTY_MICROCAP250.NS",
     "NIFTY_SMALLCAP_250":   "NIFTYSMLCAP250.NS",
     "NIFTY_AUTO":           "^CNXAUTO",
-    "NIFTY_FIN_SERVICE":    "NIFTYFINSERVICE.NS",
+    "NIFTY_FIN_SERVICE":    "^CNXFIN",
     "NIFTY_REALTY":         "^CNXREALTY",
     "NIFTY_METAL":          "^CNXMETAL",
     "NIFTY_CAPITAL_MARKETS":"NIFTYCAPMKT.NS",
