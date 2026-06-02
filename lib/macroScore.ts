@@ -14,8 +14,8 @@ export function parseFY(fy: string): { startDate: string; endDate: string } {
 // Finds the last row with date ≤ cutoff that has a non-null impliedEPS
 function findLastEPS(rows: HistoricalRow[], cutoff: string): number | null {
   for (let i = rows.length - 1; i >= 0; i--) {
-    if (rows[i].date <= cutoff && rows[i].NIFTY_50.impliedEPS != null) {
-      return rows[i].NIFTY_50.impliedEPS;
+    if (rows[i].date <= cutoff && rows[i].NIFTY_50?.impliedEPS != null) {
+      return rows[i].NIFTY_50!.impliedEPS;
     }
   }
   return null;
@@ -47,16 +47,16 @@ export function computeFYBondYield(byeyData: BYEYRow[], fy: string): number | nu
 export function computeNiftyPEAvg(rows: HistoricalRow[], fy: string): number | null {
   const { startDate, endDate } = parseFY(fy);
   const vals = rows
-    .filter((r) => r.date >= startDate && r.date <= endDate && r.NIFTY_50.pe != null)
-    .map((r) => r.NIFTY_50.pe as number);
+    .filter((r) => r.date >= startDate && r.date <= endDate && r.NIFTY_50?.pe != null)
+    .map((r) => r.NIFTY_50!.pe as number);
   if (vals.length === 0) return null;
   return vals.reduce((s, v) => s + v, 0) / vals.length;
 }
 
 function findLastClose(rows: HistoricalRow[], cutoff: string): number | null {
   for (let i = rows.length - 1; i >= 0; i--) {
-    if (rows[i].date <= cutoff && rows[i].NIFTY_50.close != null) {
-      return rows[i].NIFTY_50.close;
+    if (rows[i].date <= cutoff && rows[i].NIFTY_50?.close != null) {
+      return rows[i].NIFTY_50!.close;
     }
   }
   return null;

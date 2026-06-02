@@ -7,6 +7,7 @@ export type IndexKey =
   | "NIFTY_SMALLCAP_250"
   | "NIFTY_IT"
   | "NIFTY_PSU_BANK"
+  | "NIFTY_PVT_BANK"
   | "NIFTY_MICROCAP_250"
   | "NIFTY_AUTO"
   | "NIFTY_FIN_SERVICE"
@@ -37,13 +38,14 @@ export interface IndexMetrics {
 
 export interface HistoricalRow {
   date: string; // ISO "YYYY-MM-DD"
-  NIFTY_50: IndexMetrics;
-  NIFTY_BANK: IndexMetrics;
-  NIFTY_MIDCAP_150: IndexMetrics;
-  NIFTY_SMALLCAP_250: IndexMetrics;
-  NIFTY_IT: IndexMetrics;
-  NIFTY_PSU_BANK: IndexMetrics;
-  NIFTY_MICROCAP_250: IndexMetrics;
+  NIFTY_50: IndexMetrics | null;
+  NIFTY_BANK: IndexMetrics | null;
+  NIFTY_MIDCAP_150: IndexMetrics | null;
+  NIFTY_SMALLCAP_250: IndexMetrics | null;
+  NIFTY_IT: IndexMetrics | null;
+  NIFTY_PSU_BANK: IndexMetrics | null;
+  NIFTY_PVT_BANK: IndexMetrics | null;
+  NIFTY_MICROCAP_250: IndexMetrics | null;
   NIFTY_AUTO: IndexMetrics | null;
   NIFTY_FIN_SERVICE: IndexMetrics | null;
   NIFTY_REALTY: IndexMetrics | null;
