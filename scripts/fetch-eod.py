@@ -52,6 +52,7 @@ NIFTYINDICES_NAMES: dict[str, str] = {
     "NIFTY_MIDCAP_150":     "Nifty Midcap 150",
     "NIFTY_SMALLCAP_250":   "Nifty Smallcap 250",
     "NIFTY_PSU_BANK":       "Nifty PSU Bank",
+    "NIFTY_PVT_BANK":       "Nifty Private Bank",
     "NIFTY_MICROCAP_250":   "Nifty Microcap 250",
     "NIFTY_AUTO":           "Nifty Auto",
     "NIFTY_FIN_SERVICE":    "Nifty Financial Services",
@@ -67,6 +68,7 @@ YAHOO_SYMBOLS: dict[str, str] = {
     "NIFTY_IT":             "^CNXIT",
     "NIFTY_MIDCAP_150":     "NIFTYMIDCAP150.NS",
     "NIFTY_PSU_BANK":       "^CNXPSUBANK",
+    "NIFTY_PVT_BANK":       "NIFTYPVTBANK.NS",
     "NIFTY_MICROCAP_250":   "NIFTY_MICROCAP250.NS",
     "NIFTY_SMALLCAP_250":   "NIFTYSMLCAP250.NS",
     "NIFTY_AUTO":           "^CNXAUTO",
@@ -93,6 +95,8 @@ CSV_NAME_MAP: dict[str, str] = {
     "Nifty Midcap 150":         "NIFTY_MIDCAP_150",
     "Nifty Smallcap 250":       "NIFTY_SMALLCAP_250",
     "Nifty PSU Bank":           "NIFTY_PSU_BANK",
+    "Nifty Private Bank":       "NIFTY_PVT_BANK",
+    "Nifty Pvt Bank":           "NIFTY_PVT_BANK",
     "Nifty Microcap 250":       "NIFTY_MICROCAP_250",
     "NIFTY 50":                 "NIFTY_50",
     "NIFTY BANK":               "NIFTY_BANK",
@@ -100,6 +104,8 @@ CSV_NAME_MAP: dict[str, str] = {
     "Nifty MidCap 150":         "NIFTY_MIDCAP_150",
     "Nifty SmallCap 250":       "NIFTY_SMALLCAP_250",
     "NIFTY PSU Bank":           "NIFTY_PSU_BANK",
+    "NIFTY PRIVATE BANK":       "NIFTY_PVT_BANK",
+    "NIFTY PVT BANK":           "NIFTY_PVT_BANK",
     "NIFTY Microcap 250":       "NIFTY_MICROCAP_250",
     "Nifty Auto":               "NIFTY_AUTO",
     "NIFTY AUTO":               "NIFTY_AUTO",
@@ -244,7 +250,11 @@ def fetch_all_playwright(target_date: date) -> dict:
         return {}
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        try:
+            browser = p.chromium.launch(headless=True)
+        except Exception as e:
+            print(f"  Playwright browser unavailable (run 'playwright install'): {e}")
+            return {}
         context = browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -407,12 +417,16 @@ def main():
         rows: list[dict] = json.load(f)
 
     existing = next((r for r in rows if r["date"] == target_iso), None)
+    extra_data: dict = {}  # keys not in TARGET_KEYS to carry forward (e.g. future new indices)
     if existing:
         n50_close = existing.get("NIFTY_50", {}).get("close")
         is_clean = n50_close is not None and round(n50_close, 2) == n50_close
         if is_clean:
             print(f"Date {target_iso} already has clean niftyindices.com data — nothing to do.")
             return
+        for k, v in existing.items():
+            if k != "date" and k not in TARGET_KEYS:
+                extra_data[k] = v
         print(f"Date {target_iso} has Yahoo approximation data (close={n50_close}) — removing and re-fetching…")
         rows = [r for r in rows if r["date"] != target_iso]
 
@@ -438,7 +452,7 @@ def main():
                 results[k] = v
 
     # ── Build new row ─────────────────────────────────────────────────────────
-    new_row: dict = {"date": target_iso}
+    new_row: dict = {"date": target_iso, **extra_data}
     null_entry = {"close": None, "pe": None, "pb": None, "impliedEPS": None, "impliedBV": None}
     all_ok = True
     for key in TARGET_KEYS:
