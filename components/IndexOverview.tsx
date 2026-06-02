@@ -313,7 +313,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
         ? ((liveClose - prevClose) / prevClose) * 100
         : null;
 
-      return { meta, key, close, isLive, pe: currentPE, peMean, peSD, peZ, peTargetPrice, peUpside, pb: currentPB, pbMean, pbSD, pbZ, pbTargetPrice, pbUpside, changePct };
+      return { meta, key, close, isLive, pe: currentPE, peMean, peSD, peZ, peTarget, peTargetPrice, peUpside, pb: currentPB, pbMean, pbSD, pbZ, pbTarget, pbTargetPrice, pbUpside, changePct };
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowRows, lastRow, liveData, multipleTarget, forwardMode, forwardBases, ratioMode, fwdSeriesMap, epsGrowthPct]);
@@ -477,7 +477,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
               <tr className="bg-zinc-50 dark:bg-zinc-800 border-b-2 border-zinc-200 dark:border-zinc-700">
                 {/* PE cols */}
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">{multipleLabel}</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
                 <th className="px-5 pb-2.5 pt-1 text-center text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[72px]">EPS<br />Est. %</th>
@@ -491,7 +491,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                 </th>
                 {/* PB cols */}
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 border-l border-zinc-200 dark:border-zinc-700">Current</th>
-                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Mean</th>
+                <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">{multipleLabel}</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">SD</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300">Z-Score</th>
                 <th className="px-5 pb-2.5 pt-1 text-right text-xs font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-300 max-w-[56px]">Target<br />Price</th>
@@ -506,7 +506,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
             </thead>
 
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {sortedStats.map(({ meta, close, isLive, pe, peMean, peSD, peZ, peTargetPrice, peUpside, pb, pbMean, pbSD, pbZ, pbTargetPrice, pbUpside, changePct }, idx) => (
+              {sortedStats.map(({ meta, close, isLive, pe, peMean, peSD, peZ, peTarget, peTargetPrice, peUpside, pb, pbMean, pbSD, pbZ, pbTarget, pbTargetPrice, pbUpside, changePct }, idx) => (
                 <tr
                   key={meta.key}
                   className={cn(
@@ -557,7 +557,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                   </td>
                   {/* PE Mean */}
                   <td className="px-5 py-4 text-right">
-                    <span className={cn("text-sm tabular-nums text-zinc-700 dark:text-zinc-400", boldCols.has("mean") ? "font-bold" : "font-normal")}>{formatRatio(peMean)}</span>
+                    <span className={cn("text-sm tabular-nums text-zinc-700 dark:text-zinc-400", boldCols.has("mean") ? "font-bold" : "font-normal")}>{formatRatio(peTarget)}</span>
                   </td>
                   {/* PE SD */}
                   <td className="px-5 py-4 text-right">
@@ -604,7 +604,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
                   </td>
                   {/* PB Mean */}
                   <td className="px-5 py-4 text-right">
-                    <span className={cn("text-sm tabular-nums text-zinc-700 dark:text-zinc-400", boldCols.has("mean") ? "font-bold" : "font-normal")}>{formatRatio(pbMean)}</span>
+                    <span className={cn("text-sm tabular-nums text-zinc-700 dark:text-zinc-400", boldCols.has("mean") ? "font-bold" : "font-normal")}>{formatRatio(pbTarget)}</span>
                   </td>
                   {/* PB SD */}
                   <td className="px-5 py-4 text-right">
