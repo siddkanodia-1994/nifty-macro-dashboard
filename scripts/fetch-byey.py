@@ -134,8 +134,8 @@ def main() -> None:
     if yield_map:
         print(f"  Received {len(yield_map)} dates: {min(yield_map)} → {max(yield_map)}")
     else:
-        print("  No bond yield data returned — cannot proceed.")
-        sys.exit(1)
+        print("  No bond yield data returned — skipping write (will retry next cron run).")
+        return
 
     added = 0
     for target_date in target_dates:
