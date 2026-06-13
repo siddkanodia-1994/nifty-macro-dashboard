@@ -46,6 +46,7 @@ except ImportError:
 NIFTYINDICES_NAMES: dict[str, str] = {
     "NIFTY_50":              "NIFTY 50",
     "NIFTY_BANK":            "NIFTY BANK",
+    "NIFTY_500":             "Nifty 500",
     "NIFTY_IT":              "NIFTY IT",
     "NIFTY_MIDCAP_150":      "Nifty Midcap 150",
     "NIFTY_SMALLCAP_250":    "Nifty Smallcap 250",
@@ -72,6 +73,8 @@ COL_PB    = 11
 CSV_NAME_MAP: dict[str, str] = {
     "Nifty 50":                 "NIFTY_50",
     "Nifty Bank":               "NIFTY_BANK",
+    "Nifty 500":                "NIFTY_500",
+    "NIFTY 500":                "NIFTY_500",
     "Nifty IT":                 "NIFTY_IT",
     "Nifty Midcap 150":         "NIFTY_MIDCAP_150",
     "Nifty Smallcap 250":       "NIFTY_SMALLCAP_250",

@@ -35,7 +35,7 @@ except ImportError:
     sys.exit(1)
 
 ALL_KEYS = [
-    "NIFTY_50", "NIFTY_BANK", "NIFTY_MIDCAP_150", "NIFTY_SMALLCAP_250",
+    "NIFTY_50", "NIFTY_BANK", "NIFTY_500", "NIFTY_MIDCAP_150", "NIFTY_SMALLCAP_250",
     "NIFTY_IT", "NIFTY_PSU_BANK", "NIFTY_MICROCAP_250",
     "NIFTY_AUTO", "NIFTY_FIN_SERVICE", "NIFTY_REALTY",
     "NIFTY_METAL", "NIFTY_CAPITAL_MARKETS", "NIFTY_INDIA_DEFENCE",
@@ -87,11 +87,15 @@ def read_sheet(wb, sheet_name: str) -> list[dict]:
     if not rows:
         return []
 
+    # Skip leading blank rows (some sheets have an empty row before headers)
+    first = next((i for i, r in enumerate(rows) if any(c is not None for c in r)), 0)
+    rows = rows[first:]
+
     headers = [str(c) if c is not None else "" for c in rows[0]]
-    col_date  = find_col(headers, ["date"])
+    col_date  = find_col(headers, ["date", "ndp_date"])
     col_close = find_col(headers, ["close", "closing price", "price"])
     col_pe    = find_col(headers, ["p/e", "pe", "p_e", "price/earnings"])
-    col_pb    = find_col(headers, ["p/b", "pb", "p_b", "price/book"])
+    col_pb    = find_col(headers, ["p/b", "pb", "p_b", "price/book", "price_bv", "price/bv"])
 
     if col_date is None or col_close is None:
         print(f"ERROR: Could not find Date or Close columns in '{sheet_name}'. Headers: {headers}")

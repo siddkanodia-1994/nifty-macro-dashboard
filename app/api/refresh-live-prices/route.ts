@@ -6,6 +6,7 @@ import type { IndexKey } from "@/lib/types";
 const INDEX_NAME_MAP: Record<string, IndexKey> = {
   "NIFTY 50":            "NIFTY_50",
   "NIFTY BANK":          "NIFTY_BANK",
+  "NIFTY 500":           "NIFTY_500",
   "NIFTY IT":            "NIFTY_IT",
   "NIFTY MIDCAP 150":    "NIFTY_MIDCAP_150",
   "NIFTY PSU BANK":      "NIFTY_PSU_BANK",

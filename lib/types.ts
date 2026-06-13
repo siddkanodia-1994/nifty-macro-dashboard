@@ -3,6 +3,7 @@
 export type IndexKey =
   | "NIFTY_50"
   | "NIFTY_BANK"
+  | "NIFTY_500"
   | "NIFTY_MIDCAP_150"
   | "NIFTY_SMALLCAP_250"
   | "NIFTY_IT"
@@ -40,6 +41,7 @@ export interface HistoricalRow {
   date: string; // ISO "YYYY-MM-DD"
   NIFTY_50: IndexMetrics | null;
   NIFTY_BANK: IndexMetrics | null;
+  NIFTY_500: IndexMetrics | null;
   NIFTY_MIDCAP_150: IndexMetrics | null;
   NIFTY_SMALLCAP_250: IndexMetrics | null;
   NIFTY_IT: IndexMetrics | null;
