@@ -275,7 +275,10 @@ def main():
     if existing:
         n50 = existing.get("NIFTY_50") or {}
         n50_close = n50.get("close") if isinstance(n50, dict) else None
-        is_clean = n50_close is not None and round(n50_close, 2) == n50_close
+        n500 = existing.get("NIFTY_500") or {}
+        n500_close = n500.get("close") if isinstance(n500, dict) else None
+        is_clean = (n50_close is not None and round(n50_close, 2) == n50_close
+                    and n500_close is not None)
         if is_clean:
             print(f"Date {target_iso} already has clean niftyindices.com data — nothing to do.")
             return

@@ -112207,107 +112207,6 @@
   {
     "date": "2026-06-11",
     "NIFTY_50": {
-      "close": null,
-      "pe": null,
-      "pb": null,
-      "impliedEPS": null,
-      "impliedBV": null
-    },
-    "NIFTY_BANK": {
-      "close": null,
-      "pe": null,
-      "pb": null,
-      "impliedEPS": null,
-      "impliedBV": null
-    },
-    "NIFTY_500": {
-      "close": 22114.5,
-      "pe": 21.9,
-      "pb": 3.4,
-      "impliedEPS": 1009.79,
-      "impliedBV": 6504.26
-    },
-    "NIFTY_MIDCAP_150": {
-      "close": null,
-      "pe": null,
-      "pb": null,
-      "impliedEPS": null,
-      "impliedBV": null
-    },
-    "NIFTY_SMALLCAP_250": {
-      "close": null,
-      "pe": null,
-      "pb": null,
-      "impliedEPS": null,
-      "impliedBV": null
-    },
-    "NIFTY_IT": {
-      "close": null,
-      "pe": null,
-      "pb": null,
-      "impliedEPS": null,
-      "impliedBV": null
-    },
-    "NIFTY_PSU_BANK": {
-      "close": null,
-      "pe": null,
-      "pb": null,
-      "impliedEPS": null,
-      "impliedBV": null
-    },
-    "NIFTY_MICROCAP_250": {
-      "close": null,
-      "pe": null,
-      "pb": null,
-      "impliedEPS": null,
-      "impliedBV": null
-    },
-    "NIFTY_AUTO": {
-      "close": null,
-      "pe": null,
-      "pb": null,
-      "impliedEPS": null,
-      "impliedBV": null
-    },
-    "NIFTY_FIN_SERVICE": {
-      "close": null,
-      "pe": null,
-      "pb": null,
-      "impliedEPS": null,
-      "impliedBV": null
-    },
-    "NIFTY_REALTY": {
-      "close": null,
-      "pe": null,
-      "pb": null,
-      "impliedEPS": null,
-      "impliedBV": null
-    },
-    "NIFTY_METAL": {
-      "close": null,
-      "pe": null,
-      "pb": null,
-      "impliedEPS": null,
-      "impliedBV": null
-    },
-    "NIFTY_CAPITAL_MARKETS": {
-      "close": null,
-      "pe": null,
-      "pb": null,
-      "impliedEPS": null,
-      "impliedBV": null
-    },
-    "NIFTY_INDIA_DEFENCE": {
-      "close": null,
-      "pe": null,
-      "pb": null,
-      "impliedEPS": null,
-      "impliedBV": null
-    }
-  },
-  {
-    "date": "2026-06-11",
-    "NIFTY_50": {
       "close": 23161.6,
       "pe": 19.98,
       "pb": 3.05,
@@ -112320,6 +112219,13 @@
       "pb": 1.8,
       "impliedEPS": 3966.7,
       "impliedBV": 30653.75
+    },
+    "NIFTY_500": {
+      "close": 22114.45,
+      "pe": 21.93,
+      "pb": 3.39,
+      "impliedEPS": 1008.41,
+      "impliedBV": 6523.44
     },
     "NIFTY_IT": {
       "close": 27821.0,
@@ -112421,6 +112327,13 @@
       "pb": 1.85,
       "impliedEPS": 3975.84,
       "impliedBV": 30710.7
+    },
+    "NIFTY_500": {
+      "close": 22599.8,
+      "pe": 22.41,
+      "pb": 3.45,
+      "impliedEPS": 1008.47,
+      "impliedBV": 6550.67
     },
     "NIFTY_IT": {
       "close": 27795.75,
