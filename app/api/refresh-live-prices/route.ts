@@ -75,18 +75,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ skipped: true, reason: "all prices null" });
     }
 
-    // Fetch live India 10Y bond yield from Yahoo Finance (non-blocking; null on failure)
+    // Fetch live India 10Y G-Sec yield from Trading Economics (no auth required)
     let bondYield: number | null = null;
     try {
-      const yRes = await fetch(
-        "https://query1.finance.yahoo.com/v8/finance/chart/%5EINBMK?interval=1d&range=2d",
-        { signal: AbortSignal.timeout(5000), next: { revalidate: 0 } }
+      const teRes = await fetch(
+        "https://tradingeconomics.com/india/government-bond-yield",
+        { signal: AbortSignal.timeout(8000), next: { revalidate: 0 } }
       );
-      if (yRes.ok) {
-        const yJson = await yRes.json();
-        const price = yJson?.chart?.result?.[0]?.meta?.regularMarketPrice;
-        if (typeof price === "number" && isFinite(price) && price > 0) {
-          bondYield = Math.round(price * 10000) / 1000000; // e.g. 6.89 → 0.068900
+      if (teRes.ok) {
+        const html = await teRes.text();
+        const match = html.match(/"value"\s*:\s*([0-9.]+)/);
+        if (match) {
+          const yieldPct = parseFloat(match[1]);
+          // Sanity check: India 10Y yield should be between 1% and 25%
+          if (isFinite(yieldPct) && yieldPct > 1 && yieldPct < 25) {
+            bondYield = Math.round(yieldPct * 10000) / 1000000; // e.g. 6.871 → 0.068710
+          }
         }
       }
     } catch {}
