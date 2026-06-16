@@ -278,6 +278,52 @@ export function buildBYEYChartData(rows: BYEYRow[]): ChartPoint[] {
     }));
 }
 
+// ─── Bond Yield calculations ──────────────────────────────────────────────────
+
+/** Computes Mean ± 1σ/2σ for the India 10Y bond yield within the provided rows (×100 = %-points). */
+export function computeBondYieldControlLines(rows: BYEYRow[]): ControlLines | null {
+  const values = rows
+    .map((r) => r.bondYield)
+    .filter((v): v is number => v != null && isFinite(v))
+    .map((v) => v * 100);
+  if (values.length < 10) return null;
+  const m  = mean(values);
+  const sd = stdDev(values);
+  return { mean: m, sd1Upper: m + sd, sd1Lower: m - sd, sd2Upper: m + 2 * sd, sd2Lower: m - 2 * sd };
+}
+
+/**
+ * Computes window statistics for the India 10Y bond yield.
+ * `currentYield` should be the raw decimal value (e.g. 0.0689);
+ * internally it is converted to %-points (×100) to match chart display.
+ */
+export function computeBondYieldWindowStats(
+  rows: BYEYRow[],
+  currentYield: number | null
+): WindowStats | null {
+  const values = rows
+    .map((r) => r.bondYield)
+    .filter((v): v is number => v != null && isFinite(v))
+    .map((v) => v * 100);
+  if (values.length === 0) return null;
+  const m   = mean(values);
+  const sd  = stdDev(values);
+  const cur = currentYield != null ? currentYield * 100 : null;
+  return {
+    mean: m, sd, current: cur,
+    zScore:     cur != null ? zScore(cur, m, sd) : null,
+    percentile: cur != null ? percentileRank(cur, values) : null,
+    min: Math.min(...values), max: Math.max(...values), count: values.length,
+  };
+}
+
+/** Builds chart data for the India 10Y bond yield (values ×100 = %-points). */
+export function buildBondYieldChartData(rows: BYEYRow[]): ChartPoint[] {
+  return rows
+    .filter((r) => r.bondYield != null)
+    .map((r) => ({ date: r.date, value: (r.bondYield as number) * 100 }));
+}
+
 // ─── Forward ratio series ──────────────────────────────────────────────────────
 
 /**

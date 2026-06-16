@@ -75,7 +75,23 @@ export async function GET(request: Request) {
       return NextResponse.json({ skipped: true, reason: "all prices null" });
     }
 
-    await redis.set("live-prices", { ...prices, marketOpen: true, asOf: now.toISOString() });
+    // Fetch live India 10Y bond yield from Yahoo Finance (non-blocking; null on failure)
+    let bondYield: number | null = null;
+    try {
+      const yRes = await fetch(
+        "https://query1.finance.yahoo.com/v8/finance/chart/%5EINBMK?interval=1d&range=2d",
+        { signal: AbortSignal.timeout(5000), next: { revalidate: 0 } }
+      );
+      if (yRes.ok) {
+        const yJson = await yRes.json();
+        const price = yJson?.chart?.result?.[0]?.meta?.regularMarketPrice;
+        if (typeof price === "number" && isFinite(price) && price > 0) {
+          bondYield = Math.round(price * 10000) / 1000000; // e.g. 6.89 → 0.068900
+        }
+      }
+    } catch {}
+
+    await redis.set("live-prices", { ...prices, bondYield, marketOpen: true, asOf: now.toISOString() });
 
     return NextResponse.json({ ok: true, asOf: now.toISOString(), prices });
   } catch (err) {
