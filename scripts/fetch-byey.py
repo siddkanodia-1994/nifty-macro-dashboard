@@ -64,8 +64,8 @@ def fetch_bond_yields(days: int = 60) -> dict[str, float]:
             "Accept-Language": "en-US,en;q=0.9",
         })
         try:
-            page.goto(INVESTING_URL, timeout=30_000)
-            page.wait_for_selector("table", timeout=15_000)
+            page.goto(INVESTING_URL, timeout=90_000)
+            page.wait_for_selector("table tr td", timeout=45_000)
         except Exception as e:
             print(f"WARNING: Playwright page load failed: {e}")
             browser.close()
