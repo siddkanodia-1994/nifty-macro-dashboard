@@ -1,6 +1,7 @@
 import { subMonths, subYears, parseISO, isAfter, isEqual, differenceInDays } from "date-fns";
 import type {
   BYEYRow,
+  USDINRRow,
   HistoricalRow,
   IndexKey,
   IndexMetrics,
@@ -401,6 +402,70 @@ export function buildByeyForIndex(
       spread,
     };
   });
+}
+
+// ─── USD/INR exchange rate calculations ──────────────────────────────────────
+
+/** Filters USDINRRow[] to the selected time window (mirrors filterBYEYByWindow). */
+export function filterUSDINRByWindow(rows: USDINRRow[], window: TimeWindow): USDINRRow[] {
+  if (window === "ALL") return rows;
+
+  const now = rows.length > 0 ? parseISO(rows[rows.length - 1].date) : new Date();
+  let cutoff: Date;
+  switch (window) {
+    case "3M": cutoff = subMonths(now, 3);  break;
+    case "6M": cutoff = subMonths(now, 6);  break;
+    case "1Y": cutoff = subYears(now, 1);   break;
+    case "2Y": cutoff = subYears(now, 2);   break;
+    case "3Y": cutoff = subYears(now, 3);   break;
+    case "4Y": cutoff = subYears(now, 4);   break;
+    default:   return rows;
+  }
+
+  return rows.filter((r) => {
+    const d = parseISO(r.date);
+    return isAfter(d, cutoff) || isEqual(d, cutoff);
+  });
+}
+
+/** Computes Mean ± 1σ/2σ for the USD/INR rate within the provided rows. */
+export function computeUSDINRControlLines(rows: USDINRRow[]): ControlLines | null {
+  const values = rows
+    .map((r) => r.rate)
+    .filter((v): v is number => v != null && isFinite(v));
+  if (values.length < 10) return null;
+  const m  = mean(values);
+  const sd = stdDev(values);
+  return { mean: m, sd1Upper: m + sd, sd1Lower: m - sd, sd2Upper: m + 2 * sd, sd2Lower: m - 2 * sd };
+}
+
+/**
+ * Computes window statistics for the USD/INR exchange rate.
+ * Rate is stored and displayed directly (e.g. 84.25), no unit conversion.
+ */
+export function computeUSDINRWindowStats(
+  rows: USDINRRow[],
+  currentRate: number | null
+): WindowStats | null {
+  const values = rows
+    .map((r) => r.rate)
+    .filter((v): v is number => v != null && isFinite(v));
+  if (values.length === 0) return null;
+  const m  = mean(values);
+  const sd = stdDev(values);
+  return {
+    mean: m, sd, current: currentRate,
+    zScore:     currentRate != null ? zScore(currentRate, m, sd) : null,
+    percentile: currentRate != null ? percentileRank(currentRate, values) : null,
+    min: Math.min(...values), max: Math.max(...values), count: values.length,
+  };
+}
+
+/** Builds chart data for the USD/INR rate (value = raw rate, no conversion). */
+export function buildUSDINRChartData(rows: USDINRRow[]): ChartPoint[] {
+  return rows
+    .filter((r) => r.rate != null)
+    .map((r) => ({ date: r.date, value: r.rate as number }));
 }
 
 export function computeEpsCagr(

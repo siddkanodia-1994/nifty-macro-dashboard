@@ -7,15 +7,16 @@ import { IndexOverview } from "@/components/IndexOverview";
 import { PeriodReturnsPanel } from "@/components/PeriodReturnsPanel";
 import { BYEYPanel } from "@/components/BYEYPanel";
 import { BondYieldPanel } from "@/components/BondYieldPanel";
+import { USDINRPanel } from "@/components/USDINRPanel";
 import { FutureProjectionPanel } from "@/components/FutureProjectionPanel";
 import { DailyDataPanel } from "@/components/DailyDataPanel";
 import { MacroScorePanel } from "@/components/MacroScorePanel";
 import { INDEX_META } from "@/lib/utils";
 import { isMarketOpen } from "@/lib/marketHours";
-import type { BYEYRow, HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
+import type { BYEYRow, USDINRRow, HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
 
 type MainTab = "INDEX_LEVELS" | "FUTURE_PROJECTION" | "MACRO_SCORE" | "BYEY" | "DAILY_DATA";
-type IndexSubTab = IndexKey | "OVERVIEW" | "RETURNS" | "BOND_YIELD";
+type IndexSubTab = IndexKey | "OVERVIEW" | "RETURNS" | "BOND_YIELD" | "USD_INR";
 
 type ProjectionDefaultEntry = { base?: { growthPct?: number }; baseEPS?: number | null; baseBV?: number | null };
 type ProjectionDefaultsMap = Partial<Record<IndexKey, ProjectionDefaultEntry>>;
@@ -23,9 +24,10 @@ type ProjectionDefaultsMap = Partial<Record<IndexKey, ProjectionDefaultEntry>>;
 interface IndexTabsProps {
   historicalData: HistoricalRow[];
   byeyData: BYEYRow[];
+  usdinrData: USDINRRow[];
 }
 
-export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
+export function IndexTabs({ historicalData, byeyData, usdinrData }: IndexTabsProps) {
   const [activeMainTab, setActiveMainTab]       = useState<MainTab>("INDEX_LEVELS");
   const [activeIndexTab, setActiveIndexTab]     = useState<IndexSubTab>("OVERVIEW");
   const [timeWindow, setTimeWindow]             = useState<TimeWindow>("4Y");
@@ -33,6 +35,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
   const [liveData, setLiveData]             = useState<Partial<Record<IndexKey, number>> | null>(null);
   const [liveMarketOpen, setLiveMarketOpen] = useState(false);
   const [liveBondYield, setLiveBondYield]   = useState<number | null>(null);
+  const [liveUSDINR, setLiveUSDINR]         = useState<number | null>(null);
   const [projectionDefaults, setProjectionDefaults] = useState<ProjectionDefaultsMap | null>(null);
   const [sharedGrowthPct, setSharedGrowthPct] = useState<Partial<Record<IndexKey, number>>>({});
   const [ownerEpsOverride, setOwnerEpsOverride] = useState<{ key: IndexKey; base: number; ts: number } | null>(null);
@@ -94,6 +97,7 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
       setLiveData(prices);
       setLiveMarketOpen(json.marketOpen === true);
       if (typeof json.bondYield === "number") setLiveBondYield(json.bondYield);
+      if (typeof json.usdInr === "number") setLiveUSDINR(json.usdInr);
     } catch {
       // Network error — keep last known state
     }
@@ -198,6 +202,13 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
                 <span className="hidden sm:inline">Bond Yield</span>
                 <span className="sm:hidden">BY</span>
               </TabsTrigger>
+              <TabsTrigger
+                value="USD_INR"
+                className="rounded-md px-4 py-1.5 text-xs font-medium data-active:bg-white dark:data-active:bg-zinc-900 data-active:text-zinc-900 dark:data-active:text-zinc-100 data-active:shadow-sm text-zinc-700 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors whitespace-nowrap"
+              >
+                <span className="hidden sm:inline">USD/INR</span>
+                <span className="sm:hidden">₹</span>
+              </TabsTrigger>
               {INDEX_META.map((meta) => (
                 <TabsTrigger
                   key={meta.key}
@@ -240,6 +251,17 @@ export function IndexTabs({ historicalData, byeyData }: IndexTabsProps) {
               timeWindow={timeWindow}
               onTimeWindowChange={setTimeWindow}
               liveBondYield={liveBondYield}
+              liveMarketOpen={liveMarketOpen}
+            />
+          </TabsContent>
+
+          {/* USD/INR sub-tab */}
+          <TabsContent value="USD_INR" keepMounted>
+            <USDINRPanel
+              usdinrData={usdinrData}
+              timeWindow={timeWindow}
+              onTimeWindowChange={setTimeWindow}
+              liveUSDINR={liveUSDINR}
               liveMarketOpen={liveMarketOpen}
             />
           </TabsContent>

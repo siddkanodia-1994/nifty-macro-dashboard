@@ -135,6 +135,13 @@ export interface MacroScoreData {
   years: MacroYearData[];
 }
 
+// ─── USD/INR exchange rate (one row of usdinr.json) ─────────────────────────
+
+export interface USDINRRow {
+  date: string;        // "YYYY-MM-DD"
+  rate: number | null; // e.g. 84.25 (INR per 1 USD)
+}
+
 // ─── BY-EY Spread data (one row of byey.json) ────────────────────────────────
 
 export interface BYEYRow {

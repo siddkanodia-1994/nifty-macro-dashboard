@@ -95,7 +95,27 @@ export async function GET(request: Request) {
       }
     } catch {}
 
-    await redis.set("live-prices", { ...prices, bondYield, marketOpen: true, asOf: now.toISOString() });
+    // Fetch live USD/INR rate from Trading Economics (non-blocking; null on failure)
+    let usdInr: number | null = null;
+    try {
+      const teRes2 = await fetch(
+        "https://tradingeconomics.com/india/currency",
+        { signal: AbortSignal.timeout(8000), next: { revalidate: 0 } }
+      );
+      if (teRes2.ok) {
+        const html2 = await teRes2.text();
+        const match2 = html2.match(/"value"\s*:\s*([0-9.]+)/);
+        if (match2) {
+          const rate = parseFloat(match2[1]);
+          // Sanity check: USD/INR should be between 50 and 150
+          if (isFinite(rate) && rate > 50 && rate < 150) {
+            usdInr = Math.round(rate * 100) / 100; // e.g. 84.2543 → 84.25
+          }
+        }
+      }
+    } catch {}
+
+    await redis.set("live-prices", { ...prices, bondYield, usdInr, marketOpen: true, asOf: now.toISOString() });
 
     return NextResponse.json({ ok: true, asOf: now.toISOString(), prices });
   } catch (err) {

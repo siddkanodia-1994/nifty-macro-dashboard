@@ -19,7 +19,12 @@ export async function GET() {
       const ageMs = now.getTime() - new Date(data.asOf as string).getTime();
       if (ageMs > POST_CLOSE_MS) throw new Error("stale day");
       return NextResponse.json(
-        { ...data, marketOpen: false, bondYield: (data.bondYield as number | null | undefined) ?? null },
+        {
+          ...data,
+          marketOpen: false,
+          bondYield: (data.bondYield as number | null | undefined) ?? null,
+          usdInr:    (data.usdInr    as number | null | undefined) ?? null,
+        },
         { headers: { "Cache-Control": "no-store" } }
       );
     } catch {
@@ -36,7 +41,11 @@ export async function GET() {
     if (!data) throw new Error("no data");
     if (now.getTime() - new Date(data.asOf as string).getTime() > STALE_MS) throw new Error("stale");
     return NextResponse.json(
-      { ...data, bondYield: (data.bondYield as number | null | undefined) ?? null },
+      {
+        ...data,
+        bondYield: (data.bondYield as number | null | undefined) ?? null,
+        usdInr:    (data.usdInr    as number | null | undefined) ?? null,
+      },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch {
