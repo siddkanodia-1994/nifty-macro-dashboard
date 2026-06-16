@@ -126,6 +126,16 @@ def main() -> None:
     existing_dates = {r["date"] for r in byey_data}
     hist_map       = {r["date"]: r for r in hist_data}
 
+    # On default daily cron runs, auto-backfill any recent dates missed by prior failures.
+    # investing.com always returns ~25 trading days (~35 calendar days) per page load,
+    # so the yield data for missed dates is already fetched for free — just include them.
+    if not args.date and args.backfill == 0:
+        cutoff = (date.today() - timedelta(days=35)).isoformat()
+        missed = sorted(d for d in hist_map if d >= cutoff and d not in existing_dates)
+        if missed:
+            print(f"  Auto-backfill: {len(missed)} missed date(s) detected: {missed}")
+        target_dates = missed + target_dates
+
     # Fetch bond yield history (page shows ~25 rows; covers daily automation + short backfills)
     fetch_days = max(args.backfill + 15, 30)
     print(f"Fetching India 10Y bond yield from investing.com (Playwright)...")
