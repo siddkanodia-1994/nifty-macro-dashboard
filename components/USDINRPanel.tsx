@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/MetricCard";
+import { CAGRUpsideCard } from "@/components/CAGRUpsideCard";
 import { IndexChart } from "@/components/IndexChart";
 import { TimeWindowSelector } from "@/components/TimeWindowSelector";
 import {
@@ -72,19 +73,33 @@ export function USDINRPanel({
     return [...chartData, { date: todayISO, value: liveUSDINR }];
   }, [chartData, liveUSDINR, liveMarketOpen]);
 
+  const cagrStart = useMemo(() => {
+    const first = windowRows.find((r) => r.rate != null);
+    return first ? { value: first.rate!, date: first.date } : null;
+  }, [windowRows]);
+
   const isLive = liveUSDINR != null && liveMarketOpen;
   const z = rateStats?.zScore ?? null;
 
   return (
     <div className="space-y-5 pt-2">
-      {/* ── Metric card ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      {/* ── Metric cards ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <MetricCard
           label="USD/INR"
           metric="pe"
           stats={rateStats}
           isLive={isLive}
           valueFormatter={fmtRate}
+        />
+        <CAGRUpsideCard
+          startValue={cagrStart?.value ?? 0}
+          startDate={cagrStart?.date ?? ""}
+          currentValue={effectiveRate}
+          timeWindow={timeWindow}
+          valueFormatter={fmtRate}
+          invertSign={true}
+          label="USD/INR"
         />
       </div>
 

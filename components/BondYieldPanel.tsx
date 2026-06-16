@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/MetricCard";
+import { CAGRUpsideCard } from "@/components/CAGRUpsideCard";
 import { IndexChart } from "@/components/IndexChart";
 import { TimeWindowSelector } from "@/components/TimeWindowSelector";
 import {
@@ -73,19 +74,33 @@ export function BondYieldPanel({
     return [...chartData, { date: todayISO, value: liveBondYield * 100 }];
   }, [chartData, liveBondYield, liveMarketOpen]);
 
+  const cagrStart = useMemo(() => {
+    const first = windowRows.find((r) => r.bondYield != null);
+    return first ? { value: first.bondYield! * 100, date: first.date } : null;
+  }, [windowRows]);
+
   const isLive = liveBondYield != null && liveMarketOpen;
   const z = bondYieldStats?.zScore ?? null;
 
   return (
     <div className="space-y-5 pt-2">
-      {/* ── Metric card ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      {/* ── Metric cards ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <MetricCard
           label="Bond Yield"
           metric="pe"
           stats={bondYieldStats}
           isLive={isLive}
           valueFormatter={fmtYield}
+        />
+        <CAGRUpsideCard
+          startValue={cagrStart?.value ?? 0}
+          startDate={cagrStart?.date ?? ""}
+          currentValue={effectiveYield != null ? effectiveYield * 100 : null}
+          timeWindow={timeWindow}
+          valueFormatter={fmtYield}
+          invertSign={false}
+          label="Bond Yield"
         />
       </div>
 
