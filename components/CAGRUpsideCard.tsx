@@ -48,6 +48,9 @@ export function CAGRUpsideCard({
   invertSign = false,
   label,
 }: CAGRUpsideCardProps) {
+  // 3M and 6M show absolute % change (no annualisation); 1Y+ show CAGR
+  const isAbsolute = timeWindow === "3M" || timeWindow === "6M";
+
   // Guard: cannot compute without valid inputs
   const canCompute =
     startValue > 0 &&
@@ -56,10 +59,9 @@ export function CAGRUpsideCard({
     startDate !== "";
 
   let cagrPct: number | null = null;
-  let years = 1;
 
   if (canCompute && currentValue != null) {
-    years = computeYears(timeWindow, startDate);
+    const years = isAbsolute ? 1 : computeYears(timeWindow, startDate);
     if (years >= 0.08) { // at least ~1 month of data
       const ratio = invertSign
         ? startValue / currentValue   // lower current = INR strengthened = positive
@@ -71,21 +73,22 @@ export function CAGRUpsideCard({
   const isPositive = cagrPct != null && cagrPct > 0.005;
   const isNegative = cagrPct != null && cagrPct < -0.005;
 
-  // Direction label
+  // Direction label — absolute windows say "over 3M", CAGR windows say "/yr"
   let directionLabel = "";
   if (cagrPct != null) {
     const abs = Math.abs(cagrPct).toFixed(2);
+    const suffix = isAbsolute ? ` over ${timeWindow}` : "/yr";
     if (invertSign) {
       directionLabel = isPositive
-        ? `INR appreciated ${abs}%/yr`
+        ? `INR appreciated ${abs}%${suffix}`
         : isNegative
-        ? `INR depreciated ${abs}%/yr`
+        ? `INR depreciated ${abs}%${suffix}`
         : "INR unchanged";
     } else {
       directionLabel = isPositive
-        ? `${label} rising ${abs}%/yr`
+        ? `${label} rising ${abs}%${suffix}`
         : isNegative
-        ? `${label} falling ${abs}%/yr`
+        ? `${label} falling ${abs}%${suffix}`
         : `${label} unchanged`;
     }
   }
@@ -101,7 +104,7 @@ export function CAGRUpsideCard({
         {/* Header */}
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
-            CAGR Upside
+            {isAbsolute ? "Absolute Change" : "CAGR Upside"}
           </span>
           <span className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
             {timeWindow} window
