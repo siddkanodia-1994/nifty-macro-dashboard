@@ -29,6 +29,32 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 USDINR_PATH  = os.path.join(PROJECT_ROOT, "data", "usdinr.json")
 
 INVESTING_URL = "https://in.investing.com/currencies/usd-inr-historical-data"
+TE_URL        = "https://tradingeconomics.com/india/currency"
+
+
+def fetch_usdinr_te() -> float | None:
+    """
+    Fallback: fetch the current USD/INR rate from Trading Economics via HTTP.
+    Returns rate as float (e.g. 84.25) or None on failure.
+    Same source used by the live prices API (/api/refresh-live-prices).
+    """
+    import urllib.request
+    import re
+    req = urllib.request.Request(
+        TE_URL,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; fetch-usdinr/1.0)"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+        match = re.search(r'"value"\s*:\s*([0-9.]+)', html)
+        if match:
+            rate = float(match.group(1))
+            if 50 < rate < 150:
+                return round(rate * 100) / 100   # e.g. 84.2543 → 84.25
+    except Exception as e:
+        print(f"  WARNING: Trading Economics fallback failed: {e}")
+    return None
 
 
 def parse_investing_date(raw: str) -> str | None:
@@ -215,16 +241,35 @@ def main() -> None:
     if rate_map:
         print(f"  Received {len(rate_map)} dates: {min(rate_map)} → {max(rate_map)}")
     else:
-        print("  No USD/INR data returned — skipping write (will retry next cron run).")
-        return
+        print("  No USD/INR data from investing.com — will try Trading Economics fallback for recent dates.")
 
-    # On default daily runs, auto-backfill any recently missed dates present in rate_map
+    # On default daily runs, auto-backfill any recently missed dates.
+    # Gaps are detected from usdinr.json itself (not from rate_map) so we catch
+    # misses even when Playwright returns an empty result.
     if not args.date and args.backfill == 0:
         cutoff = (date.today() - timedelta(days=35)).isoformat()
-        missed = sorted(d for d in rate_map if d >= cutoff and d not in existing_dates)
-        if missed:
-            print(f"  Auto-backfill: {len(missed)} missed date(s) detected: {missed}")
-        target_dates = missed + target_dates
+        missed = sorted(d for d in existing_dates if False)  # seed empty list
+        # Dates present in rate_map but not in usdinr.json
+        missed_from_map = sorted(d for d in rate_map if d >= cutoff and d not in existing_dates)
+        # Dates between last known entry and today that are absent from usdinr.json
+        if usdinr_data:
+            last_known = max(existing_dates)
+            check = (date.fromisoformat(last_known) + timedelta(days=1))
+            today_dt = date.today()
+            while check <= today_dt:
+                d_str = check.isoformat()
+                if d_str not in existing_dates and d_str not in missed_from_map:
+                    missed_from_map.append(d_str)
+                check += timedelta(days=1)
+            missed_from_map = sorted(set(missed_from_map))
+        if missed_from_map:
+            print(f"  Auto-backfill: {len(missed_from_map)} missed date(s) detected: {missed_from_map}")
+        target_dates = missed_from_map + target_dates
+
+    # Trading Economics fallback: fetched once, reused for all recent missing dates.
+    te_rate: float | None = None
+    te_fetched = False
+    recent_cutoff = (date.today() - timedelta(days=7)).isoformat()
 
     added = 0
     for target_date_str in target_dates:
@@ -232,8 +277,19 @@ def main() -> None:
             print(f"  {target_date_str}: already in usdinr.json — skip")
             continue
         rate = rate_map.get(target_date_str)
+
+        # Fall back to Trading Economics for recent dates not in Playwright result
+        if rate is None and target_date_str >= recent_cutoff:
+            if not te_fetched:
+                print("  investing.com missing recent date(s) — trying Trading Economics fallback...")
+                te_rate = fetch_usdinr_te()
+                te_fetched = True
+            if te_rate is not None:
+                rate = te_rate
+                print(f"  {target_date_str}: using Trading Economics fallback rate={rate}")
+
         if rate is None:
-            print(f"  {target_date_str}: rate not available from investing.com — skip")
+            print(f"  {target_date_str}: rate not available from investing.com or Trading Economics — skip")
             continue
         usdinr_data.append({"date": target_date_str, "rate": rate})
         existing_dates.add(target_date_str)
