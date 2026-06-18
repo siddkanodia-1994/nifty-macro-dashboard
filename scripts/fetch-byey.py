@@ -32,6 +32,32 @@ HIST_PATH    = os.path.join(PROJECT_ROOT, "data", "historical.json")
 INVESTING_URL = (
     "https://in.investing.com/rates-bonds/india-10-year-bond-yield-historical-data"
 )
+TE_URL = "https://tradingeconomics.com/india/government-bond-yield"
+
+
+def fetch_bond_yield_te() -> float | None:
+    """
+    Fallback: fetch the current India 10Y yield from Trading Economics via HTTP.
+    Returns yield as decimal (e.g. 0.068710) or None on failure.
+    Same source used by the live prices API (/api/refresh-live-prices).
+    """
+    import urllib.request
+    import re
+    req = urllib.request.Request(
+        TE_URL,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; fetch-byey/1.0)"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+        match = re.search(r'"value"\s*:\s*([0-9.]+)', html)
+        if match:
+            pct = float(match.group(1))
+            if 1 < pct < 25:
+                return round(pct / 100, 6)   # e.g. 6.871 → 0.068710
+    except Exception as e:
+        print(f"  WARNING: Trading Economics fallback failed: {e}")
+    return None
 
 
 def fetch_bond_yields(days: int = 60) -> dict[str, float]:
@@ -144,8 +170,13 @@ def main() -> None:
     if yield_map:
         print(f"  Received {len(yield_map)} dates: {min(yield_map)} → {max(yield_map)}")
     else:
-        print("  No bond yield data returned — skipping write (will retry next cron run).")
-        return
+        print("  No bond yield data from investing.com — will try Trading Economics fallback for recent dates.")
+
+    # Trading Economics fallback: fetched once, reused for all recent missing dates.
+    # Only applies within a 7-day recency window where TE reflects the actual traded yield.
+    te_yield: float | None = None
+    te_fetched = False
+    recent_cutoff = (date.today() - timedelta(days=7)).isoformat()
 
     added = 0
     for target_date in target_dates:
@@ -159,8 +190,19 @@ def main() -> None:
             continue
 
         bond_yield = yield_map.get(target_date)
+
+        # Fall back to Trading Economics for recent dates not returned by investing.com
+        if bond_yield is None and target_date >= recent_cutoff:
+            if not te_fetched:
+                print("  investing.com missing recent date(s) — trying Trading Economics fallback...")
+                te_yield = fetch_bond_yield_te()
+                te_fetched = True
+            if te_yield is not None:
+                bond_yield = te_yield
+                print(f"  {target_date}: using Trading Economics fallback yield={round(te_yield * 100, 3)}%")
+
         if bond_yield is None:
-            print(f"  {target_date}: bond yield not available from investing.com — skip")
+            print(f"  {target_date}: bond yield not available from investing.com or Trading Economics — skip")
             continue
 
         n50   = hist_row.get("NIFTY_50") or {}
