@@ -12,10 +12,10 @@ export function cn(...inputs: ClassValue[]) {
 
 export const INDEX_META: IndexMeta[] = [
   { key: "NIFTY_50",             label: "NIFTY 50",             shortLabel: "N50"    },
-  { key: "NIFTY_BANK",           label: "NIFTY BANK",           shortLabel: "BANK"   },
+  { key: "NIFTY_BANK",           label: "NIFTY BANK",           shortLabel: "BANK",    sigmaWindow: "2Y" },
   { key: "NIFTY_500",            label: "NIFTY 500",            shortLabel: "NIFTY 500"},
-  { key: "NIFTY_PSU_BANK",       label: "NIFTY PSU BANK",       shortLabel: "PSU"    },
-  { key: "NIFTY_PVT_BANK",       label: "NIFTY PVT BANK",       shortLabel: "PVT BNK"},
+  { key: "NIFTY_PSU_BANK",       label: "NIFTY PSU BANK",       shortLabel: "PSU",     sigmaWindow: "2Y" },
+  { key: "NIFTY_PVT_BANK",       label: "NIFTY PVT BANK",       shortLabel: "PVT BNK", sigmaWindow: "2Y" },
   { key: "NIFTY_MIDCAP_150",     label: "NIFTY MIDCAP 150",     shortLabel: "MID150" },
   { key: "NIFTY_MICROCAP_250",   label: "NIFTY MICROCAP 250",   shortLabel: "MIC250" },
   { key: "NIFTY_SMALLCAP_250",   label: "NIFTY SMALLCAP 250",   shortLabel: "SML250" },

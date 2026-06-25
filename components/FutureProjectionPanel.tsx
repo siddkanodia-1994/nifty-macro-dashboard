@@ -331,10 +331,11 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   // Auto-fill Target PE/PB from mean ± 1SD of the selected time window and ratio mode
   useEffect(() => {
     if (!isMounted.current) { isMounted.current = true; return; }
-    const windowRows = filterByWindow(historicalData, timeWindow);
     setProjections((prev) => {
       const next = { ...prev };
       for (const meta of INDEX_META) {
+        const effectiveWindow = meta.sigmaWindow ?? timeWindow;
+        const windowRows = filterByWindow(historicalData, effectiveWindow);
         const key = meta.key;
         const isPEPath = next[key].path === "pe_eps";
         let vals: number[];
