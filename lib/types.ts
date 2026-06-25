@@ -96,7 +96,6 @@ export interface IndexMeta {
   key: IndexKey;
   label: string;
   shortLabel: string;
-  sigmaWindow?: TimeWindow; // fixed window for σ computation, overrides shared timeWindow selector
 }
 
 // ─── Macro Score ─────────────────────────────────────────────────────────────

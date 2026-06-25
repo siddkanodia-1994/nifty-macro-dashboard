@@ -64,6 +64,8 @@ function mergeWithDiff(base: ProjectionsMap, diff: VisitorDiff): ProjectionsMap 
 const SCENARIOS = ["bear", "base", "bull"] as const;
 type Scenario = typeof SCENARIOS[number];
 
+const BANKING_KEYS = new Set<IndexKey>(["NIFTY_BANK", "NIFTY_PSU_BANK", "NIFTY_PVT_BANK"]);
+
 const SCENARIO_LABELS: Record<Scenario, string> = {
   bear: "Bear",
   base: "Base",
@@ -141,6 +143,7 @@ interface FutureProjectionPanelProps {
 
 export function FutureProjectionPanel({ historicalData, liveData, timeWindow, onTimeWindowChange, externalGrowthPct, onGrowthPctChange, ownerEpsOverride }: FutureProjectionPanelProps) {
   const [selectedIndex, setSelectedIndex] = useState<IndexKey>("NIFTY_50");
+  const [bankingWindow, setBankingWindow] = useState<TimeWindow>("2Y");
   const [projections, setProjections] = useState<ProjectionsMap>(() =>
     buildDefaults(historicalData)
   );
@@ -334,7 +337,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     setProjections((prev) => {
       const next = { ...prev };
       for (const meta of INDEX_META) {
-        const effectiveWindow = meta.sigmaWindow ?? timeWindow;
+        const effectiveWindow = BANKING_KEYS.has(meta.key) ? bankingWindow : timeWindow;
         const windowRows = filterByWindow(historicalData, effectiveWindow);
         const key = meta.key;
         const isPEPath = next[key].path === "pe_eps";
@@ -367,7 +370,9 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     });
     setManualCells(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeWindow, ratioMode]);
+  }, [timeWindow, ratioMode, bankingWindow]);
+
+  const isBankingSelected = BANKING_KEYS.has(selectedIndex);
 
   const lastRow = historicalData[historicalData.length - 1] ?? null;
 
@@ -596,9 +601,11 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
               key={meta.key}
               onClick={() => setSelectedIndex(meta.key)}
               className={cn(
-                "px-4 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap border",
+                "relative px-4 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap border",
                 selectedIndex === meta.key
                   ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900 dark:border-zinc-100"
+                  : BANKING_KEYS.has(meta.key)
+                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:text-blue-900 dark:hover:text-blue-100 hover:border-blue-400 dark:hover:border-blue-500"
                   : "bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-100 hover:border-zinc-300 dark:hover:border-zinc-600"
               )}
             >
@@ -654,8 +661,17 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Time window selector */}
-              <TimeWindowSelector value={timeWindow} onChange={onTimeWindowChange} />
+              {/* Time window selector — banking group has its own independent window */}
+              {isBankingSelected ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                    Banking Group
+                  </span>
+                  <TimeWindowSelector value={bankingWindow} onChange={setBankingWindow} />
+                </div>
+              ) : (
+                <TimeWindowSelector value={timeWindow} onChange={onTimeWindowChange} />
+              )}
 
               {/* Path toggle */}
               <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
