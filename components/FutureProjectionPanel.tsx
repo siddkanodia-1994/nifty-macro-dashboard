@@ -10,6 +10,7 @@ import {
   cn,
 } from "@/lib/utils";
 import { TimeWindowSelector } from "@/components/TimeWindowSelector";
+import { EpsGrowthCard, type EpsGrowthState } from "@/components/EpsGrowthCard";
 import { filterByWindow, extractValues, mean, stdDev, buildForwardRatioSeries } from "@/lib/calculations";
 import { useRatioMode } from "@/lib/ratioMode";
 import type { HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
@@ -144,6 +145,7 @@ interface FutureProjectionPanelProps {
 export function FutureProjectionPanel({ historicalData, liveData, timeWindow, onTimeWindowChange, externalGrowthPct, onGrowthPctChange, ownerEpsOverride }: FutureProjectionPanelProps) {
   const [selectedIndex, setSelectedIndex] = useState<IndexKey>("NIFTY_50");
   const [bankingWindow, setBankingWindow] = useState<TimeWindow>("2Y");
+  const [epsGrowthMap, setEpsGrowthMap] = useState<Partial<Record<IndexKey, EpsGrowthState>>>({});
   const [projections, setProjections] = useState<ProjectionsMap>(() =>
     buildDefaults(historicalData)
   );
@@ -376,6 +378,19 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
   const lastRow = historicalData[historicalData.length - 1] ?? null;
 
+  // Apr 30 default for EPS/BV growth card — uses last available data on or before April 30 of current year
+  const apr30Default = useMemo(() => {
+    const year = new Date().getFullYear();
+    const target = `${year}-04-30`;
+    const candidates = historicalData.filter(r => r.date <= target);
+    if (!candidates.length) return null;
+    const row = candidates[candidates.length - 1];
+    const metrics = row[selectedIndex];
+    if (!metrics) return null;
+    const isPEPath = projections[selectedIndex]?.path === "pe_eps";
+    return isPEPath ? metrics.impliedEPS : metrics.impliedBV;
+  }, [historicalData, selectedIndex, projections]);
+
   // Current values for selected index
   const current = useMemo(() => {
     if (!lastRow) return null;
@@ -579,6 +594,17 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   }, [current, proj]);
 
   const isPE = proj.path === "pe_eps";
+
+  const epsState: EpsGrowthState = epsGrowthMap[selectedIndex] ?? {
+    currentBase: apr30Default != null ? String(Math.round(apr30Default * 100) / 100) : "",
+    year1Growth: "",
+    year2Growth: "",
+  };
+
+  const handleEpsGrowthChange = useCallback((s: EpsGrowthState) => {
+    setEpsGrowthMap(prev => ({ ...prev, [selectedIndex]: s }));
+  }, [selectedIndex]);
+
   const multipleLabel  = isPE ? "Target P/E" : "Target P/B";
   const growthLabel    = isPE ? "EPS Growth %" : "BV Growth %";
   const forwardLabel   = isPE ? "Forward EPS" : "Forward BV";
@@ -821,6 +847,13 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
           </p>
         </CardContent>
       </Card>
+
+      {/* ── EPS / BV 2-Year Growth Projection ── */}
+      <EpsGrowthCard
+        state={epsState}
+        onChange={handleEpsGrowthChange}
+        isPE={isPE}
+      />
     </div>
   );
 }
