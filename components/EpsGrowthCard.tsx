@@ -4,15 +4,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export type EpsGrowthState = {
-  currentBase: string; // Col 1 — current implied EPS or BV
-  year1Growth: string; // Col 2 — Year 1 growth %
-  year2Growth: string; // Col 4 — Year 2 growth %
+  currentBase: string;
+  year1Growth: string;
+  year2Growth: string;
+  baseSource: "Latest" | "30 Apr" | "Manual";
 };
 
 interface EpsGrowthCardProps {
   state: EpsGrowthState;
   onChange: (s: EpsGrowthState) => void;
-  isPE: boolean; // true = EPS labels, false = BV labels
+  onSourceChange: (source: "Latest" | "30 Apr") => void;
+  isPE: boolean;
 }
 
 function fmt(n: number | null, decimals = 2): string {
@@ -29,7 +31,7 @@ const inputCls =
   "focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 " +
   "placeholder-zinc-400 dark:placeholder-zinc-500";
 
-export function EpsGrowthCard({ state, onChange, isPE }: EpsGrowthCardProps) {
+export function EpsGrowthCard({ state, onChange, onSourceChange, isPE }: EpsGrowthCardProps) {
   const base = parseFloat(state.currentBase) || 0;
   const g1   = parseFloat(state.year1Growth)  || 0;
   const g2   = parseFloat(state.year2Growth)  || 0;
@@ -43,7 +45,10 @@ export function EpsGrowthCard({ state, onChange, isPE }: EpsGrowthCardProps) {
   const abs2Positive = abs2 != null && abs2 > 0.005;
   const abs2Negative = abs2 != null && abs2 < -0.005;
 
-  const set = (field: keyof EpsGrowthState) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const handleBaseInput = (e: React.ChangeEvent<HTMLInputElement>) =>
+    onChange({ ...state, currentBase: e.target.value, baseSource: "Manual" });
+
+  const set = (field: "year1Growth" | "year2Growth") => (e: React.ChangeEvent<HTMLInputElement>) =>
     onChange({ ...state, [field]: e.target.value });
 
   const headerCls = "px-3 py-2 text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide text-right whitespace-nowrap";
@@ -53,11 +58,39 @@ export function EpsGrowthCard({ state, onChange, isPE }: EpsGrowthCardProps) {
   return (
     <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-sm">
       <CardContent className="p-0">
-        <div className="px-5 pt-4 pb-1">
+        {/* Header row: title + source selector */}
+        <div className="px-5 pt-4 pb-2 flex items-center justify-between gap-3 flex-wrap">
           <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
             2-Year {tag} Growth Projection
           </p>
+
+          {/* Source pill selector */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 uppercase tracking-wide">
+              Source
+            </span>
+            {(["Latest", "30 Apr"] as const).map((src) => (
+              <button
+                key={src}
+                onClick={() => onSourceChange(src)}
+                className={cn(
+                  "px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-colors border",
+                  state.baseSource === src
+                    ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900 dark:border-zinc-100"
+                    : "bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500"
+                )}
+              >
+                {src}
+              </button>
+            ))}
+            {state.baseSource === "Manual" && (
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700">
+                Manual
+              </span>
+            )}
+          </div>
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full min-w-[700px]">
             <thead>
@@ -72,19 +105,19 @@ export function EpsGrowthCard({ state, onChange, isPE }: EpsGrowthCardProps) {
             </thead>
             <tbody>
               <tr>
-                {/* Col 1 — Current Implied EPS/BV (editable) */}
+                {/* Col 1 — Current Implied EPS/BV (editable, typing → Manual) */}
                 <td className={cellCls}>
                   <input
                     type="number"
                     className={inputCls}
                     value={state.currentBase}
-                    onChange={set("currentBase")}
+                    onChange={handleBaseInput}
                     placeholder="—"
                     step="0.01"
                   />
                 </td>
 
-                {/* Col 2 — Year 1 Growth % (editable) */}
+                {/* Col 2 — Year 1 Growth % */}
                 <td className={cellCls}>
                   <div className="relative">
                     <input
@@ -104,7 +137,7 @@ export function EpsGrowthCard({ state, onChange, isPE }: EpsGrowthCardProps) {
                   <p className={readonlyCls}>{fmt(yr1)}</p>
                 </td>
 
-                {/* Col 4 — Year 2 Growth % (editable) */}
+                {/* Col 4 — Year 2 Growth % */}
                 <td className={cellCls}>
                   <div className="relative">
                     <input
@@ -141,6 +174,7 @@ export function EpsGrowthCard({ state, onChange, isPE }: EpsGrowthCardProps) {
             </tbody>
           </table>
         </div>
+
         <p className="px-5 pb-3 pt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
           Target Yr 1 = Current {tag} × (1 + Yr 1 Growth%) · Target Yr 2 = Target Yr 1 × (1 + Yr 2 Growth%) · 2Y Growth = (Target Yr 2 ÷ Current {tag} − 1)
         </p>

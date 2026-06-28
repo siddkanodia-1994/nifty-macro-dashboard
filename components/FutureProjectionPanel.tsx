@@ -146,6 +146,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const [selectedIndex, setSelectedIndex] = useState<IndexKey>("NIFTY_50");
   const [bankingWindow, setBankingWindow] = useState<TimeWindow>("2Y");
   const [epsGrowthMap, setEpsGrowthMap] = useState<Partial<Record<IndexKey, EpsGrowthState>>>({});
+  const [globalBaseSource, setGlobalBaseSource] = useState<"Latest" | "30 Apr">("30 Apr");
   const [projections, setProjections] = useState<ProjectionsMap>(() =>
     buildDefaults(historicalData)
   );
@@ -378,18 +379,25 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
   const lastRow = historicalData[historicalData.length - 1] ?? null;
 
-  // Apr 30 default for EPS/BV growth card — uses last available data on or before April 30 of current year
-  const apr30Default = useMemo(() => {
+  // Compute Apr 30 and Latest base values for ALL indices (used by the EPS/BV growth card)
+  const allBaseDefaults = useMemo(() => {
     const year = new Date().getFullYear();
-    const target = `${year}-04-30`;
-    const candidates = historicalData.filter(r => r.date <= target);
-    if (!candidates.length) return null;
-    const row = candidates[candidates.length - 1];
-    const metrics = row[selectedIndex];
-    if (!metrics) return null;
-    const isPEPath = projections[selectedIndex]?.path === "pe_eps";
-    return isPEPath ? metrics.impliedEPS : metrics.impliedBV;
-  }, [historicalData, selectedIndex, projections]);
+    const apr30Target = `${year}-04-30`;
+    const apr30Row = historicalData.filter(r => r.date <= apr30Target).at(-1);
+    const latestRow = historicalData.at(-1);
+    const result: Partial<Record<IndexKey, { apr30: number | null; latest: number | null }>> = {};
+    for (const meta of INDEX_META) {
+      const isPEPath = projections[meta.key]?.path === "pe_eps";
+      const field = isPEPath ? "impliedEPS" : "impliedBV";
+      const apr30Metrics  = apr30Row?.[meta.key]  ?? null;
+      const latestMetrics = latestRow?.[meta.key] ?? null;
+      result[meta.key] = {
+        apr30:  apr30Metrics  ? (isPEPath ? apr30Metrics.impliedEPS  : apr30Metrics.impliedBV)  ?? null : null,
+        latest: latestMetrics ? (isPEPath ? latestMetrics.impliedEPS : latestMetrics.impliedBV) ?? null : null,
+      };
+    }
+    return result;
+  }, [historicalData, projections]);
 
   // Current values for selected index
   const current = useMemo(() => {
@@ -595,15 +603,43 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
   const isPE = proj.path === "pe_eps";
 
+  const currentDefaults = allBaseDefaults[selectedIndex];
+  const sourceVal = (src: "Latest" | "30 Apr") => {
+    const v = src === "Latest" ? currentDefaults?.latest : currentDefaults?.apr30;
+    return v != null ? String(Math.round(v * 100) / 100) : "";
+  };
+
   const epsState: EpsGrowthState = epsGrowthMap[selectedIndex] ?? {
-    currentBase: apr30Default != null ? String(Math.round(apr30Default * 100) / 100) : "",
+    currentBase: sourceVal(globalBaseSource),
     year1Growth: "",
     year2Growth: "",
+    baseSource: globalBaseSource,
   };
 
   const handleEpsGrowthChange = useCallback((s: EpsGrowthState) => {
     setEpsGrowthMap(prev => ({ ...prev, [selectedIndex]: s }));
   }, [selectedIndex]);
+
+  const handleSourceChange = useCallback((source: "Latest" | "30 Apr") => {
+    setGlobalBaseSource(source);
+    setEpsGrowthMap(prev => {
+      const next = { ...prev };
+      for (const meta of INDEX_META) {
+        const key = meta.key;
+        const existing = next[key];
+        if (existing?.baseSource === "Manual") continue;
+        const defs = allBaseDefaults[key];
+        const val = source === "Latest" ? defs?.latest : defs?.apr30;
+        next[key] = {
+          currentBase: val != null ? String(Math.round(val * 100) / 100) : "",
+          year1Growth: existing?.year1Growth ?? "",
+          year2Growth: existing?.year2Growth ?? "",
+          baseSource: source,
+        };
+      }
+      return next;
+    });
+  }, [allBaseDefaults]);
 
   const multipleLabel  = isPE ? "Target P/E" : "Target P/B";
   const growthLabel    = isPE ? "EPS Growth %" : "BV Growth %";
@@ -852,6 +888,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       <EpsGrowthCard
         state={epsState}
         onChange={handleEpsGrowthChange}
+        onSourceChange={handleSourceChange}
         isPE={isPE}
       />
     </div>
