@@ -86,6 +86,12 @@ type SDSelection = Record<Scenario, SDOption>;
 
 const DEFAULT_SD: SDSelection = { bear: "-1sd", base: "mean", bull: "+1sd" };
 const SD_LS_KEY = "nifty-sd-selection";
+const EPS_GROWTH_LS_KEY = "nifty-eps-growth-visitor-v1";
+
+type EpsGrowthPersisted = {
+  globalSource: "Latest" | "30 Apr";
+  indices: Partial<Record<IndexKey, EpsGrowthState>>;
+};
 
 const SD_OPTIONS: { value: SDOption; label: string }[] = [
   { value: "+2sd",    label: "+2 σ"    },
@@ -159,6 +165,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const sdSelectionRef = useRef<SDSelection>(DEFAULT_SD);
   sdSelectionRef.current = sdSelection;
   const userHasEdited = useRef(false);
+  const epsGrowthEdited = useRef(false);
   const cronSecret = useRef<string | null>(null);
   const visitorDiff = useRef<VisitorDiff>({});
   const isMounted = useRef(false);
@@ -196,11 +203,18 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       const key = cronSecret.current;
 
       let kv: ProjectionsMap | null = null;
+      let rawEpsGrowth: EpsGrowthPersisted | undefined;
       try {
         const res = await fetch("/api/projection-defaults", { cache: "no-store" });
         if (res.ok) {
-          const json = await res.json();
-          if (json) { kv = json as ProjectionsMap; setOwnerDefaults(kv); }
+          const json = await res.json() as Record<string, unknown>;
+          if (json) {
+            rawEpsGrowth = json.epsGrowth as EpsGrowthPersisted | undefined;
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { epsGrowth: _epsGrowth, ...projectionOnly } = json;
+            kv = projectionOnly as ProjectionsMap;
+            setOwnerDefaults(kv);
+          }
         }
       } catch {}
 
@@ -213,6 +227,10 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         for (const meta of INDEX_META) {
           const g = resolved[meta.key]?.base?.growthPct;
           if (typeof g === "number") onGrowthPctChange?.(meta.key, g);
+        }
+        if (rawEpsGrowth) {
+          setGlobalBaseSource(rawEpsGrowth.globalSource ?? "30 Apr");
+          setEpsGrowthMap(rawEpsGrowth.indices ?? {});
         }
         return;
       }
@@ -235,6 +253,20 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         const g = resolved[meta.key]?.base?.growthPct;
         if (typeof g === "number") onGrowthPctChange?.(meta.key, g);
       }
+      // Visitor EPS growth: merge Redis defaults with localStorage override
+      let epsData: EpsGrowthPersisted = rawEpsGrowth ?? { globalSource: "30 Apr", indices: {} };
+      try {
+        const storedEps = localStorage.getItem(EPS_GROWTH_LS_KEY);
+        if (storedEps) {
+          const localEps = JSON.parse(storedEps) as EpsGrowthPersisted;
+          epsData = {
+            globalSource: localEps.globalSource ?? epsData.globalSource,
+            indices: { ...epsData.indices, ...localEps.indices },
+          };
+        }
+      } catch {}
+      setGlobalBaseSource(epsData.globalSource ?? "30 Apr");
+      setEpsGrowthMap(epsData.indices ?? {});
     }
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -333,6 +365,34 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     }, 600);
     return () => clearTimeout(id);
   }, [projections, ownerMode]);
+
+  // Auto-save EPS growth data to Redis in owner mode (debounced 600ms)
+  useEffect(() => {
+    if (!ownerMode || !cronSecret.current) return;
+    if (!epsGrowthEdited.current) return;
+    const id = setTimeout(async () => {
+      try {
+        await fetch("/api/projection-defaults", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${cronSecret.current}`,
+          },
+          body: JSON.stringify({ epsGrowth: { globalSource: globalBaseSource, indices: epsGrowthMap } }),
+        });
+      } catch {}
+    }, 600);
+    return () => clearTimeout(id);
+  }, [globalBaseSource, epsGrowthMap, ownerMode]);
+
+  // Persist EPS growth data for visitors in localStorage
+  useEffect(() => {
+    if (ownerMode) return;
+    if (!epsGrowthEdited.current) return;
+    try {
+      localStorage.setItem(EPS_GROWTH_LS_KEY, JSON.stringify({ globalSource: globalBaseSource, indices: epsGrowthMap }));
+    } catch {}
+  }, [globalBaseSource, epsGrowthMap, ownerMode]);
 
   // Auto-fill Target PE/PB from mean ± 1SD of the selected time window and ratio mode
   useEffect(() => {
@@ -567,10 +627,14 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const handleReset = useCallback(() => {
     try { localStorage.removeItem(VISITOR_STORAGE_KEY); } catch {}
     try { localStorage.removeItem(SD_LS_KEY); } catch {}
+    try { localStorage.removeItem(EPS_GROWTH_LS_KEY); } catch {}
     visitorDiff.current = {};
     userHasEdited.current = false;
+    epsGrowthEdited.current = false;
     setSDSelection(DEFAULT_SD);
     setManualCells(new Set());
+    setEpsGrowthMap({});
+    setGlobalBaseSource("30 Apr");
     const resetTo = ownerDefaults ?? buildDefaults(historicalData);
     setProjections(resetTo);
     // Sync reset growthPct values back to the shared state (and Overview EPS Est.)
@@ -617,10 +681,12 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   };
 
   const handleEpsGrowthChange = useCallback((s: EpsGrowthState) => {
+    epsGrowthEdited.current = true;
     setEpsGrowthMap(prev => ({ ...prev, [selectedIndex]: s }));
   }, [selectedIndex]);
 
   const handleSourceChange = useCallback((source: "Latest" | "30 Apr") => {
+    epsGrowthEdited.current = true;
     setGlobalBaseSource(source);
     setEpsGrowthMap(prev => {
       const next = { ...prev };
