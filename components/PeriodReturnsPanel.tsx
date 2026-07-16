@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { INDEX_META, formatPrice, formatRatio, cn } from "@/lib/utils";
-import type { HistoricalRow } from "@/lib/types";
+import type { HistoricalRow, IndexKey } from "@/lib/types";
 
 function findRowOnOrBefore(rows: HistoricalRow[], target: string): HistoricalRow | null {
   let best: HistoricalRow | null = null;
@@ -11,6 +11,33 @@ function findRowOnOrBefore(rows: HistoricalRow[], target: string): HistoricalRow
     else break;
   }
   return best;
+}
+
+function avgOverRange(
+  rows: HistoricalRow[],
+  from: string,
+  to: string,
+  key: IndexKey,
+  field: "close" | "impliedEPS" | "pe"
+): number | null {
+  const vals: number[] = [];
+  for (const row of rows) {
+    if (row.date < from) continue;
+    if (row.date > to) break;
+    const v = row[key]?.[field] ?? null;
+    if (v != null) vals.push(v);
+  }
+  return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+}
+
+function countInRange(rows: HistoricalRow[], from: string, to: string): number {
+  let count = 0;
+  for (const row of rows) {
+    if (row.date < from) continue;
+    if (row.date > to) break;
+    count++;
+  }
+  return count;
 }
 
 function formatPct(v: number | null): { label: string; color: string } {
@@ -65,11 +92,30 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
     .slice(0, 10);
   const firstDate = historicalData[0]?.date ?? defaultStart;
 
+  // Normal mode
   const [startDate, setStartDate] = useState(defaultStart);
-  const [endDate, setEndDate]     = useState(lastDate);
-  const [sortCol, setSortCol]     = useState<SortCol>(null);
-  const [sortDir, setSortDir]     = useState<SortDir>("desc");
-  const [showPE, setShowPE]       = useState(false);
+  const [endDate,   setEndDate]   = useState(lastDate);
+  const [sortCol,   setSortCol]   = useState<SortCol>(null);
+  const [sortDir,   setSortDir]   = useState<SortDir>("desc");
+  const [showPE,    setShowPE]    = useState(false);
+
+  // Average Return mode
+  const [avgMode,        setAvgMode]        = useState(false);
+  const [startPriceFrom, setStartPriceFrom] = useState(defaultStart);
+  const [startPriceTo,   setStartPriceTo]   = useState(defaultStart);
+  const [endPriceFrom,   setEndPriceFrom]   = useState(lastDate);
+  const [endPriceTo,     setEndPriceTo]     = useState(lastDate);
+
+  function handleAvgToggle() {
+    if (!avgMode) {
+      // Sync avg periods to current normal dates so the numbers don't jump
+      setStartPriceFrom(startDate);
+      setStartPriceTo(startDate);
+      setEndPriceFrom(endDate);
+      setEndPriceTo(endDate);
+    }
+    setAvgMode(v => !v);
+  }
 
   function handleSort(col: SortCol) {
     if (sortCol !== col) { setSortCol(col); setSortDir("desc"); }
@@ -89,16 +135,36 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
       )
     : null;
   const years = numDays != null ? (numDays / 365.25).toFixed(1) : null;
-  const activePreset = PRESETS.find((p) => shiftBack(endDate, p.months) === startDate)?.label ?? null;
+
+  const activePreset = avgMode
+    ? PRESETS.find((p) => shiftBack(endPriceTo, p.months) === endPriceFrom)?.label ?? null
+    : PRESETS.find((p) => shiftBack(endDate,    p.months) === startDate)?.label    ?? null;
+
+  const startPeriodDays = avgMode ? countInRange(historicalData, startPriceFrom, startPriceTo) : 0;
+  const endPeriodDays   = avgMode ? countInRange(historicalData, endPriceFrom,   endPriceTo)   : 0;
 
   const rows = useMemo(() => {
     const base = INDEX_META.map((meta) => {
-      const sc = startRow?.[meta.key]?.close      ?? null;
-      const ec = endRow?.[meta.key]?.close        ?? null;
-      const se = startRow?.[meta.key]?.impliedEPS ?? null;
-      const ee = endRow?.[meta.key]?.impliedEPS   ?? null;
-      const sp = startRow?.[meta.key]?.pe         ?? null;
-      const ep = endRow?.[meta.key]?.pe           ?? null;
+      let sc: number | null, ec: number | null;
+      let se: number | null, ee: number | null;
+      let sp: number | null, ep: number | null;
+
+      if (avgMode) {
+        sc = avgOverRange(historicalData, startPriceFrom, startPriceTo, meta.key, "close");
+        ec = avgOverRange(historicalData, endPriceFrom,   endPriceTo,   meta.key, "close");
+        se = avgOverRange(historicalData, startPriceFrom, startPriceTo, meta.key, "impliedEPS");
+        ee = avgOverRange(historicalData, endPriceFrom,   endPriceTo,   meta.key, "impliedEPS");
+        sp = avgOverRange(historicalData, startPriceFrom, startPriceTo, meta.key, "pe");
+        ep = avgOverRange(historicalData, endPriceFrom,   endPriceTo,   meta.key, "pe");
+      } else {
+        sc = startRow?.[meta.key]?.close      ?? null;
+        ec = endRow?.[meta.key]?.close        ?? null;
+        se = startRow?.[meta.key]?.impliedEPS ?? null;
+        ee = endRow?.[meta.key]?.impliedEPS   ?? null;
+        sp = startRow?.[meta.key]?.pe         ?? null;
+        ep = endRow?.[meta.key]?.pe           ?? null;
+      }
+
       return {
         meta,
         startClose:  sc,
@@ -119,7 +185,7 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
       const bv = b[sortCol] ?? (sortDir === "desc" ? -Infinity : Infinity);
       return sortDir === "desc" ? bv - av : av - bv;
     });
-  }, [startRow, endRow, sortCol, sortDir]);
+  }, [startRow, endRow, sortCol, sortDir, avgMode, startPriceFrom, startPriceTo, endPriceFrom, endPriceTo, historicalData]);
 
   const SortIcon = ({ col }: { col: SortCol }) => {
     if (sortCol !== col)
@@ -134,56 +200,144 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
 
   return (
     <div className="space-y-5">
-      {/* Date pickers */}
+      {/* Controls row */}
       <div className="flex flex-wrap items-end gap-6 px-1">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Start Date</label>
-          <input
-            type="date"
-            value={startDate}
-            min={firstDate}
-            max={endDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className={inputCls}
-          />
-          {startRow && (
-            <span className="text-xs text-zinc-400 mt-0.5">Using: {formatDate(startRow.date)}</span>
-          )}
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">End Date</label>
-          <input
-            type="date"
-            value={endDate}
-            min={startDate}
-            max={lastDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className={inputCls}
-          />
-          {endRow && (
-            <span className="text-xs text-zinc-400 mt-0.5">Using: {formatDate(endRow.date)}</span>
-          )}
-        </div>
 
-        {numDays != null && (
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Duration</span>
-            <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
-              {numDays.toLocaleString()} days
-            </span>
-            <span className="text-xs text-zinc-400 mt-0.5">({years} yrs)</span>
-          </div>
+        {avgMode ? (
+          // ── Average Return mode: two period pickers ──────────────────────────
+          <>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Start Price Period</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={startPriceFrom}
+                  min={firstDate}
+                  max={startPriceTo}
+                  onChange={(e) => setStartPriceFrom(e.target.value)}
+                  className={inputCls}
+                />
+                <span className="text-zinc-400 dark:text-zinc-500 text-sm select-none">→</span>
+                <input
+                  type="date"
+                  value={startPriceTo}
+                  min={startPriceFrom}
+                  max={lastDate}
+                  onChange={(e) => setStartPriceTo(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <span className="text-xs text-zinc-400 mt-0.5">
+                {startPeriodDays > 0 ? `${startPeriodDays} trading days avg` : "—"}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">End Price Period</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={endPriceFrom}
+                  min={firstDate}
+                  max={endPriceTo}
+                  onChange={(e) => setEndPriceFrom(e.target.value)}
+                  className={inputCls}
+                />
+                <span className="text-zinc-400 dark:text-zinc-500 text-sm select-none">→</span>
+                <input
+                  type="date"
+                  value={endPriceTo}
+                  min={endPriceFrom}
+                  max={lastDate}
+                  onChange={(e) => setEndPriceTo(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <span className="text-xs text-zinc-400 mt-0.5">
+                {endPeriodDays > 0 ? `${endPeriodDays} trading days avg` : "—"}
+              </span>
+            </div>
+          </>
+        ) : (
+          // ── Normal mode: single start / end date ──────────────────────────────
+          <>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Start Date</label>
+              <input
+                type="date"
+                value={startDate}
+                min={firstDate}
+                max={endDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className={inputCls}
+              />
+              {startRow && (
+                <span className="text-xs text-zinc-400 mt-0.5">Using: {formatDate(startRow.date)}</span>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">End Date</label>
+              <input
+                type="date"
+                value={endDate}
+                min={startDate}
+                max={lastDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className={inputCls}
+              />
+              {endRow && (
+                <span className="text-xs text-zinc-400 mt-0.5">Using: {formatDate(endRow.date)}</span>
+              )}
+            </div>
+
+            {numDays != null && (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Duration</span>
+                <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 tabular-nums">
+                  {numDays.toLocaleString()} days
+                </span>
+                <span className="text-xs text-zinc-400 mt-0.5">({years} yrs)</span>
+              </div>
+            )}
+          </>
         )}
 
         <div className="hidden sm:block self-stretch w-px bg-zinc-200 dark:bg-zinc-700 mx-1" />
 
+        {/* Avg Return toggle */}
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Mode</span>
+          <button
+            onClick={handleAvgToggle}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors whitespace-nowrap",
+              avgMode
+                ? "bg-blue-600 dark:bg-blue-500 text-white border-blue-600 dark:border-blue-500"
+                : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-300 dark:border-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+            )}
+          >
+            {avgMode ? "● Avg Return" : "○ Avg Return"}
+          </button>
+        </div>
+
+        <div className="hidden sm:block self-stretch w-px bg-zinc-200 dark:bg-zinc-700 mx-1" />
+
+        {/* Quick Select */}
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Quick Select</span>
           <div className="flex flex-wrap gap-1.5">
             {PRESETS.map(({ label, months }) => (
               <button
                 key={label}
-                onClick={() => setStartDate(shiftBack(endDate, months))}
+                onClick={() => {
+                  if (avgMode) {
+                    setEndPriceFrom(shiftBack(endPriceTo, months));
+                    setStartPriceFrom(shiftBack(startPriceTo, months));
+                  } else {
+                    setStartDate(shiftBack(endDate, months));
+                  }
+                }}
                 className={cn(
                   "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
                   activePreset === label
@@ -206,16 +360,16 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
               <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
                 Index
               </th>
-              <th className={thCls}>Start Price</th>
-              <th className={thCls}>End Price</th>
+              <th className={thCls}>{avgMode ? "Avg Start Price" : "Start Price"}</th>
+              <th className={thCls}>{avgMode ? "Avg End Price"   : "End Price"}</th>
               <th
                 className={cn(thCls, "cursor-pointer select-none hover:text-zinc-700 dark:hover:text-zinc-200")}
                 onClick={() => handleSort("indexReturn")}
               >
                 Return % <SortIcon col="indexReturn" />
               </th>
-              <th className={thCls}>Start EPS</th>
-              <th className={thCls}>End EPS</th>
+              <th className={thCls}>{avgMode ? "Avg Start EPS" : "Start EPS"}</th>
+              <th className={thCls}>{avgMode ? "Avg End EPS"   : "End EPS"}</th>
               <th
                 className={cn(thCls, "cursor-pointer select-none hover:text-zinc-700 dark:hover:text-zinc-200")}
                 onClick={() => handleSort("epsGrowth")}
@@ -232,9 +386,9 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
               ) : (
                 <>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 whitespace-nowrap text-right border-l border-zinc-200 dark:border-zinc-700">
-                    P/E Start
+                    {avgMode ? "Avg P/E Start" : "P/E Start"}
                   </th>
-                  <th className={thCls}>P/E End</th>
+                  <th className={thCls}>{avgMode ? "Avg P/E End" : "P/E End"}</th>
                   <th
                     onClick={() => setShowPE(false)}
                     className={cn(thCls, "cursor-pointer select-none hover:text-zinc-700 dark:hover:text-zinc-200")}
