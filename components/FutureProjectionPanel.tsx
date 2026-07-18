@@ -11,6 +11,7 @@ import {
 } from "@/lib/utils";
 import { TimeWindowSelector } from "@/components/TimeWindowSelector";
 import { EpsGrowthCard, type EpsGrowthState } from "@/components/EpsGrowthCard";
+import { BrokerageEstimatesCard, type BrokerageRow } from "@/components/BrokerageEstimatesCard";
 import { filterByWindow, extractValues, mean, stdDev, buildForwardRatioSeries } from "@/lib/calculations";
 import { useRatioMode } from "@/lib/ratioMode";
 import type { HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
@@ -151,6 +152,7 @@ interface FutureProjectionPanelProps {
 export function FutureProjectionPanel({ historicalData, liveData, timeWindow, onTimeWindowChange, externalGrowthPct, onGrowthPctChange, ownerEpsOverride }: FutureProjectionPanelProps) {
   const [selectedIndex, setSelectedIndex] = useState<IndexKey>("NIFTY_50");
   const [bankingWindow, setBankingWindow] = useState<TimeWindow>("2Y");
+  const [brokerageData, setBrokerageData] = useState<Partial<Record<IndexKey, BrokerageRow[]>>>({});
   const [epsGrowthMap, setEpsGrowthMap] = useState<Partial<Record<IndexKey, EpsGrowthState>>>({});
   const [globalBaseSource, setGlobalBaseSource] = useState<"Latest" | "30 Apr">("30 Apr");
   const [projections, setProjections] = useState<ProjectionsMap>(() =>
@@ -267,6 +269,12 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       } catch {}
       setGlobalBaseSource(epsData.globalSource ?? "30 Apr");
       setEpsGrowthMap(epsData.indices ?? {});
+
+      // Load brokerage estimates (shared, unauthenticated)
+      try {
+        const brokerageRes = await fetch("/api/brokerage-estimates", { cache: "no-store" });
+        if (brokerageRes.ok) setBrokerageData(await brokerageRes.json());
+      } catch {}
     }
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -707,6 +715,36 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     });
   }, [allBaseDefaults]);
 
+  const handleBrokerageAdd = useCallback(async (row: Omit<BrokerageRow, "id" | "addedAt">) => {
+    const res = await fetch("/api/brokerage-estimates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ indexKey: selectedIndex, row }),
+    });
+    if (res.ok) {
+      const updated = await res.json() as BrokerageRow[];
+      setBrokerageData(prev => ({ ...prev, [selectedIndex]: updated }));
+    }
+  }, [selectedIndex]);
+
+  const handleBrokerageDelete = useCallback(async (rowId: string) => {
+    if (!cronSecret.current) return;
+    const res = await fetch("/api/brokerage-estimates", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${cronSecret.current}`,
+      },
+      body: JSON.stringify({ indexKey: selectedIndex, rowId }),
+    });
+    if (res.ok) {
+      setBrokerageData(prev => ({
+        ...prev,
+        [selectedIndex]: (prev[selectedIndex] ?? []).filter(r => r.id !== rowId),
+      }));
+    }
+  }, [selectedIndex]);
+
   const multipleLabel  = isPE ? "Target P/E" : "Target P/B";
   const growthLabel    = isPE ? "EPS Growth %" : "BV Growth %";
   const forwardLabel   = isPE ? "Forward EPS" : "Forward BV";
@@ -956,6 +994,14 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         onChange={handleEpsGrowthChange}
         onSourceChange={handleSourceChange}
         isPE={isPE}
+      />
+
+      {/* ── Brokerage EPS / Profit Estimates ── */}
+      <BrokerageEstimatesCard
+        rows={brokerageData[selectedIndex] ?? []}
+        onAdd={handleBrokerageAdd}
+        onDelete={handleBrokerageDelete}
+        ownerMode={ownerMode}
       />
     </div>
   );
