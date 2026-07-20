@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, Fragment } from "react";
 import { cn } from "@/lib/utils";
 
 export type BrokerageDataType = "eps" | "profit" | "eps_growth";
@@ -20,6 +20,7 @@ export type BrokerageRow = {
 interface BrokerageEstimatesCardProps {
   rows: BrokerageRow[];
   onAdd: (row: Omit<BrokerageRow, "id" | "addedAt">) => Promise<void>;
+  onEdit: (rowId: string, updates: Omit<BrokerageRow, "id" | "addedAt">) => Promise<void>;
   onDelete: (rowId: string) => Promise<void>;
   ownerMode: boolean;
 }
@@ -43,6 +44,18 @@ const emptyForm: FormState = {
   year2Val: "",
   sourceLink: "",
 };
+
+function rowToForm(row: BrokerageRow): FormState {
+  return {
+    brokerage: row.brokerage,
+    reportDate: row.reportDate,
+    dataType: row.dataType,
+    baseVal: row.baseVal,
+    year1Val: row.year1Val,
+    year2Val: row.year2Val,
+    sourceLink: row.sourceLink ?? "",
+  };
+}
 
 function computeGrowth(row: BrokerageRow): { yr1: number | null; yr2: number | null; abs2y: number | null } {
   if (row.dataType === "eps_growth") {
@@ -93,14 +106,163 @@ function formatDate(iso: string) {
   } catch { return iso; }
 }
 
-export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: BrokerageEstimatesCardProps) {
+function TypeToggle({ value, onChange }: { value: BrokerageDataType; onChange: (t: BrokerageDataType) => void }) {
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Type:</span>
+      {(["eps", "profit", "eps_growth"] as BrokerageDataType[]).map((t) => (
+        <button
+          key={t}
+          onClick={() => onChange(t)}
+          className={cn(
+            "px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all",
+            value === t
+              ? t === "eps"
+                ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-400 dark:border-blue-600"
+                : t === "profit"
+                ? "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-400 dark:border-amber-600"
+                : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-500 dark:border-emerald-700"
+              : "bg-white dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border-zinc-200 dark:border-zinc-700"
+          )}
+        >
+          {t === "eps" ? "EPS" : t === "profit" ? "Profit ₹ cr" : "EPS Growth %"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function FormGrid({
+  f,
+  setF,
+  onSave,
+  onCancel,
+  saving,
+  saveLabel,
+}: {
+  f: FormState;
+  setF: <K extends keyof FormState>(field: K, val: FormState[K]) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  saveLabel: string;
+}) {
+  const isGrowth = f.dataType === "eps_growth";
+  return (
+    <div className={cn(
+      "grid gap-3 items-end",
+      isGrowth
+        ? "grid-cols-[2fr_1.2fr_1fr_1fr_1fr_auto]"
+        : "grid-cols-[2fr_1.2fr_1fr_1fr_1fr_1fr_auto]"
+    )}>
+      <div className="flex flex-col gap-1">
+        <label className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Brokerage Name</label>
+        <input
+          type="text"
+          value={f.brokerage}
+          onChange={e => setF("brokerage", e.target.value)}
+          placeholder="e.g. Goldman Sachs"
+          className="border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600"
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+          Source Link <span className="font-normal normal-case">(optional)</span>
+        </label>
+        <input
+          type="url"
+          value={f.sourceLink}
+          onChange={e => setF("sourceLink", e.target.value)}
+          placeholder="https://..."
+          className="border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600"
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Report Date</label>
+        <input
+          type="date"
+          value={f.reportDate}
+          onChange={e => setF("reportDate", e.target.value)}
+          className="border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600"
+        />
+      </div>
+      {!isGrowth && (
+        <div className="flex flex-col gap-1">
+          <label className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            {f.dataType === "eps" ? "Base EPS" : "Base Profit ₹ cr"}
+          </label>
+          <input
+            type="number"
+            value={f.baseVal}
+            onChange={e => setF("baseVal", e.target.value)}
+            placeholder="—"
+            className="border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600 tabular-nums"
+          />
+        </div>
+      )}
+      <div className="flex flex-col gap-1">
+        <label className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+          {isGrowth ? "Yr 1 Growth %" : f.dataType === "eps" ? "Yr 1 EPS" : "Yr 1 Profit ₹ cr"}
+        </label>
+        <input
+          type="number"
+          value={f.year1Val}
+          onChange={e => setF("year1Val", e.target.value)}
+          placeholder="—"
+          className="border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600 tabular-nums"
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+          {isGrowth ? "Yr 2 Growth %" : f.dataType === "eps" ? "Yr 2 EPS" : "Yr 2 Profit ₹ cr"}
+        </label>
+        <input
+          type="number"
+          value={f.year2Val}
+          onChange={e => setF("year2Val", e.target.value)}
+          placeholder="—"
+          className="border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600 tabular-nums"
+        />
+      </div>
+      <div className="flex items-end gap-1.5 pb-0.5">
+        <button
+          onClick={onSave}
+          disabled={saving || !f.brokerage.trim()}
+          className="px-4 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-600 dark:bg-blue-500 text-white disabled:opacity-50 hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors whitespace-nowrap"
+        >
+          {saving ? "…" : saveLabel}
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:opacity-80 transition-opacity whitespace-nowrap"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function BrokerageEstimatesCard({ rows, onAdd, onEdit, onDelete }: BrokerageEstimatesCardProps) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [addedVisible, setAddedVisible] = useState(false);
 
   const setField = useCallback(<K extends keyof FormState>(field: K, val: FormState[K]) => {
     setForm(prev => ({ ...prev, [field]: val }));
+  }, []);
+
+  const setEditField = useCallback(<K extends keyof FormState>(field: K, val: FormState[K]) => {
+    setEditForm(prev => ({ ...prev, [field]: val }));
+  }, []);
+
+  const openEdit = useCallback((row: BrokerageRow) => {
+    setEditingRowId(row.id);
+    setEditForm(rowToForm(row));
+    setShowForm(false);
   }, []);
 
   const handleSubmit = useCallback(async () => {
@@ -123,6 +285,25 @@ export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: Bro
     }
   }, [form, onAdd]);
 
+  const handleEditSubmit = useCallback(async () => {
+    if (!editingRowId || !editForm.brokerage.trim()) return;
+    setSaving(true);
+    try {
+      await onEdit(editingRowId, {
+        brokerage: editForm.brokerage.trim(),
+        reportDate: editForm.reportDate,
+        dataType: editForm.dataType,
+        baseVal: editForm.dataType === "eps_growth" ? "" : editForm.baseVal,
+        year1Val: editForm.year1Val,
+        year2Val: editForm.year2Val,
+        ...(editForm.sourceLink.trim() ? { sourceLink: editForm.sourceLink.trim() } : {}),
+      });
+      setEditingRowId(null);
+    } finally {
+      setSaving(false);
+    }
+  }, [editingRowId, editForm, onEdit]);
+
   const averages = useMemo(() => {
     let yr1Sum = 0, yr1Count = 0, yr2Sum = 0, yr2Count = 0, abs2ySum = 0, abs2yCount = 0;
     for (const row of rows) {
@@ -138,8 +319,6 @@ export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: Bro
     };
   }, [rows]);
 
-  const isGrowthForm = form.dataType === "eps_growth";
-
   return (
     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-sm overflow-hidden">
       {/* Header */}
@@ -148,7 +327,7 @@ export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: Bro
           Brokerage EPS / Profit Estimates
         </p>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-zinc-400 dark:text-zinc-500 italic">Any user can add</span>
+          <span className="text-[10px] text-zinc-400 dark:text-zinc-500 italic">Any user can add · edit · delete</span>
           <button
             onClick={() => setAddedVisible(v => !v)}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold bg-zinc-50 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:opacity-80 transition-opacity"
@@ -157,7 +336,7 @@ export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: Bro
             📅 Added {addedVisible ? "▲" : "▼"}
           </button>
           <button
-            onClick={() => { setShowForm(v => !v); setForm(emptyForm); }}
+            onClick={() => { setShowForm(v => !v); setForm(emptyForm); setEditingRowId(null); }}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:opacity-80 transition-opacity"
           >
             {showForm ? "✕ Cancel" : "＋ Add Row"}
@@ -170,114 +349,16 @@ export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: Bro
         <div className="border-b border-zinc-100 dark:border-zinc-800 bg-blue-50/30 dark:bg-blue-900/10 px-5 py-4">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">＋ New Row</span>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Type:</span>
-              {(["eps", "profit", "eps_growth"] as BrokerageDataType[]).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setField("dataType", t)}
-                  className={cn(
-                    "px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all",
-                    form.dataType === t
-                      ? t === "eps"
-                        ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-400 dark:border-blue-600"
-                        : t === "profit"
-                        ? "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-400 dark:border-amber-600"
-                        : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-500 dark:border-emerald-700"
-                      : "bg-white dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 border-zinc-200 dark:border-zinc-700"
-                  )}
-                >
-                  {t === "eps" ? "EPS" : t === "profit" ? "Profit ₹ cr" : "EPS Growth %"}
-                </button>
-              ))}
-            </div>
+            <TypeToggle value={form.dataType} onChange={t => setField("dataType", t)} />
           </div>
-
-          <div className={cn(
-            "grid gap-3 items-end",
-            isGrowthForm
-              ? "grid-cols-[2fr_1.2fr_1fr_1fr_1fr_auto]"
-              : "grid-cols-[2fr_1.2fr_1fr_1fr_1fr_1fr_auto]"
-          )}>
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Brokerage Name</label>
-              <input
-                type="text"
-                value={form.brokerage}
-                onChange={e => setField("brokerage", e.target.value)}
-                placeholder="e.g. Goldman Sachs"
-                className="border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                Source Link <span className="font-normal normal-case">(optional)</span>
-              </label>
-              <input
-                type="url"
-                value={form.sourceLink}
-                onChange={e => setField("sourceLink", e.target.value)}
-                placeholder="https://..."
-                className="border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Report Date</label>
-              <input
-                type="date"
-                value={form.reportDate}
-                onChange={e => setField("reportDate", e.target.value)}
-                className="border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600"
-              />
-            </div>
-            {!isGrowthForm && (
-              <div className="flex flex-col gap-1">
-                <label className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                  {form.dataType === "eps" ? "Base EPS" : "Base Profit ₹ cr"}
-                </label>
-                <input
-                  type="number"
-                  value={form.baseVal}
-                  onChange={e => setField("baseVal", e.target.value)}
-                  placeholder="—"
-                  className="border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600 tabular-nums"
-                />
-              </div>
-            )}
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                {isGrowthForm ? "Yr 1 Growth %" : form.dataType === "eps" ? "Yr 1 EPS" : "Yr 1 Profit ₹ cr"}
-              </label>
-              <input
-                type="number"
-                value={form.year1Val}
-                onChange={e => setField("year1Val", e.target.value)}
-                placeholder="—"
-                className="border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600 tabular-nums"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                {isGrowthForm ? "Yr 2 Growth %" : form.dataType === "eps" ? "Yr 2 EPS" : "Yr 2 Profit ₹ cr"}
-              </label>
-              <input
-                type="number"
-                value={form.year2Val}
-                onChange={e => setField("year2Val", e.target.value)}
-                placeholder="—"
-                className="border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 text-xs bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600 tabular-nums"
-              />
-            </div>
-            <div className="flex items-end pb-0.5">
-              <button
-                onClick={handleSubmit}
-                disabled={saving || !form.brokerage.trim()}
-                className="px-4 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-600 dark:bg-blue-500 text-white disabled:opacity-50 hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors whitespace-nowrap"
-              >
-                {saving ? "…" : "Save Row"}
-              </button>
-            </div>
-          </div>
+          <FormGrid
+            f={form}
+            setF={setField}
+            onSave={handleSubmit}
+            onCancel={() => { setShowForm(false); setForm(emptyForm); }}
+            saving={saving}
+            saveLabel="Save Row"
+          />
         </div>
       )}
 
@@ -291,7 +372,7 @@ export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: Bro
       {/* Table */}
       {rows.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-xs" style={{ minWidth: 1020 }}>
+          <table className="w-full text-xs" style={{ minWidth: 1060 }}>
             <thead>
               <tr className="border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-800/40">
                 <th className="px-5 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 whitespace-nowrap">Brokerage</th>
@@ -307,7 +388,7 @@ export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: Bro
                 <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Yr 2 Value</th>
                 <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Yr 2 Growth</th>
                 <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 whitespace-nowrap">Abs. 2Y</th>
-                {ownerMode && <th className="px-3 py-2.5 text-center text-[10px] text-zinc-300 dark:text-zinc-700">—</th>}
+                <th className="px-3 py-2.5 text-center text-[10px] text-zinc-300 dark:text-zinc-700 whitespace-nowrap">—</th>
               </tr>
             </thead>
             <tbody>
@@ -315,76 +396,93 @@ export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: Bro
                 const { yr1, yr2, abs2y } = computeGrowth(row);
                 const isGrType = row.dataType === "eps_growth";
                 const isProfit = row.dataType === "profit";
+                const isEditing = editingRowId === row.id;
                 return (
-                  <tr
-                    key={row.id}
-                    className={cn(
-                      "border-b border-zinc-50 dark:border-zinc-800 hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors",
-                      isGrType && "bg-emerald-50/20 dark:bg-emerald-900/10"
-                    )}
-                  >
-                    <td className="px-5 py-2.5 text-left font-semibold text-zinc-800 dark:text-zinc-200 whitespace-nowrap">{row.brokerage}</td>
-                    <td className="px-2 py-2.5 text-center">
-                      {row.sourceLink ? (
-                        <a
-                          href={row.sourceLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title={row.sourceLink}
-                          className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm leading-none"
-                        >
-                          🔗
-                        </a>
-                      ) : (
-                        <span className="text-zinc-300 dark:text-zinc-700 text-[10px]">—</span>
+                  <Fragment key={row.id}>
+                    <tr
+                      className={cn(
+                        "border-b border-zinc-50 dark:border-zinc-800 transition-colors",
+                        isEditing
+                          ? "bg-amber-50/40 dark:bg-amber-900/10"
+                          : cn(
+                              "hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40",
+                              isGrType && "bg-emerald-50/20 dark:bg-emerald-900/10"
+                            )
                       )}
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <span className={cn("inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold", TYPE_COLORS[row.dataType])}>
-                        {TYPE_LABELS[row.dataType]}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-zinc-500 dark:text-zinc-400 whitespace-nowrap tabular-nums">
-                      {formatDate(row.reportDate)}
-                    </td>
-                    <td className={cn("px-3 py-2.5 text-right text-[10px] italic tabular-nums text-zinc-400 dark:text-zinc-600 whitespace-nowrap", !addedVisible && "hidden")}>
-                      {formatDate(row.addedAt)}
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
-                      {isGrType ? (
-                        <span className="text-zinc-300 dark:text-zinc-700">—</span>
-                      ) : (
-                        <>
-                          {row.baseVal || <span className="text-zinc-300 dark:text-zinc-700">—</span>}
-                          {isProfit && row.baseVal && <span className="block text-[9px] text-zinc-400 dark:text-zinc-600 italic">₹ cr</span>}
-                        </>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
-                      {isGrType ? (
-                        <span className="text-zinc-300 dark:text-zinc-700">—</span>
-                      ) : (
-                        <>
-                          {row.year1Val || <span className="text-zinc-300 dark:text-zinc-700">—</span>}
-                          {isProfit && row.year1Val && <span className="block text-[9px] text-zinc-400 dark:text-zinc-600 italic">₹ cr</span>}
-                        </>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-right"><PctPill val={yr1} /></td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
-                      {isGrType ? (
-                        <span className="text-zinc-300 dark:text-zinc-700">—</span>
-                      ) : (
-                        <>
-                          {row.year2Val || <span className="text-zinc-300 dark:text-zinc-700">—</span>}
-                          {isProfit && row.year2Val && <span className="block text-[9px] text-zinc-400 dark:text-zinc-600 italic">₹ cr</span>}
-                        </>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-right"><PctPill val={yr2} /></td>
-                    <td className="px-3 py-2.5 text-right"><PctPill val={abs2y} /></td>
-                    {ownerMode && (
+                    >
+                      <td className="px-5 py-2.5 text-left font-semibold text-zinc-800 dark:text-zinc-200 whitespace-nowrap">{row.brokerage}</td>
+                      <td className="px-2 py-2.5 text-center">
+                        {row.sourceLink ? (
+                          <a
+                            href={row.sourceLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={row.sourceLink}
+                            className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm leading-none"
+                          >
+                            🔗
+                          </a>
+                        ) : (
+                          <span className="text-zinc-300 dark:text-zinc-700 text-[10px]">—</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 text-center">
+                        <span className={cn("inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold", TYPE_COLORS[row.dataType])}>
+                          {TYPE_LABELS[row.dataType]}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-zinc-500 dark:text-zinc-400 whitespace-nowrap tabular-nums">
+                        {formatDate(row.reportDate)}
+                      </td>
+                      <td className={cn("px-3 py-2.5 text-right text-[10px] italic tabular-nums text-zinc-400 dark:text-zinc-600 whitespace-nowrap", !addedVisible && "hidden")}>
+                        {formatDate(row.addedAt)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
+                        {isGrType ? (
+                          <span className="text-zinc-300 dark:text-zinc-700">—</span>
+                        ) : (
+                          <>
+                            {row.baseVal || <span className="text-zinc-300 dark:text-zinc-700">—</span>}
+                            {isProfit && row.baseVal && <span className="block text-[9px] text-zinc-400 dark:text-zinc-600 italic">₹ cr</span>}
+                          </>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
+                        {isGrType ? (
+                          <span className="text-zinc-300 dark:text-zinc-700">—</span>
+                        ) : (
+                          <>
+                            {row.year1Val || <span className="text-zinc-300 dark:text-zinc-700">—</span>}
+                            {isProfit && row.year1Val && <span className="block text-[9px] text-zinc-400 dark:text-zinc-600 italic">₹ cr</span>}
+                          </>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right"><PctPill val={yr1} /></td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
+                        {isGrType ? (
+                          <span className="text-zinc-300 dark:text-zinc-700">—</span>
+                        ) : (
+                          <>
+                            {row.year2Val || <span className="text-zinc-300 dark:text-zinc-700">—</span>}
+                            {isProfit && row.year2Val && <span className="block text-[9px] text-zinc-400 dark:text-zinc-600 italic">₹ cr</span>}
+                          </>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right"><PctPill val={yr2} /></td>
+                      <td className="px-3 py-2.5 text-right"><PctPill val={abs2y} /></td>
+                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                        <button
+                          onClick={() => isEditing ? setEditingRowId(null) : openEdit(row)}
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-sm transition-all mr-1",
+                            isEditing
+                              ? "text-amber-500 dark:text-amber-400 opacity-80 hover:opacity-100 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                              : "text-zinc-400 dark:text-zinc-500 opacity-40 hover:opacity-100 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          )}
+                          title={isEditing ? "Cancel edit" : "Edit row"}
+                        >
+                          ✏
+                        </button>
                         <button
                           onClick={() => onDelete(row.id)}
                           className="text-red-400 dark:text-red-500 opacity-40 hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 rounded px-1.5 py-0.5 text-sm transition-all"
@@ -393,8 +491,32 @@ export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: Bro
                           ×
                         </button>
                       </td>
+                    </tr>
+
+                    {/* Inline edit form row */}
+                    {isEditing && (
+                      <tr className="border-b border-amber-100 dark:border-amber-900/30">
+                        <td colSpan={15} className="p-0">
+                          <div className="bg-amber-50/50 dark:bg-amber-900/10 px-5 py-4">
+                            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                                ✏ Editing — {row.brokerage}
+                              </span>
+                              <TypeToggle value={editForm.dataType} onChange={t => setEditField("dataType", t)} />
+                            </div>
+                            <FormGrid
+                              f={editForm}
+                              setF={setEditField}
+                              onSave={handleEditSubmit}
+                              onCancel={() => setEditingRowId(null)}
+                              saving={saving}
+                              saveLabel="Save Changes"
+                            />
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </tr>
+                  </Fragment>
                 );
               })}
 
@@ -415,7 +537,7 @@ export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: Bro
                 <td className="px-3 py-2.5" />
                 <td className="px-3 py-2.5 text-right"><PctPill val={averages.yr2} /></td>
                 <td className="px-3 py-2.5 text-right"><PctPill val={averages.abs2y} /></td>
-                {ownerMode && <td className="px-3 py-2.5" />}
+                <td className="px-3 py-2.5" />
               </tr>
             </tbody>
           </table>

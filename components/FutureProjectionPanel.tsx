@@ -822,13 +822,9 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   }, [selectedIndex]);
 
   const handleBrokerageDelete = useCallback(async (rowId: string) => {
-    if (!cronSecret.current) return;
     const res = await fetch("/api/brokerage-estimates", {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${cronSecret.current}`,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ indexKey: selectedIndex, rowId }),
     });
     if (res.ok) {
@@ -836,6 +832,18 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         ...prev,
         [selectedIndex]: (prev[selectedIndex] ?? []).filter(r => r.id !== rowId),
       }));
+    }
+  }, [selectedIndex]);
+
+  const handleBrokerageEdit = useCallback(async (rowId: string, updates: Omit<BrokerageRow, "id" | "addedAt">) => {
+    const res = await fetch("/api/brokerage-estimates", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ indexKey: selectedIndex, rowId, updates }),
+    });
+    if (res.ok) {
+      const updated = await res.json() as BrokerageRow[];
+      setBrokerageData(prev => ({ ...prev, [selectedIndex]: updated }));
     }
   }, [selectedIndex]);
 
@@ -1108,6 +1116,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       <BrokerageEstimatesCard
         rows={brokerageData[selectedIndex] ?? []}
         onAdd={handleBrokerageAdd}
+        onEdit={handleBrokerageEdit}
         onDelete={handleBrokerageDelete}
         ownerMode={ownerMode}
       />

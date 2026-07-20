@@ -39,13 +39,25 @@ export async function POST(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const auth = request.headers.get("authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (!secret || token !== secret) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function PATCH(request: Request) {
+  try {
+    const { indexKey, rowId, updates } = await request.json() as {
+      indexKey: IndexKey;
+      rowId: string;
+      updates: Omit<BrokerageRow, "id" | "addedAt">;
+    };
+    const existing = (await redis.get<BrokerageStore>(BROKERAGE_KEY)) ?? {};
+    const updated = (existing[indexKey] ?? []).map((r) =>
+      r.id === rowId ? { ...r, ...updates } : r
+    );
+    await redis.set(BROKERAGE_KEY, { ...existing, [indexKey]: updated });
+    return NextResponse.json(updated);
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 502 });
   }
+}
+
+export async function DELETE(request: Request) {
   try {
     const { indexKey, rowId } = await request.json() as { indexKey: IndexKey; rowId: string };
     const existing = (await redis.get<BrokerageStore>(BROKERAGE_KEY)) ?? {};
