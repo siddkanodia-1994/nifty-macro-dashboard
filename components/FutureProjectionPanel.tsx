@@ -87,7 +87,9 @@ type SDSelection = Record<Scenario, SDOption>;
 
 const DEFAULT_SD: SDSelection = { bear: "-1sd", base: "mean", bull: "+1sd" };
 const SD_LS_KEY = "nifty-sd-selection";
-const EPS_GROWTH_LS_KEY = "nifty-eps-growth-visitor-v1";
+const EPS_GROWTH_LS_KEY    = "nifty-eps-growth-visitor-v1";
+const GROWTH_SPREAD_LS_KEY = "nifty-growth-spread-v1";
+const MANUAL_GROWTH_LS_KEY = "nifty-manual-growth-cells-v1";
 
 type EpsGrowthPersisted = {
   globalSource: "Latest" | "30 Apr";
@@ -162,10 +164,16 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const [manualCells, setManualCells] = useState<Set<string>>(new Set());
   const [ownerMode, setOwnerMode] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [growthSpread, setGrowthSpread] = useState<number>(0);
+  const [manualGrowthCells, setManualGrowthCells] = useState<Set<string>>(new Set());
   const { ratioMode } = useRatioMode();
   const [sdSelection, setSDSelection] = useState<SDSelection>(DEFAULT_SD);
   const sdSelectionRef = useRef<SDSelection>(DEFAULT_SD);
   sdSelectionRef.current = sdSelection;
+  const growthSpreadRef = useRef<number>(0);
+  growthSpreadRef.current = growthSpread;
+  const manualGrowthCellsRef = useRef<Set<string>>(new Set());
+  manualGrowthCellsRef.current = manualGrowthCells;
   const userHasEdited = useRef(false);
   const epsGrowthEdited = useRef(false);
   const cronSecret = useRef<string | null>(null);
@@ -207,14 +215,18 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
       let kv: ProjectionsMap | null = null;
       let rawEpsGrowth: EpsGrowthPersisted | undefined;
+      let rawGrowthSpread: number | undefined;
+      let rawManualGrowthCells: string[] | undefined;
       try {
         const res = await fetch("/api/projection-defaults", { cache: "no-store" });
         if (res.ok) {
           const json = await res.json() as Record<string, unknown>;
           if (json) {
             rawEpsGrowth = json.epsGrowth as EpsGrowthPersisted | undefined;
+            rawGrowthSpread = json.growthSpread as number | undefined;
+            rawManualGrowthCells = json.manualGrowthCells as string[] | undefined;
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { epsGrowth: _epsGrowth, ...projectionOnly } = json;
+            const { epsGrowth: _epsGrowth, growthSpread: _gs, manualGrowthCells: _mgc, ...projectionOnly } = json;
             kv = projectionOnly as ProjectionsMap;
             setOwnerDefaults(kv);
           }
@@ -242,6 +254,8 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
           setGlobalBaseSource(rawEpsGrowth.globalSource ?? "30 Apr");
           setEpsGrowthMap(rawEpsGrowth.indices ?? {});
         }
+        setGrowthSpread(rawGrowthSpread ?? 0);
+        if (rawManualGrowthCells?.length) setManualGrowthCells(new Set(rawManualGrowthCells));
         return;
       }
 
@@ -278,6 +292,13 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       setGlobalBaseSource(epsData.globalSource ?? "30 Apr");
       setEpsGrowthMap(epsData.indices ?? {});
 
+      const storedSpread = localStorage.getItem(GROWTH_SPREAD_LS_KEY);
+      if (storedSpread !== null) setGrowthSpread(Number(storedSpread));
+      try {
+        const storedManual = localStorage.getItem(MANUAL_GROWTH_LS_KEY);
+        if (storedManual) setManualGrowthCells(new Set(JSON.parse(storedManual) as string[]));
+      } catch {}
+
     }
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -296,11 +317,17 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         changed = true;
         const cur = next[meta.key];
         if (!cur) continue;
+        const spread = growthSpreadRef.current;
+        const manual = manualGrowthCellsRef.current;
         next[meta.key] = {
           ...cur,
           base: { ...cur.base, growthPct: newVal },
-          bear: { ...cur.bear, growthPct: parseFloat((newVal - 3).toFixed(2)) },
-          bull: { ...cur.bull, growthPct: parseFloat((newVal + 3).toFixed(2)) },
+          bear: manual.has(`${meta.key}_bear`)
+            ? cur.bear
+            : { ...cur.bear, growthPct: parseFloat((newVal - spread).toFixed(2)) },
+          bull: manual.has(`${meta.key}_bull`)
+            ? cur.bull
+            : { ...cur.bull, growthPct: parseFloat((newVal + spread).toFixed(2)) },
         };
       }
       if (!changed) return prev;
@@ -314,8 +341,10 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   useEffect(() => {
     if (!hasInitialized.current || !ownerEpsOverride || !ownerMode) return;
     const { key, base } = ownerEpsOverride;
-    const bear = parseFloat((base - 3).toFixed(2));
-    const bull = parseFloat((base + 3).toFixed(2));
+    const spread = growthSpreadRef.current;
+    const manual = manualGrowthCellsRef.current;
+    const bearPct = parseFloat((base - spread).toFixed(2));
+    const bullPct = parseFloat((base + spread).toFixed(2));
 
     setProjections((prev) => {
       const existing = prev[key];
@@ -325,8 +354,12 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         [key]: {
           ...existing,
           base: { ...existing.base, growthPct: base },
-          bear: { ...existing.bear, growthPct: bear },
-          bull: { ...existing.bull, growthPct: bull },
+          bear: manual.has(`${key}_bear`)
+            ? existing.bear
+            : { ...existing.bear, growthPct: bearPct },
+          bull: manual.has(`${key}_bull`)
+            ? existing.bull
+            : { ...existing.bull, growthPct: bullPct },
         },
       };
     });
@@ -337,8 +370,8 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       [key]: {
         ...cur,
         base: { ...(cur.base ?? {}), growthPct: base },
-        bear: { ...(cur.bear ?? {}), growthPct: bear },
-        bull: { ...(cur.bull ?? {}), growthPct: bull },
+        ...(!manual.has(`${key}_bear`) && { bear: { ...(cur.bear ?? {}), growthPct: bearPct } }),
+        ...(!manual.has(`${key}_bull`) && { bull: { ...(cur.bull ?? {}), growthPct: bullPct } }),
       },
     };
     userHasEdited.current = true;
@@ -404,6 +437,33 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       localStorage.setItem(EPS_GROWTH_LS_KEY, JSON.stringify({ globalSource: globalBaseSource, indices: epsGrowthMap }));
     } catch {}
   }, [globalBaseSource, epsGrowthMap, ownerMode]);
+
+  // Auto-save growth spread + manual cells to Redis in owner mode (debounced 600ms)
+  useEffect(() => {
+    if (!ownerMode || !cronSecret.current) return;
+    const id = setTimeout(async () => {
+      try {
+        await fetch("/api/projection-defaults", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${cronSecret.current}`,
+          },
+          body: JSON.stringify({ growthSpread, manualGrowthCells: [...manualGrowthCells] }),
+        });
+      } catch {}
+    }, 600);
+    return () => clearTimeout(id);
+  }, [growthSpread, manualGrowthCells, ownerMode]);
+
+  // Persist growth spread + manual cells for visitors in localStorage
+  useEffect(() => {
+    if (ownerMode) return;
+    try {
+      localStorage.setItem(GROWTH_SPREAD_LS_KEY, String(growthSpread));
+      localStorage.setItem(MANUAL_GROWTH_LS_KEY, JSON.stringify([...manualGrowthCells]));
+    } catch {}
+  }, [growthSpread, manualGrowthCells, ownerMode]);
 
   // Auto-fill Target PE/PB from mean ± 1SD of the selected time window and ratio mode
   useEffect(() => {
@@ -574,6 +634,9 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       if (field === "multiple") {
         setManualCells((prev) => new Set(prev).add(`${selectedIndex}_${scenario}`));
       }
+      if (field === "growthPct" && (scenario === "bear" || scenario === "bull")) {
+        setManualGrowthCells((prev) => new Set(prev).add(`${selectedIndex}_${scenario}`));
+      }
       // Sync base growthPct back to Overview's EPS Est. column
       if (scenario === "base" && field === "growthPct") {
         isSelfEditing.current = true;
@@ -639,11 +702,15 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     try { localStorage.removeItem(VISITOR_STORAGE_KEY); } catch {}
     try { localStorage.removeItem(SD_LS_KEY); } catch {}
     try { localStorage.removeItem(EPS_GROWTH_LS_KEY); } catch {}
+    try { localStorage.removeItem(GROWTH_SPREAD_LS_KEY); } catch {}
+    try { localStorage.removeItem(MANUAL_GROWTH_LS_KEY); } catch {}
     visitorDiff.current = {};
     userHasEdited.current = false;
     epsGrowthEdited.current = false;
     setSDSelection(DEFAULT_SD);
     setManualCells(new Set());
+    setGrowthSpread(0);
+    setManualGrowthCells(new Set());
     setEpsGrowthMap({});
     setGlobalBaseSource("30 Apr");
     const resetTo = ownerDefaults ?? buildDefaults(historicalData);
@@ -656,6 +723,31 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     }
     setTimeout(() => { isSelfEditing.current = false; }, 0);
   }, [ownerDefaults, historicalData, onGrowthPctChange]);
+
+  const handleSpreadChange = useCallback((newSpread: number) => {
+    setGrowthSpread(newSpread);
+    setProjections(prev => {
+      const next = { ...prev };
+      const manual = manualGrowthCellsRef.current;
+      for (const meta of INDEX_META) {
+        const key = meta.key;
+        const cur = next[key];
+        if (!cur) continue;
+        const baseG = cur.base.growthPct;
+        next[key] = {
+          ...cur,
+          bear: manual.has(`${key}_bear`)
+            ? cur.bear
+            : { ...cur.bear, growthPct: parseFloat((baseG - newSpread).toFixed(2)) },
+          bull: manual.has(`${key}_bull`)
+            ? cur.bull
+            : { ...cur.bull, growthPct: parseFloat((baseG + newSpread).toFixed(2)) },
+        };
+      }
+      return next;
+    });
+    userHasEdited.current = true;
+  }, []);
 
   const computed = useMemo(() => {
     if (!current) return null;
@@ -865,6 +957,20 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
                 >
                   PB × BV
                 </button>
+              </div>
+
+              {/* Bear/Bull spread selector */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider whitespace-nowrap">± Spread</span>
+                <select
+                  value={growthSpread}
+                  onChange={e => handleSpreadChange(Number(e.target.value))}
+                  className="text-xs border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:focus:ring-blue-600"
+                >
+                  {[0, 1, 2, 3, 4, 5].map(v => (
+                    <option key={v} value={v}>{v}%</option>
+                  ))}
+                </select>
               </div>
 
               {/* Reset */}
