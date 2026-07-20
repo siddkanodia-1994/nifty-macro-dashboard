@@ -58,9 +58,10 @@ function computeGrowth(row: BrokerageRow): { yr1: number | null; yr2: number | n
   const v1 = parseFloat(row.year1Val);
   const v2 = parseFloat(row.year2Val);
   if (isNaN(base) || base === 0) return { yr1: null, yr2: null, abs2y: null };
-  const yr1 = isNaN(v1) ? null : (v1 / base - 1) * 100;
-  const yr2 = isNaN(v2) ? null : (v2 / base - 1) * 100;
-  return { yr1, yr2, abs2y: yr2 };
+  const yr1   = isNaN(v1) ? null : (v1 / base - 1) * 100;
+  const yr2   = (!isNaN(v1) && v1 !== 0 && !isNaN(v2)) ? (v2 / v1 - 1) * 100 : null;
+  const abs2y = !isNaN(v2) ? (v2 / base - 1) * 100 : null;
+  return { yr1, yr2, abs2y };
 }
 
 function PctPill({ val }: { val: number | null }) {
@@ -148,6 +149,13 @@ export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: Bro
         </p>
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-zinc-400 dark:text-zinc-500 italic">Any user can add</span>
+          <button
+            onClick={() => setAddedVisible(v => !v)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold bg-zinc-50 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:opacity-80 transition-opacity"
+            title={addedVisible ? "Hide Added date column" : "Show Added date column"}
+          >
+            📅 Added {addedVisible ? "▲" : "▼"}
+          </button>
           <button
             onClick={() => { setShowForm(v => !v); setForm(emptyForm); }}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:opacity-80 transition-opacity"
@@ -290,12 +298,8 @@ export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: Bro
                 <th className="px-2 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Src</th>
                 <th className="px-3 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Type</th>
                 <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 whitespace-nowrap">Report Date</th>
-                <th
-                  className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider cursor-pointer select-none whitespace-nowrap text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                  onClick={() => setAddedVisible(v => !v)}
-                  title={addedVisible ? "Click to hide" : "Click to show"}
-                >
-                  Added {addedVisible ? "▲" : "▼"}
+                <th className={cn("px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap text-zinc-500 dark:text-zinc-400", !addedVisible && "hidden")}>
+                  Added
                 </th>
                 <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Base Value</th>
                 <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Yr 1 Value</th>
@@ -420,10 +424,9 @@ export function BrokerageEstimatesCard({ rows, onAdd, onDelete, ownerMode }: Bro
 
       {/* Footer */}
       <p className="px-5 py-2.5 text-[10px] text-zinc-400 dark:text-zinc-600 border-t border-zinc-100 dark:border-zinc-800 leading-relaxed">
-        EPS / Profit rows: Growth = (Value ÷ Base − 1) × 100 &nbsp;·&nbsp;
+        EPS / Profit rows: Yr 1 Growth = (Yr 1 ÷ Base − 1) × 100 &nbsp;·&nbsp; Yr 2 Growth = (Yr 2 ÷ Yr 1 − 1) × 100 &nbsp;·&nbsp; Abs. 2Y = (Yr 2 ÷ Base − 1) × 100 &nbsp;·&nbsp;
         EPS Growth % rows: Abs. 2Y = (1 + Yr1%) × (1 + Yr2%) − 1 compounded &nbsp;·&nbsp;
-        Average skips rows with no valid value &nbsp;·&nbsp;
-        Click &ldquo;Added&rdquo; header to show/hide that column
+        Average skips rows with no valid value
       </p>
     </div>
   );
