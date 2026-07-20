@@ -171,6 +171,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   const cronSecret = useRef<string | null>(null);
   const visitorDiff = useRef<VisitorDiff>({});
   const isMounted = useRef(false);
+  const hasInitialized = useRef(false);
   const prevExternalGrowth = useRef<Partial<Record<IndexKey, number>>>({});
   const isSelfEditing = useRef(false);
 
@@ -275,6 +276,8 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         const brokerageRes = await fetch("/api/brokerage-estimates", { cache: "no-store" });
         if (brokerageRes.ok) setBrokerageData(await brokerageRes.json());
       } catch {}
+
+      hasInitialized.current = true;
     }
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -282,7 +285,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
   // External sync — responds to EPS Est. edits from IndexOverview
   useEffect(() => {
-    if (!externalGrowthPct || isSelfEditing.current) return;
+    if (!hasInitialized.current || !externalGrowthPct || isSelfEditing.current) return;
     setProjections((prev) => {
       let changed = false;
       const next = { ...prev };
@@ -309,7 +312,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
   // Owner EPS Est. edits from Overview → update projections + trigger 600ms auto-save
   useEffect(() => {
-    if (!ownerEpsOverride || !ownerMode) return;
+    if (!hasInitialized.current || !ownerEpsOverride || !ownerMode) return;
     const { key, base } = ownerEpsOverride;
     const bear = parseFloat((base - 3).toFixed(2));
     const bull = parseFloat((base + 3).toFixed(2));
@@ -701,7 +704,6 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       for (const meta of INDEX_META) {
         const key = meta.key;
         const existing = next[key];
-        if (existing?.baseSource === "Manual") continue;
         const defs = allBaseDefaults[key];
         const val = source === "Latest" ? defs?.latest : defs?.apr30;
         next[key] = {
