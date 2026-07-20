@@ -221,6 +221,13 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         }
       } catch {}
 
+      // Load brokerage estimates unconditionally (public GET, same for all users)
+      try {
+        const brokerageRes = await fetch("/api/brokerage-estimates", { cache: "no-store" });
+        if (brokerageRes.ok) setBrokerageData(await brokerageRes.json());
+      } catch {}
+      hasInitialized.current = true;
+
       // Owner mode: always use Blob defaults (skip localStorage)
       // Merge kv ON TOP of buildDefaults so new indices (not yet in Redis) always have state
       if (key) {
@@ -271,13 +278,6 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       setGlobalBaseSource(epsData.globalSource ?? "30 Apr");
       setEpsGrowthMap(epsData.indices ?? {});
 
-      // Load brokerage estimates (shared, unauthenticated)
-      try {
-        const brokerageRes = await fetch("/api/brokerage-estimates", { cache: "no-store" });
-        if (brokerageRes.ok) setBrokerageData(await brokerageRes.json());
-      } catch {}
-
-      hasInitialized.current = true;
     }
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
