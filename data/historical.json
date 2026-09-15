@@ -119331,5 +119331,113 @@
       "impliedEPS": 165.71,
       "impliedBV": 856.73
     }
+  },
+  {
+    "date": "2026-09-15",
+    "NIFTY_50": {
+      "close": 23118.6,
+      "pe": 19.54,
+      "pb": 2.8,
+      "impliedEPS": 1183.14,
+      "impliedBV": 8256.64
+    },
+    "NIFTY_BANK": {
+      "close": 55794.75,
+      "pe": 13.2,
+      "pb": 1.67,
+      "impliedEPS": 4226.88,
+      "impliedBV": 33410.03
+    },
+    "NIFTY_500": {
+      "close": 22477.45,
+      "pe": 21.78,
+      "pb": 3.12,
+      "impliedEPS": 1032.02,
+      "impliedBV": 7204.31
+    },
+    "NIFTY_IT": {
+      "close": 29555.3,
+      "pe": 18.85,
+      "pb": 5.2,
+      "impliedEPS": 1567.92,
+      "impliedBV": 5683.71
+    },
+    "NIFTY_MIDCAP_150": {
+      "close": 22358.8,
+      "pe": 27.96,
+      "pb": 4.21,
+      "impliedEPS": 799.67,
+      "impliedBV": 5310.88
+    },
+    "NIFTY_SMALLCAP_250": {
+      "close": 17892.8,
+      "pe": 33.01,
+      "pb": 3.42,
+      "impliedEPS": 542.04,
+      "impliedBV": 5231.81
+    },
+    "NIFTY_PSU_BANK": {
+      "close": 8158.5,
+      "pe": 7.34,
+      "pb": 1.13,
+      "impliedEPS": 1111.51,
+      "impliedBV": 7219.91
+    },
+    "NIFTY_PVT_BANK": {
+      "close": 27069.8,
+      "pe": 16.86,
+      "pb": 1.94,
+      "impliedEPS": 1605.56,
+      "impliedBV": 13953.51
+    },
+    "NIFTY_MICROCAP_250": {
+      "close": 25780.3,
+      "pe": 27.71,
+      "pb": 3.43,
+      "impliedEPS": 930.36,
+      "impliedBV": 7516.12
+    },
+    "NIFTY_AUTO": {
+      "close": 26756.6,
+      "pe": 31.09,
+      "pb": 4.08,
+      "impliedEPS": 860.62,
+      "impliedBV": 6557.99
+    },
+    "NIFTY_FIN_SERVICE": {
+      "close": 25076.65,
+      "pe": 15.38,
+      "pb": 2.32,
+      "impliedEPS": 1630.47,
+      "impliedBV": 10808.9
+    },
+    "NIFTY_REALTY": {
+      "close": 814.25,
+      "pe": 34.58,
+      "pb": 3.56,
+      "impliedEPS": 23.55,
+      "impliedBV": 228.72
+    },
+    "NIFTY_METAL": {
+      "close": 12669.15,
+      "pe": 15.42,
+      "pb": 2.53,
+      "impliedEPS": 821.61,
+      "impliedBV": 5007.57
+    },
+    "NIFTY_CAPITAL_MARKETS": {
+      "close": 5255.6,
+      "pe": 43.23,
+      "pb": 10.83,
+      "impliedEPS": 121.57,
+      "impliedBV": 485.28
+    },
+    "NIFTY_INDIA_DEFENCE": {
+      "close": 9144.15,
+      "pe": 55.18,
+      "pb": 10.63,
+      "impliedEPS": 165.71,
+      "impliedBV": 860.22
+    }
   }
 ]
