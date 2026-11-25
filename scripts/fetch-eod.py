@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 fetch-eod.py
-Fetches today's (or a specified date's) EOD close + P/E + P/B for all 14 indices
+Fetches recent (or a specified date's) EOD close + P/E + P/B for all 14 indices
 from niftyindices.com.
 
 Strategy (in order):
@@ -18,8 +18,10 @@ will retry. No Yahoo Finance fallback (approximated PE/PB is not acceptable).
 Usage:
     python scripts/fetch-eod.py [--date YYYY-MM-DD]
 
-If --date is omitted, today's date is used.
-Called by GitHub Actions at 12:30 UTC (6:00 PM IST) on weekdays.
+If --date is omitted, every weekday in the last 7 days (IST) that lacks clean
+data is fetched, so a cron run that fires late (after UTC midnight) or fails
+outright is caught up by the next one.
+Called by GitHub Actions from 12:30 UTC (6:00 PM IST) on weekdays.
 """
 
 from __future__ import annotations
@@ -32,7 +34,7 @@ import os
 import sys
 import argparse
 import time
-from datetime import datetime, date
+from datetime import datetime, date, timedelta, timezone
 from typing import Optional
 
 try:
@@ -254,46 +256,38 @@ def fetch_all_playwright(target_date: date) -> dict:
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
-def main():
-    parser = argparse.ArgumentParser(description="Fetch EOD data → historical.json")
-    parser.add_argument("--date", default=None, help="Date to fetch (YYYY-MM-DD). Defaults to today.")
-    args = parser.parse_args()
+# niftyindices.com dates its reports in IST. GitHub's cron often fires hours late
+# (past UTC midnight), so the runner's date.today() can skip a trading day.
+IST = timezone(timedelta(hours=5, minutes=30))
+LOOKBACK_DAYS = 7
 
-    target_date = datetime.strptime(args.date, "%Y-%m-%d").date() if args.date else date.today()
-    target_iso  = target_date.isoformat()
-    print(f"Fetching EOD data for: {target_iso}")
 
-    script_dir   = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(script_dir)
-    output_path  = os.path.join(project_root, "data", "historical.json")
+def is_clean(row: dict) -> bool:
+    n50 = row.get("NIFTY_50") or {}
+    n50_close = n50.get("close") if isinstance(n50, dict) else None
+    n500 = row.get("NIFTY_500") or {}
+    n500_close = n500.get("close") if isinstance(n500, dict) else None
+    return (n50_close is not None and round(n50_close, 2) == n50_close
+            and n500_close is not None)
 
-    with open(output_path) as f:
-        rows: list[dict] = json.load(f)
 
-    existing = next((r for r in rows if r["date"] == target_iso), None)
-    extra_data: dict = {}
-    if existing:
-        n50 = existing.get("NIFTY_50") or {}
-        n50_close = n50.get("close") if isinstance(n50, dict) else None
-        n500 = existing.get("NIFTY_500") or {}
-        n500_close = n500.get("close") if isinstance(n500, dict) else None
-        is_clean = (n50_close is not None and round(n50_close, 2) == n50_close
-                    and n500_close is not None)
-        if is_clean:
-            print(f"Date {target_iso} already has clean niftyindices.com data — nothing to do.")
-            return
-        for k, v in existing.items():
-            if k != "date" and k not in TARGET_KEYS:
-                extra_data[k] = v
-        print(f"Date {target_iso} has incomplete data — removing and re-fetching…")
-        rows = [r for r in rows if r["date"] != target_iso]
+def default_target_dates(rows: list[dict]) -> list[date]:
+    """Weekdays in the last LOOKBACK_DAYS (IST) without clean data, oldest first.
+    Holidays stay in the list but cost only one CSV request each (it returns nothing)."""
+    today_ist = datetime.now(IST).date()
+    clean = {r["date"] for r in rows if is_clean(r)}
+    days = (today_ist - timedelta(days=i) for i in range(LOOKBACK_DAYS, -1, -1))
+    return [d for d in days if d.weekday() < 5 and d.isoformat() not in clean]
 
+
+def fetch_row(target_date: date, extra_data: dict, use_playwright: bool) -> Optional[dict]:
+    """Fetch one date's snapshot and build its row; None if nothing was published."""
     # ── Strategy 1: Direct CSV URL ───────────────────────────────────────────
     results = fetch_all_daily_reports(target_date)
 
     # ── Strategy 2: Playwright (for any remaining) ────────────────────────────
     still_missing = missing_keys(results)
-    if still_missing:
+    if still_missing and use_playwright:
         print(f"\n{len(still_missing)} indices missing — trying Playwright…")
         pw = fetch_all_playwright(target_date)
         for k, v in pw.items():
@@ -302,11 +296,11 @@ def main():
 
     # ── No more strategies — if nothing fetched, skip and retry next run ──────
     if not results:
-        print("\nNo data from any niftyindices.com strategy — skipping write (will retry next cron run).")
-        return
+        print("No data from any niftyindices.com strategy — skipping (will retry next cron run).")
+        return None
 
     # ── Build new row ─────────────────────────────────────────────────────────
-    new_row: dict = {"date": target_iso, **extra_data}
+    new_row: dict = {"date": target_date.isoformat(), **extra_data}
     null_entry = {"close": None, "pe": None, "pb": None, "impliedEPS": None, "impliedBV": None}
     for key in TARGET_KEYS:
         m = results.get(key)
@@ -315,9 +309,60 @@ def main():
         else:
             print(f"  WARNING: {key} — no data, writing null")
             new_row[key] = dict(null_entry)
+    return new_row
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Fetch EOD data → historical.json")
+    parser.add_argument("--date", default=None,
+                        help="Date to fetch (YYYY-MM-DD). Defaults to every recent weekday "
+                             f"(last {LOOKBACK_DAYS} days, IST) still missing clean data.")
+    args = parser.parse_args()
+
+    script_dir   = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    output_path  = os.path.join(project_root, "data", "historical.json")
+
+    with open(output_path) as f:
+        rows: list[dict] = json.load(f)
+
+    if args.date:
+        targets = [datetime.strptime(args.date, "%Y-%m-%d").date()]
+    else:
+        targets = default_target_dates(rows)
+        if not targets:
+            print(f"All weekdays in the last {LOOKBACK_DAYS} days (IST) have clean data — nothing to do.")
+            return
+
+    changed = False
+    for i, target_date in enumerate(targets):
+        target_iso = target_date.isoformat()
+        print(f"\nFetching EOD data for: {target_iso}")
+
+        existing = next((r for r in rows if r["date"] == target_iso), None)
+        extra_data: dict = {}
+        if existing:
+            if is_clean(existing):
+                print(f"Date {target_iso} already has clean niftyindices.com data — nothing to do.")
+                continue
+            for k, v in existing.items():
+                if k != "date" and k not in TARGET_KEYS:
+                    extra_data[k] = v
+            print(f"Date {target_iso} has incomplete data — re-fetching…")
+
+        # Playwright clicks the newest report links on the page, so it can only
+        # ever help the most recent target date.
+        new_row = fetch_row(target_date, extra_data, use_playwright=(i == len(targets) - 1))
+        if new_row is None:
+            continue
+        rows = [r for r in rows if r["date"] != target_iso]
+        rows.append(new_row)
+        changed = True
+
+    if not changed:
+        return
 
     # ── Write ─────────────────────────────────────────────────────────────────
-    rows.append(new_row)
     rows.sort(key=lambda r: r["date"])
     seen: set[str] = set()
     deduped = []
