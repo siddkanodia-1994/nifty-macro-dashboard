@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { INDEX_META, formatPrice, formatRatio, cn } from "@/lib/utils";
+import { INDEX_META, formatPrice, formatRatio, cn, latestValid } from "@/lib/utils";
+import { useLivePrices } from "@/lib/livePrices";
+import { istDate } from "@/lib/marketHours";
 import type { HistoricalRow, IndexKey } from "@/lib/types";
 
 function findRowOnOrBefore(rows: HistoricalRow[], target: string): HistoricalRow | null {
@@ -18,9 +20,10 @@ function avgOverRange(
   from: string,
   to: string,
   key: IndexKey,
-  field: "close" | "impliedEPS" | "pe"
+  field: "close" | "impliedEPS" | "pe",
+  extra: number | null = null // today's live value, when the range runs to today
 ): number | null {
-  const vals: number[] = [];
+  const vals: number[] = extra != null ? [extra] : [];
   for (const row of rows) {
     if (row.date < from) continue;
     if (row.date > to) break;
@@ -101,6 +104,19 @@ function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; s
 
 export function PeriodReturnsPanel({ historicalData }: Props) {
   const lastDate = historicalData.at(-1)?.date ?? new Date().toISOString().slice(0, 10);
+
+  // While the market is open, periods that run to the latest day end at the live
+  // price, dated today (IST) — so presets like 1M mean "1 month to right now".
+  const { prices: livePrices, marketOpen, asOf } = useLivePrices();
+  const liveDate = useMemo(() => {
+    if (!marketOpen || !livePrices || !asOf) return null;
+    const d = istDate(new Date(asOf));
+    return d > lastDate ? d : null;
+  }, [marketOpen, livePrices, asOf, lastDate]);
+  const latestDate = liveDate ?? lastDate;
+  const liveTime = liveDate && asOf
+    ? new Date(asOf).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false })
+    : null;
   const defaultStart = new Date(new Date(lastDate).getTime() - 365 * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);
@@ -120,13 +136,20 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
   const [endPriceFrom,   setEndPriceFrom]   = useState(lastDate);
   const [endPriceTo,     setEndPriceTo]     = useState(lastDate);
 
+  // End values set to the latest EOD day follow the live day while the market is open.
+  const effEndDate      = endDate      >= lastDate ? latestDate : endDate;
+  const effEndPriceFrom = endPriceFrom >= lastDate ? latestDate : endPriceFrom;
+  const effEndPriceTo   = endPriceTo   >= lastDate ? latestDate : endPriceTo;
+  const liveEnd    = liveDate != null && !avgMode && effEndDate === liveDate;
+  const liveAvgEnd = liveDate != null && avgMode && effEndPriceTo === liveDate;
+
   function handleAvgToggle() {
     if (!avgMode) {
       // Sync avg periods to current normal dates so the numbers don't jump
       setStartPriceFrom(startDate);
       setStartPriceTo(startDate);
-      setEndPriceFrom(endDate);
-      setEndPriceTo(endDate);
+      setEndPriceFrom(effEndDate);
+      setEndPriceTo(effEndDate);
     }
     setAvgMode(v => !v);
   }
@@ -142,20 +165,21 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
     endRow:   findRowOnOrBefore(historicalData, endDate),
   }), [historicalData, startDate, endDate]);
 
-  const numDays = startRow && endRow
+  const endUsedDate = liveEnd ? liveDate : endRow?.date ?? null;
+  const numDays = startRow && endUsedDate
     ? Math.round(
-        (new Date(endRow.date).getTime() - new Date(startRow.date).getTime()) /
+        (new Date(endUsedDate).getTime() - new Date(startRow.date).getTime()) /
         (1000 * 60 * 60 * 24)
       )
     : null;
   const years = numDays != null ? (numDays / 365.25).toFixed(1) : null;
 
   const activePreset = avgMode
-    ? PRESETS.find((p) => shiftBack(endPriceTo, p.months) === endPriceFrom)?.label ?? null
-    : PRESETS.find((p) => shiftBack(endDate,    p.months) === startDate)?.label    ?? null;
+    ? PRESETS.find((p) => shiftBack(effEndPriceTo, p.months) === effEndPriceFrom)?.label ?? null
+    : PRESETS.find((p) => shiftBack(effEndDate,    p.months) === startDate)?.label       ?? null;
 
   const startPeriodDays = avgMode ? countInRange(historicalData, startPriceFrom, startPriceTo) : 0;
-  const endPeriodDays   = avgMode ? countInRange(historicalData, endPriceFrom,   endPriceTo)   : 0;
+  const endPeriodDays   = avgMode ? countInRange(historicalData, effEndPriceFrom, effEndPriceTo) + (liveAvgEnd ? 1 : 0) : 0;
 
   const rows = useMemo(() => {
     const base = INDEX_META.map((meta) => {
@@ -163,13 +187,27 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
       let se: number | null, ee: number | null;
       let sp: number | null, ep: number | null;
 
+      // Live point for this index: live price on the latest EOD earnings base
+      // (implied EPS only changes with results, so the live P/E is price ÷ that EPS).
+      const liveClose = liveDate ? livePrices?.[meta.key] ?? null : null;
+      const liveEPS   = liveClose != null ? latestValid(historicalData, meta.key)?.impliedEPS ?? null : null;
+      const livePE    = liveClose != null && liveEPS ? liveClose / liveEPS : null;
+
       if (avgMode) {
-        sc = avgOverRange(historicalData, startPriceFrom, startPriceTo, meta.key, "close");
-        ec = avgOverRange(historicalData, endPriceFrom,   endPriceTo,   meta.key, "close");
-        se = avgOverRange(historicalData, startPriceFrom, startPriceTo, meta.key, "impliedEPS");
-        ee = avgOverRange(historicalData, endPriceFrom,   endPriceTo,   meta.key, "impliedEPS");
-        sp = avgOverRange(historicalData, startPriceFrom, startPriceTo, meta.key, "pe");
-        ep = avgOverRange(historicalData, endPriceFrom,   endPriceTo,   meta.key, "pe");
+        const addLive = liveAvgEnd && liveClose != null;
+        sc = avgOverRange(historicalData, startPriceFrom,  startPriceTo,  meta.key, "close");
+        ec = avgOverRange(historicalData, effEndPriceFrom, effEndPriceTo, meta.key, "close",      addLive ? liveClose : null);
+        se = avgOverRange(historicalData, startPriceFrom,  startPriceTo,  meta.key, "impliedEPS");
+        ee = avgOverRange(historicalData, effEndPriceFrom, effEndPriceTo, meta.key, "impliedEPS", addLive ? liveEPS : null);
+        sp = avgOverRange(historicalData, startPriceFrom,  startPriceTo,  meta.key, "pe");
+        ep = avgOverRange(historicalData, effEndPriceFrom, effEndPriceTo, meta.key, "pe",         addLive ? livePE : null);
+      } else if (liveEnd && liveClose != null) {
+        sc = startRow?.[meta.key]?.close      ?? null;
+        ec = liveClose;
+        se = startRow?.[meta.key]?.impliedEPS ?? null;
+        ee = liveEPS;
+        sp = startRow?.[meta.key]?.pe         ?? null;
+        ep = livePE;
       } else {
         sc = startRow?.[meta.key]?.close      ?? null;
         ec = endRow?.[meta.key]?.close        ?? null;
@@ -199,7 +237,7 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
       const bv = b[sortCol] ?? (sortDir === "desc" ? -Infinity : Infinity);
       return sortDir === "desc" ? bv - av : av - bv;
     });
-  }, [startRow, endRow, sortCol, sortDir, avgMode, startPriceFrom, startPriceTo, endPriceFrom, endPriceTo, historicalData]);
+  }, [startRow, endRow, sortCol, sortDir, avgMode, startPriceFrom, startPriceTo, effEndPriceFrom, effEndPriceTo, historicalData, liveDate, livePrices, liveEnd, liveAvgEnd]);
 
   const inputCls =
     "border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-600";
@@ -230,7 +268,7 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
                   type="date"
                   value={startPriceTo}
                   min={startPriceFrom}
-                  max={lastDate}
+                  max={latestDate}
                   onChange={(e) => setStartPriceTo(e.target.value)}
                   className={inputCls}
                 />
@@ -245,24 +283,24 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
               <div className="flex items-center gap-2">
                 <input
                   type="date"
-                  value={endPriceFrom}
+                  value={effEndPriceFrom}
                   min={firstDate}
-                  max={endPriceTo}
+                  max={effEndPriceTo}
                   onChange={(e) => setEndPriceFrom(e.target.value)}
                   className={inputCls}
                 />
                 <span className="text-zinc-400 dark:text-zinc-500 text-sm select-none">→</span>
                 <input
                   type="date"
-                  value={endPriceTo}
-                  min={endPriceFrom}
-                  max={lastDate}
+                  value={effEndPriceTo}
+                  min={effEndPriceFrom}
+                  max={latestDate}
                   onChange={(e) => setEndPriceTo(e.target.value)}
                   className={inputCls}
                 />
               </div>
               <span className="text-xs text-zinc-400 mt-0.5">
-                {endPeriodDays > 0 ? `${endPeriodDays} trading days avg` : "—"}
+                {endPeriodDays > 0 ? `${endPeriodDays} trading days avg${liveAvgEnd ? ` (incl. live ${liveTime})` : ""}` : "—"}
               </span>
             </div>
           </>
@@ -275,7 +313,7 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
                 type="date"
                 value={startDate}
                 min={firstDate}
-                max={endDate}
+                max={effEndDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className={inputCls}
               />
@@ -288,13 +326,15 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
               <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">End Date</label>
               <input
                 type="date"
-                value={endDate}
+                value={effEndDate}
                 min={startDate}
-                max={lastDate}
+                max={latestDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 className={inputCls}
               />
-              {endRow && (
+              {liveEnd ? (
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Using: live price · {liveTime} IST</span>
+              ) : endRow && (
                 <span className="text-xs text-zinc-400 mt-0.5">Using: {formatDate(endRow.date)}</span>
               )}
             </div>
@@ -340,10 +380,10 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
                 key={label}
                 onClick={() => {
                   if (avgMode) {
-                    setEndPriceFrom(shiftBack(endPriceTo, months));
+                    setEndPriceFrom(shiftBack(effEndPriceTo, months));
                     setStartPriceFrom(shiftBack(startPriceTo, months));
                   } else {
-                    setStartDate(shiftBack(endDate, months));
+                    setStartDate(shiftBack(effEndDate, months));
                   }
                 }}
                 className={cn(
