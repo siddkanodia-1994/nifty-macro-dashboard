@@ -1,5 +1,7 @@
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { IndexTabs } from "@/components/IndexTabs";
+import { LivePricesProvider } from "@/lib/livePrices";
+import { encodeHistory } from "@/lib/compactHistory";
 import type { BYEYRow, HistoricalRow, USDINRRow } from "@/lib/types";
 
 // Static imports: Next.js bundles JSON at build time.
@@ -18,11 +20,13 @@ export default function Home() {
     rows.length > 0 ? rows[rows.length - 1].date : new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="min-h-screen">
-      <DashboardHeader dataAsOf={latestDate} />
-      <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6">
-        <IndexTabs historicalData={rows} byeyData={byeyData} usdinrData={usdinrData} />
-      </main>
-    </div>
+    <LivePricesProvider>
+      <div className="min-h-screen">
+        <DashboardHeader dataAsOf={latestDate} />
+        <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6">
+          <IndexTabs history={encodeHistory(rows)} byeyData={byeyData} usdinrData={usdinrData} />
+        </main>
+      </div>
+    </LivePricesProvider>
   );
 }

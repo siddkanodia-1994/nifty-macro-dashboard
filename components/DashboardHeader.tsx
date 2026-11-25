@@ -9,7 +9,8 @@ import { useFontScale, PRESET_PX, type FontPreset } from "@/lib/fontScale";
 import { useFontFamily, FONT_OPTIONS } from "@/lib/fontFamily";
 import { useNumScale, NUM_PRESET_PX, type NumPreset } from "@/lib/numScale";
 import { useColBold, type ColKey } from "@/lib/colBold";
-import { isMarketOpen } from "@/lib/marketHours";
+import { istDate } from "@/lib/marketHours";
+import { useLivePrices } from "@/lib/livePrices";
 import { BarChart3, Calendar, Moon, Sun } from "lucide-react";
 
 const PRESETS: { key: FontPreset; label: string }[] = [
@@ -318,27 +319,30 @@ interface DashboardHeaderProps {
   dataAsOf: string; // ISO date of last row in historical.json
 }
 
-export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
-  const [live, setLive] = useState(false);
+function getISTTime() {
+  return new Date().toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+}
+
+// Own component so the 1-second tick re-renders only the clock, not the header.
+function ISTClock() {
   const [istTime, setIstTime] = useState("");
+  useEffect(() => {
+    const clockId = setInterval(() => setIstTime(getISTTime()), 1_000);
+    return () => clearInterval(clockId);
+  }, []);
+  return istTime ? <span className="font-mono font-normal tracking-tight">{istTime}</span> : null;
+}
+
+export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
+  // LIVE only when fresh quotes actually arrived — not just because the clock says
+  // the market is open (the feed can be down, and holidays aren't trading days).
+  const { marketOpen: live, asOf } = useLivePrices();
   const { theme, toggleTheme } = useTheme();
   const { ratioMode, setRatioMode } = useRatioMode();
-
-  function getISTTime() {
-    return new Date().toLocaleTimeString("en-IN", {
-      timeZone: "Asia/Kolkata",
-      hour: "2-digit", minute: "2-digit", second: "2-digit",
-      hour12: false,
-    });
-  }
-
-  useEffect(() => {
-    setLive(isMarketOpen());
-    setIstTime(getISTTime());
-    const marketId = setInterval(() => setLive(isMarketOpen()), 60_000);
-    const clockId  = setInterval(() => setIstTime(getISTTime()), 1_000);
-    return () => { clearInterval(marketId); clearInterval(clockId); };
-  }, []);
 
   return (
     <header className="sticky top-0 z-50 border-b border-zinc-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md">
@@ -418,9 +422,7 @@ export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
               </span>
               LIVE
-              {istTime && (
-                <span className="font-mono font-normal tracking-tight">{istTime}</span>
-              )}
+              <ISTClock />
             </span>
           )}
           <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-1.5">
@@ -430,8 +432,8 @@ export function DashboardHeader({ dataAsOf }: DashboardHeaderProps) {
                 {live ? "Live as of" : "Data as of"}
               </span>
               <span className="font-medium">
-                {live
-                  ? formatDate(new Date().toISOString().slice(0, 10))
+                {live && asOf
+                  ? formatDate(istDate(new Date(asOf)))
                   : formatDate(dataAsOf)}
               </span>
             </span>

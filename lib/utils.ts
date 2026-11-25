@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { IndexKey, IndexMeta, MetricKey, TimeWindow } from "./types";
+import type { HistoricalRow, IndexKey, IndexMeta, IndexMetrics, MetricKey, TimeWindow } from "./types";
 
 // ─── shadcn/ui helper ─────────────────────────────────────────────────────────
 
@@ -48,12 +48,15 @@ export const METRIC_SHORT_LABELS: Record<MetricKey, string> = {
 
 // ─── Number formatters ────────────────────────────────────────────────────────
 
+// Built once — constructing Intl.NumberFormat per call is slow in table renders.
+const INR_2DP = new Intl.NumberFormat("en-IN", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 export function formatPrice(n: number | null | undefined): string {
   if (n == null) return "—";
-  return new Intl.NumberFormat("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
+  return INR_2DP.format(n);
 }
 
 export function formatRatio(n: number | null | undefined): string {
@@ -63,10 +66,7 @@ export function formatRatio(n: number | null | undefined): string {
 
 export function formatEPS(n: number | null | undefined): string {
   if (n == null) return "—";
-  return new Intl.NumberFormat("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
+  return INR_2DP.format(n);
 }
 
 export function formatZScore(n: number | null | undefined): string {
@@ -167,9 +167,27 @@ export function zScoreBgColor(z: number | null): string {
 // ─── Index key guard ─────────────────────────────────────────────────────────
 
 export function isIndexKey(s: string): s is IndexKey {
-  return [
-    "NIFTY_50","NIFTY_BANK","NIFTY_500","NIFTY_MIDCAP_150","NIFTY_SMALLCAP_250","NIFTY_IT","NIFTY_PSU_BANK","NIFTY_MICROCAP_250",
-    "NIFTY_AUTO","NIFTY_FIN_SERVICE","NIFTY_REALTY","NIFTY_METAL","NIFTY_CAPITAL_MARKETS","NIFTY_INDIA_DEFENCE",
-    "NIFTY_PVT_BANK",
-  ].includes(s);
+  return INDEX_META.some((m) => m.key === s);
+}
+
+// ─── Latest valid row ────────────────────────────────────────────────────────
+
+/**
+ * The most recent row in which `key` has a close, with its date. A fetch that
+ * misses one index writes nulls for it; reading only the last row would blank
+ * that index everywhere until the next good day.
+ */
+export function latestValidEntry(
+  rows: HistoricalRow[],
+  key: IndexKey
+): { date: string; metrics: IndexMetrics } | null {
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const m = rows[i][key];
+    if (m?.close != null) return { date: rows[i].date, metrics: m };
+  }
+  return null;
+}
+
+export function latestValid(rows: HistoricalRow[], key: IndexKey): IndexMetrics | null {
+  return latestValidEntry(rows, key)?.metrics ?? null;
 }

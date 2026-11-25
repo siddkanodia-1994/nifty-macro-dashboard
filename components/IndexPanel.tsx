@@ -18,7 +18,7 @@ import {
   zScore,
   percentileRank,
 } from "@/lib/calculations";
-import { METRIC_LABELS, METRIC_SHORT_LABELS } from "@/lib/utils";
+import { METRIC_LABELS, latestValid } from "@/lib/utils";
 import { useRatioMode } from "@/lib/ratioMode";
 import type { HistoricalRow, IndexKey, MetricKey, TimeWindow, WindowStats, ControlLines } from "@/lib/types";
 import { Eye, EyeOff } from "lucide-react";
@@ -108,11 +108,8 @@ export function IndexPanel({
   const [chartMetric, setChartMetric] = useState<MetricKey>("pe");
   const { ratioMode } = useRatioMode();
 
-  // Current metrics = last row of historical data (EOD)
-  const currentMetrics = useMemo(() => {
-    if (historicalData.length === 0) return null;
-    return historicalData[historicalData.length - 1][indexKey] ?? null;
-  }, [historicalData, indexKey]);
+  // Current metrics = latest EOD row with data for this index
+  const currentMetrics = useMemo(() => latestValid(historicalData, indexKey), [historicalData, indexKey]);
 
   // Override with live close price during market hours
   const effectiveMetrics = useMemo(() => {

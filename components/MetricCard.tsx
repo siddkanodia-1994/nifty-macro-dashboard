@@ -2,7 +2,6 @@
 
 import { cn, formatMetric, formatZScore, formatPercentile, zScoreBgColor } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import type { MetricKey, WindowStats } from "@/lib/types";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 

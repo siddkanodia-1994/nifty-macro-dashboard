@@ -1,4 +1,4 @@
-import { subMonths, subYears, parseISO, isAfter, isEqual, differenceInDays } from "date-fns";
+import { format, subMonths, parseISO, differenceInDays } from "date-fns";
 import type {
   BYEYRow,
   USDINRRow,
@@ -64,25 +64,32 @@ export function extractValues(
 
 // ─── Time window filtering ────────────────────────────────────────────────────
 
-export function filterByWindow(rows: HistoricalRow[], window: TimeWindow): HistoricalRow[] {
-  if (window === "ALL") return rows;
+const WINDOW_MONTHS: Partial<Record<TimeWindow, number>> = {
+  "3M": 3, "6M": 6, "1Y": 12, "2Y": 24, "3Y": 36, "4Y": 48,
+};
 
-  const now = rows.length > 0 ? parseISO(rows[rows.length - 1].date) : new Date();
-  let cutoff: Date;
-  switch (window) {
-    case "3M": cutoff = subMonths(now, 3);  break;
-    case "6M": cutoff = subMonths(now, 6);  break;
-    case "1Y": cutoff = subYears(now, 1);   break;
-    case "2Y": cutoff = subYears(now, 2);   break;
-    case "3Y": cutoff = subYears(now, 3);   break;
-    case "4Y": cutoff = subYears(now, 4);   break;
-    default:   return rows;
+/**
+ * Rows on or after (last row's date − window), for any date-sorted series.
+ * Compares ISO strings and binary-searches the start, so it's O(log n) plus a
+ * slice instead of parsing every row's date.
+ */
+function filterRowsByWindow<T extends { date: string }>(rows: T[], window: TimeWindow): T[] {
+  const months = WINDOW_MONTHS[window];
+  if (months == null || rows.length === 0) return rows;
+
+  const cutoff = format(subMonths(parseISO(rows[rows.length - 1].date), months), "yyyy-MM-dd");
+  let lo = 0;
+  let hi = rows.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (rows[mid].date < cutoff) lo = mid + 1;
+    else hi = mid;
   }
+  return rows.slice(lo);
+}
 
-  return rows.filter((r) => {
-    const d = parseISO(r.date);
-    return isAfter(d, cutoff) || isEqual(d, cutoff);
-  });
+export function filterByWindow(rows: HistoricalRow[], window: TimeWindow): HistoricalRow[] {
+  return filterRowsByWindow(rows, window);
 }
 
 // ─── Control lines — computed from the selected window ───────────────────────
@@ -189,24 +196,7 @@ export function buildChartData(
 
 /** Filters BYEYRow[] to the selected time window (mirrors filterByWindow). */
 export function filterBYEYByWindow(rows: BYEYRow[], window: TimeWindow): BYEYRow[] {
-  if (window === "ALL") return rows;
-
-  const now = rows.length > 0 ? parseISO(rows[rows.length - 1].date) : new Date();
-  let cutoff: Date;
-  switch (window) {
-    case "3M": cutoff = subMonths(now, 3);  break;
-    case "6M": cutoff = subMonths(now, 6);  break;
-    case "1Y": cutoff = subYears(now, 1);   break;
-    case "2Y": cutoff = subYears(now, 2);   break;
-    case "3Y": cutoff = subYears(now, 3);   break;
-    case "4Y": cutoff = subYears(now, 4);   break;
-    default:   return rows;
-  }
-
-  return rows.filter((r) => {
-    const d = parseISO(r.date);
-    return isAfter(d, cutoff) || isEqual(d, cutoff);
-  });
+  return filterRowsByWindow(rows, window);
 }
 
 /**
@@ -332,23 +322,27 @@ export function buildBondYieldChartData(rows: BYEYRow[]): ChartPoint[] {
  * For each row at date D, looks up the row at D+365 days (next available trading day).
  * If found, uses that row's impliedEPS/impliedBV as the forward value.
  * If not found (too recent), extrapolates using baseGrowthPct.
+ * Rows are date-sorted, so the D+365 row is found with a single forward-moving
+ * pointer — O(n) per call rather than a search per row.
  */
 export function buildForwardRatioSeries(
   rows: HistoricalRow[],
   indexKey: IndexKey,
   baseGrowthPct: number
 ): { date: string; fwdPE: number | null; fwdPB: number | null }[] {
+  let j = 0;
   return rows.map((row) => {
+    const targetDate = new Date(row.date + "T00:00:00Z");
+    targetDate.setUTCDate(targetDate.getUTCDate() + 365);
+    const targetISO = targetDate.toISOString().slice(0, 10);
+    while (j < rows.length && rows[j].date < targetISO) j++;
+
     const m = row[indexKey];
     if (!m) return { date: row.date, fwdPE: null, fwdPB: null };
     const close = m.close;
     if (close == null) return { date: row.date, fwdPE: null, fwdPB: null };
 
-    const targetISO = new Date(parseISO(row.date).getTime() + 365 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10);
-
-    const fwdRow = rows.find((r) => r.date >= targetISO);
+    const fwdRow = j < rows.length ? rows[j] : undefined;
 
     let fwdEPS: number | null;
     let fwdBV: number | null;
@@ -408,24 +402,7 @@ export function buildByeyForIndex(
 
 /** Filters USDINRRow[] to the selected time window (mirrors filterBYEYByWindow). */
 export function filterUSDINRByWindow(rows: USDINRRow[], window: TimeWindow): USDINRRow[] {
-  if (window === "ALL") return rows;
-
-  const now = rows.length > 0 ? parseISO(rows[rows.length - 1].date) : new Date();
-  let cutoff: Date;
-  switch (window) {
-    case "3M": cutoff = subMonths(now, 3);  break;
-    case "6M": cutoff = subMonths(now, 6);  break;
-    case "1Y": cutoff = subYears(now, 1);   break;
-    case "2Y": cutoff = subYears(now, 2);   break;
-    case "3Y": cutoff = subYears(now, 3);   break;
-    case "4Y": cutoff = subYears(now, 4);   break;
-    default:   return rows;
-  }
-
-  return rows.filter((r) => {
-    const d = parseISO(r.date);
-    return isAfter(d, cutoff) || isEqual(d, cutoff);
-  });
+  return filterRowsByWindow(rows, window);
 }
 
 /** Computes Mean ± 1σ/2σ for the USD/INR rate within the provided rows. */

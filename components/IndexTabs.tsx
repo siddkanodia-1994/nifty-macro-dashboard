@@ -1,19 +1,27 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import dynamic from "next/dynamic";
+import { getOwnerKey } from "@/lib/owner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { IndexPanel } from "@/components/IndexPanel";
 import { IndexOverview } from "@/components/IndexOverview";
-import { PeriodReturnsPanel } from "@/components/PeriodReturnsPanel";
-import { BYEYPanel } from "@/components/BYEYPanel";
-import { BondYieldPanel } from "@/components/BondYieldPanel";
-import { USDINRPanel } from "@/components/USDINRPanel";
-import { FutureProjectionPanel } from "@/components/FutureProjectionPanel";
-import { DailyDataPanel } from "@/components/DailyDataPanel";
-import { MacroScorePanel } from "@/components/MacroScorePanel";
 import { INDEX_META } from "@/lib/utils";
-import { isMarketOpen } from "@/lib/marketHours";
-import type { BYEYRow, USDINRRow, HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
+import { useLivePrices } from "@/lib/livePrices";
+import { fetchProjectionDefaults } from "@/lib/projectionDefaults";
+import { decodeHistory, type CompactHistory } from "@/lib/compactHistory";
+import type { BYEYRow, USDINRRow, IndexKey, TimeWindow } from "@/lib/types";
+
+// Everything except the default Overview tab loads on first visit, so the chart
+// library and the heavy panels stay out of the initial bundle.
+const TabLoading = () => <div className="py-16 text-center text-xs text-zinc-500">Loading…</div>;
+const IndexPanel          = dynamic(() => import("@/components/IndexPanel").then((m) => m.IndexPanel), { loading: TabLoading });
+const PeriodReturnsPanel  = dynamic(() => import("@/components/PeriodReturnsPanel").then((m) => m.PeriodReturnsPanel), { loading: TabLoading });
+const BondYieldPanel      = dynamic(() => import("@/components/BondYieldPanel").then((m) => m.BondYieldPanel), { loading: TabLoading });
+const USDINRPanel         = dynamic(() => import("@/components/USDINRPanel").then((m) => m.USDINRPanel), { loading: TabLoading });
+const FutureProjectionPanel = dynamic(() => import("@/components/FutureProjectionPanel").then((m) => m.FutureProjectionPanel), { loading: TabLoading });
+const MacroScorePanel     = dynamic(() => import("@/components/MacroScorePanel").then((m) => m.MacroScorePanel), { loading: TabLoading });
+const BYEYPanel           = dynamic(() => import("@/components/BYEYPanel").then((m) => m.BYEYPanel), { loading: TabLoading });
+const DailyDataPanel      = dynamic(() => import("@/components/DailyDataPanel").then((m) => m.DailyDataPanel), { loading: TabLoading });
 
 type MainTab = "INDEX_LEVELS" | "FUTURE_PROJECTION" | "MACRO_SCORE" | "BYEY" | "DAILY_DATA";
 type IndexSubTab = IndexKey | "OVERVIEW" | "RETURNS" | "BOND_YIELD" | "USD_INR";
@@ -22,20 +30,25 @@ type ProjectionDefaultEntry = { base?: { growthPct?: number }; baseEPS?: number 
 type ProjectionDefaultsMap = Partial<Record<IndexKey, ProjectionDefaultEntry>>;
 
 interface IndexTabsProps {
-  historicalData: HistoricalRow[];
+  history: CompactHistory;
   byeyData: BYEYRow[];
   usdinrData: USDINRRow[];
 }
 
-export function IndexTabs({ historicalData, byeyData, usdinrData }: IndexTabsProps) {
+export function IndexTabs({ history, byeyData, usdinrData }: IndexTabsProps) {
+  const historicalData = useMemo(() => decodeHistory(history), [history]);
   const [activeMainTab, setActiveMainTab]       = useState<MainTab>("INDEX_LEVELS");
   const [activeIndexTab, setActiveIndexTab]     = useState<IndexSubTab>("OVERVIEW");
+  // Tabs mount on first visit, then stay mounted so their state survives switching.
+  const [visited, setVisited] = useState<ReadonlySet<string>>(() => new Set(["INDEX_LEVELS", "OVERVIEW"]));
   const [timeWindow, setTimeWindow]             = useState<TimeWindow>("4Y");
   const [overviewTimeWindow, setOverviewTimeWindow] = useState<TimeWindow>("4Y");
-  const [liveData, setLiveData]             = useState<Partial<Record<IndexKey, number>> | null>(null);
-  const [liveMarketOpen, setLiveMarketOpen] = useState(false);
-  const [liveBondYield, setLiveBondYield]   = useState<number | null>(null);
-  const [liveUSDINR, setLiveUSDINR]         = useState<number | null>(null);
+  const {
+    prices: liveData,
+    marketOpen: liveMarketOpen,
+    bondYield: liveBondYield,
+    usdInr: liveUSDINR,
+  } = useLivePrices();
   const [projectionDefaults, setProjectionDefaults] = useState<ProjectionDefaultsMap | null>(null);
   const [sharedGrowthPct, setSharedGrowthPct] = useState<Partial<Record<IndexKey, number>>>({});
   const [ownerEpsOverride, setOwnerEpsOverride] = useState<{ key: IndexKey; base: number; ts: number } | null>(null);
@@ -44,79 +57,44 @@ export function IndexTabs({ historicalData, byeyData, usdinrData }: IndexTabsPro
 
   // Detect owner mode synchronously on mount (mirrors FutureProjectionPanel)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("key")) isOwnerMode.current = true;
+    if (getOwnerKey()) isOwnerMode.current = true;
   }, []);
 
   useEffect(() => {
     (async () => {
+      const json = (await fetchProjectionDefaults()) as ProjectionDefaultsMap | null;
+      if (!json) return;
+      setProjectionDefaults(json);
+      if (growthPctInitialized.current) return;
+      const initial: Partial<Record<IndexKey, number>> = {};
+      for (const key of Object.keys(json) as IndexKey[]) {
+        const g = json[key]?.base?.growthPct;
+        if (typeof g === "number") initial[key] = g;
+      }
+      // Visitor localStorage overrides take precedence over Redis defaults
       try {
-        const res = await fetch("/api/projection-defaults", { cache: "no-store" });
-        if (res.ok) {
-          const json = await res.json();
-          if (json) {
-            setProjectionDefaults(json as ProjectionDefaultsMap);
-            if (!growthPctInitialized.current) {
-              const initial: Partial<Record<IndexKey, number>> = {};
-              for (const key of Object.keys(json) as IndexKey[]) {
-                const g = (json as any)[key]?.base?.growthPct;
-                if (typeof g === "number") initial[key] = g;
-              }
-              // Visitor localStorage overrides take precedence over Redis defaults
-              try {
-                const stored = localStorage.getItem("nifty-projections-visitor-v2");
-                if (stored) {
-                  const diff = JSON.parse(stored) as Record<string, { base?: { growthPct?: number } }>;
-                  for (const key of Object.keys(diff) as IndexKey[]) {
-                    const g = diff[key]?.base?.growthPct;
-                    if (typeof g === "number") initial[key] = g;
-                  }
-                }
-              } catch {}
-              setSharedGrowthPct(initial);
-              growthPctInitialized.current = true;
-            }
+        const stored = localStorage.getItem("nifty-projections-visitor-v2");
+        if (stored) {
+          const diff = JSON.parse(stored) as Record<string, { base?: { growthPct?: number } }>;
+          for (const key of Object.keys(diff) as IndexKey[]) {
+            const g = diff[key]?.base?.growthPct;
+            if (typeof g === "number") initial[key] = g;
           }
         }
       } catch {}
+      setSharedGrowthPct(initial);
+      growthPctInitialized.current = true;
     })();
   }, []);
 
-  const fetchLive = useCallback(async () => {
-    try {
-      const res = await fetch("/api/live-prices");
-      if (!res.ok) { setLiveData(null); return; }
-      const json = await res.json();
-      const prices: Partial<Record<IndexKey, number>> = {};
-      for (const meta of INDEX_META) {
-        const val = json[meta.key];
-        if (typeof val === "number") prices[meta.key] = val;
-      }
-      const anyValid = Object.values(prices).some((v) => v != null);
-      if (!anyValid) { setLiveData(null); return; }
-      setLiveData(prices);
-      setLiveMarketOpen(json.marketOpen === true);
-      if (typeof json.bondYield === "number") setLiveBondYield(json.bondYield);
-      if (typeof json.usdInr === "number") setLiveUSDINR(json.usdInr);
-    } catch {
-      // Network error — keep last known state
-    }
+  const selectMainTab = useCallback((tab: MainTab) => {
+    setActiveMainTab(tab);
+    setVisited((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)));
   }, []);
 
-  // Fetch once on mount (shows CLO badge after close); poll every 60s during market hours
-  useEffect(() => {
-    fetchLive();
-    if (!isMarketOpen()) return;
-    const pollId = setInterval(fetchLive, 60_000);
-    return () => clearInterval(pollId);
-  }, [fetchLive]);
-
-  // Detect market close in real-time for users who stay on the page past 3:30 PM
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (!isMarketOpen()) setLiveMarketOpen(false);
-    }, 60_000);
-    return () => clearInterval(id);
+  const selectIndexTab = useCallback((tab: IndexSubTab) => {
+    setActiveIndexTab(tab);
+    setVisited((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)));
   }, []);
 
   // Overview edits → visual sync + signal FutureProjectionPanel to save (owner mode only)
@@ -133,7 +111,7 @@ export function IndexTabs({ historicalData, byeyData, usdinrData }: IndexTabsPro
   return (
     <Tabs
       value={activeMainTab}
-      onValueChange={(v) => setActiveMainTab(v as MainTab)}
+      onValueChange={(v) => selectMainTab(v as MainTab)}
     >
       {/* ── Main tab bar ── */}
       <TabsList data-tab-nav className="flex h-auto gap-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl p-1 w-full mb-5">
@@ -178,7 +156,7 @@ export function IndexTabs({ historicalData, byeyData, usdinrData }: IndexTabsPro
       <TabsContent value="INDEX_LEVELS" keepMounted>
         <Tabs
           value={activeIndexTab}
-          onValueChange={(v) => setActiveIndexTab(v as IndexSubTab)}
+          onValueChange={(v) => selectIndexTab(v as IndexSubTab)}
         >
           {/* Sub-tab bar: scrollable on mobile */}
           <div className="overflow-x-auto mb-4">
@@ -230,7 +208,7 @@ export function IndexTabs({ historicalData, byeyData, usdinrData }: IndexTabsPro
               liveBondYield={liveBondYield}
               liveData={liveData}
               liveMarketOpen={liveMarketOpen}
-              onSelectIndex={(key) => setActiveIndexTab(key)}
+              onSelectIndex={selectIndexTab}
               timeWindow={overviewTimeWindow}
               onTimeWindowChange={setOverviewTimeWindow}
               projectionDefaults={projectionDefaults}
@@ -241,43 +219,46 @@ export function IndexTabs({ historicalData, byeyData, usdinrData }: IndexTabsPro
 
           {/* Period Returns sub-tab */}
           <TabsContent value="RETURNS" keepMounted>
-            <PeriodReturnsPanel historicalData={historicalData} />
+            {visited.has("RETURNS") && <PeriodReturnsPanel historicalData={historicalData} />}
           </TabsContent>
 
           {/* Bond Yield sub-tab */}
           <TabsContent value="BOND_YIELD" keepMounted>
-            <BondYieldPanel
+            {visited.has("BOND_YIELD") && <BondYieldPanel
               byeyData={byeyData}
               timeWindow={timeWindow}
               onTimeWindowChange={setTimeWindow}
               liveBondYield={liveBondYield}
               liveMarketOpen={liveMarketOpen}
-            />
+            />}
           </TabsContent>
 
           {/* USD/INR sub-tab */}
           <TabsContent value="USD_INR" keepMounted>
-            <USDINRPanel
+            {visited.has("USD_INR") && <USDINRPanel
               usdinrData={usdinrData}
               timeWindow={timeWindow}
               onTimeWindowChange={setTimeWindow}
               liveUSDINR={liveUSDINR}
               liveMarketOpen={liveMarketOpen}
-            />
+            />}
           </TabsContent>
 
           {/* Individual index sub-tabs */}
           {INDEX_META.map((meta) => (
             <TabsContent key={meta.key} value={meta.key} keepMounted>
-              <IndexPanel
-                indexKey={meta.key}
-                historicalData={historicalData}
-                timeWindow={timeWindow}
-                onTimeWindowChange={setTimeWindow}
-                liveClose={liveData?.[meta.key] ?? null}
-                liveMarketOpen={liveMarketOpen}
-                indexGrowthPct={projectionDefaults?.[meta.key]?.base?.growthPct ?? 0}
-              />
+              {visited.has(meta.key) && (
+                <IndexPanel
+                  indexKey={meta.key}
+                  historicalData={historicalData}
+                  timeWindow={timeWindow}
+                  onTimeWindowChange={setTimeWindow}
+                  liveClose={liveData?.[meta.key] ?? null}
+                  liveMarketOpen={liveMarketOpen}
+                  // Same growth % as Overview / BY-EY so forward P/E matches across tabs
+                  indexGrowthPct={sharedGrowthPct[meta.key] ?? projectionDefaults?.[meta.key]?.base?.growthPct ?? 0}
+                />
+              )}
             </TabsContent>
           ))}
         </Tabs>
@@ -285,7 +266,7 @@ export function IndexTabs({ historicalData, byeyData, usdinrData }: IndexTabsPro
 
       {/* ── Tab 2: Future Projection ── */}
       <TabsContent value="FUTURE_PROJECTION" keepMounted>
-        <FutureProjectionPanel
+        {visited.has("FUTURE_PROJECTION") && <FutureProjectionPanel
           historicalData={historicalData}
           liveData={liveData}
           timeWindow={overviewTimeWindow}
@@ -293,20 +274,20 @@ export function IndexTabs({ historicalData, byeyData, usdinrData }: IndexTabsPro
           externalGrowthPct={sharedGrowthPct}
           onGrowthPctChange={handleFutureProjectionGrowthChange}
           ownerEpsOverride={ownerEpsOverride}
-        />
+        />}
       </TabsContent>
 
       {/* ── Tab 3: Macro Score ── */}
       <TabsContent value="MACRO_SCORE" keepMounted>
-        <MacroScorePanel
+        {visited.has("MACRO_SCORE") && <MacroScorePanel
           historicalData={historicalData}
           byeyData={byeyData}
-        />
+        />}
       </TabsContent>
 
       {/* ── Tab 4: BY-EY Spread ── */}
       <TabsContent value="BYEY" keepMounted>
-        <BYEYPanel
+        {visited.has("BYEY") && <BYEYPanel
           byeyData={byeyData}
           historicalData={historicalData}
           timeWindow={timeWindow}
@@ -314,15 +295,15 @@ export function IndexTabs({ historicalData, byeyData, usdinrData }: IndexTabsPro
           liveIndexData={liveData}
           liveBondYield={liveBondYield}
           growthPctByIndex={sharedGrowthPct}
-        />
+        />}
       </TabsContent>
 
       {/* ── Tab 5: Daily Data ── */}
       <TabsContent value="DAILY_DATA" keepMounted>
-        <DailyDataPanel
+        {visited.has("DAILY_DATA") && <DailyDataPanel
           historicalData={historicalData}
           liveData={liveData}
-        />
+        />}
       </TabsContent>
     </Tabs>
   );

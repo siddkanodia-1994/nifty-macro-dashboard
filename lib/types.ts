@@ -133,6 +133,7 @@ export interface MacroScoreData {
   rubric: Partial<Record<MacroParamId, RubricBand[]>>;
   weightages: Record<MacroParamId, number>;
   years: MacroYearData[];
+  updatedAt?: string; // ISO timestamp of the owner's last published save
 }
 
 // ─── USD/INR exchange rate (one row of usdinr.json) ─────────────────────────

@@ -1,6 +1,10 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import { fetchProjectionDefaults } from "@/lib/projectionDefaults";
+import { useLocalStorageState } from "@/lib/useLocalStorageState";
+import { useLivePrices } from "@/lib/livePrices";
+import { istDate, previousTradingDay } from "@/lib/marketHours";
 import { TimeWindowSelector } from "@/components/TimeWindowSelector";
 import {
   filterByWindow,
@@ -15,9 +19,9 @@ import {
 import {
   INDEX_META,
   formatRatio,
-  formatPrice,
   formatZScore,
   cn,
+  latestValidEntry,
 } from "@/lib/utils";
 import { useRatioMode } from "@/lib/ratioMode";
 import { useColBold } from "@/lib/colBold";
@@ -38,6 +42,21 @@ const MULTIPLE_OPTIONS: { value: MultipleTarget; label: string }[] = [
 ];
 
 const UPSIDE_TARGET_LS_KEY = "nifty-upside-target";
+const parseMultipleTarget = (raw: string): MultipleTarget | undefined =>
+  MULTIPLE_OPTIONS.some((o) => o.value === raw) ? (raw as MultipleTarget) : undefined;
+const serializeMultipleTarget = (v: MultipleTarget) => v;
+
+type ScenarioDiff = { multiple?: number; growthPct?: number };
+// One index's projection entry (Redis defaults, or a visitor's sparse override diff).
+type ProjectionEntry = {
+  path?: string;
+  baseEPS?: number | null;
+  baseBV?: number | null;
+  bear?: ScenarioDiff;
+  base?: ScenarioDiff;
+  bull?: ScenarioDiff;
+};
+type ProjectionEntries = Record<string, ProjectionEntry>;
 
 const VISITOR_STORAGE_KEY = "nifty-projections-visitor-v2";
 
@@ -105,15 +124,13 @@ function UpsideBadge({ pct, bold = true }: { pct: number | null; bold?: boolean 
 
 
 export function IndexOverview({ historicalData, byeyData, liveBondYield, liveData, liveMarketOpen, onSelectIndex, timeWindow, onTimeWindowChange, projectionDefaults, epsGrowthPct, onEpsGrowthChange }: IndexOverviewProps) {
-  const [multipleTarget, setMultipleTarget] = useState<MultipleTarget>(() => {
-    try {
-      const saved = typeof window !== "undefined" ? localStorage.getItem(UPSIDE_TARGET_LS_KEY) : null;
-      if (saved && MULTIPLE_OPTIONS.some((o) => o.value === saved)) return saved as MultipleTarget;
-    } catch {}
-    return "mean";
-  });
+  // Read after hydration (not in a useState initialiser) so server and client markup match.
+  const [multipleTarget, setMultipleTarget] = useLocalStorageState<MultipleTarget>(
+    UPSIDE_TARGET_LS_KEY, "mean", parseMultipleTarget, serializeMultipleTarget
+  );
   const [forwardMode, setForwardMode] = useState(true);
-  const [forwardBases, setForwardBases] = useState<Record<string, any> | null>(null);
+  const [forwardBases, setForwardBases] = useState<ProjectionEntries | null>(null);
+  const { asOf: liveAsOf } = useLivePrices();
   const { ratioMode } = useRatioMode();
   const { boldCols } = useColBold();
   type SortCol = "pe" | "pb" | "close";
@@ -127,11 +144,6 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
     else { setSortCol(null); setSortDir(null); }
   }
 
-  // Persist upside target selection
-  useEffect(() => {
-    try { localStorage.setItem(UPSIDE_TARGET_LS_KEY, multipleTarget); } catch {}
-  }, [multipleTarget]);
-
   // Reset sort when window or mode changes
   useEffect(() => {
     setSortCol(null);
@@ -142,13 +154,9 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
   useEffect(() => {
     if (!forwardMode) { setForwardBases(null); return; }
     (async () => {
-      let blob: Record<string, any> | null = null;
-      try {
-        const r = await fetch("/api/projection-defaults", { cache: "no-store" });
-        if (r.ok) blob = await r.json();
-      } catch {}
+      const blob = (await fetchProjectionDefaults()) as ProjectionEntries | null;
 
-      let diff: Record<string, any> | null = null;
+      let diff: ProjectionEntries | null = null;
       try {
         const s = localStorage.getItem(VISITOR_STORAGE_KEY);
         if (s) diff = JSON.parse(s);
@@ -156,11 +164,11 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
 
       if (!blob && !diff) { setForwardBases(null); return; }
 
-      const merged: Record<string, any> = { ...(blob ?? {}) };
+      const merged: ProjectionEntries = { ...(blob ?? {}) };
       if (diff) {
         for (const ik of Object.keys(diff)) {
           const d = diff[ik];
-          const b = blob?.[ik] ?? {};
+          const b: ProjectionEntry = blob?.[ik] ?? {};
           merged[ik] = {
             ...b,
             ...(d.path    != null ? { path:    d.path    } : {}),
@@ -204,6 +212,10 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
 
   const lastRow = historicalData[historicalData.length - 1] ?? null;
 
+  // Previous close for "Day Chg": only meaningful if the stored close is from the
+  // trading day right before the live quote's session (not two+ sessions old).
+  const prevSessionDate = liveAsOf ? previousTradingDay(istDate(new Date(liveAsOf))) : null;
+
   const windowRows = useMemo(
     () => filterByWindow(historicalData, timeWindow),
     [historicalData, timeWindow]
@@ -230,7 +242,8 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
     return INDEX_META.map((meta) => {
       const key = meta.key;
       const liveClose = liveData?.[key] ?? null;
-      const hist = lastRow?.[key];
+      const histEntry = latestValidEntry(historicalData, key);
+      const hist = histEntry?.metrics ?? null;
       const isLive = liveClose != null;
 
       const close = liveClose ?? hist?.close ?? null;
@@ -308,7 +321,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
         ? ((pbTargetPrice - close) / close) * 100 : null;
 
       // % change vs previous trading day's EOD close (liveData retained post-market)
-      const prevClose = hist?.close ?? null;
+      const prevClose = histEntry?.date === prevSessionDate ? hist?.close ?? null : null;
       const changePct = isLive && liveClose != null && prevClose != null && prevClose !== 0
         ? ((liveClose - prevClose) / prevClose) * 100
         : null;
@@ -316,7 +329,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
       return { meta, key, close, isLive, pe: currentPE, peMean, peSD, peZ, peTarget, peTargetPrice, peUpside, pb: currentPB, pbMean, pbSD, pbZ, pbTarget, pbTargetPrice, pbUpside, changePct };
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [windowRows, lastRow, liveData, multipleTarget, forwardMode, forwardBases, ratioMode, fwdSeriesMap, epsGrowthPct]);
+  }, [windowRows, historicalData, liveData, prevSessionDate, multipleTarget, forwardMode, forwardBases, ratioMode, fwdSeriesMap, epsGrowthPct]);
 
   const sortedStats = useMemo(() => {
     if (!sortCol || !sortDir) return stats;
@@ -354,12 +367,13 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
   function handleEpsReset() {
     try {
       const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
-      const diff: Record<string, any> = stored ? JSON.parse(stored) : {};
+      const diff: ProjectionEntries = stored ? JSON.parse(stored) : {};
       for (const meta of INDEX_META) {
-        if (diff[meta.key]?.base) {
-          delete diff[meta.key].base.growthPct;
-          if (Object.keys(diff[meta.key].base).length === 0) delete diff[meta.key].base;
-          if (Object.keys(diff[meta.key]).length === 0) delete diff[meta.key];
+        const entry = diff[meta.key];
+        if (entry?.base) {
+          delete entry.base.growthPct;
+          if (Object.keys(entry.base).length === 0) delete entry.base;
+          if (Object.keys(entry).length === 0) delete diff[meta.key];
         }
       }
       localStorage.setItem(VISITOR_STORAGE_KEY, JSON.stringify(diff));
@@ -373,7 +387,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
   function writeVisitorGrowthPct(key: IndexKey, val: number) {
     try {
       const stored = localStorage.getItem(VISITOR_STORAGE_KEY);
-      const diff: Record<string, any> = stored ? JSON.parse(stored) : {};
+      const diff: ProjectionEntries = stored ? JSON.parse(stored) : {};
       diff[key] = { ...diff[key], base: { ...diff[key]?.base, growthPct: val } };
       localStorage.setItem(VISITOR_STORAGE_KEY, JSON.stringify(diff));
     } catch {}

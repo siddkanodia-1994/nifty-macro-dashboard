@@ -30,10 +30,28 @@ const NSE_HEADERS = {
 
 const redis = Redis.fromEnv();
 
+/** Current value for a Trading Economics ticker, read from the page's chart metadata. */
+async function fetchTradingEconomics(path: string, symbol: string): Promise<number | null> {
+  try {
+    const res = await fetch(`https://tradingeconomics.com/${path}`, {
+      signal: AbortSignal.timeout(8000),
+      next: { revalidate: 0 },
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    // Anchor on the ticker so another "value" earlier on the page can't be picked up.
+    const match = html.match(new RegExp(`TEChartsMeta\\s*=\\s*\\[\\{"value":([0-9.]+)[^}]*?"symbol":"${symbol}"`));
+    return match ? parseFloat(match[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   const auth = request.headers.get("authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : new URL(request.url).searchParams.get("token");
+  // Header only — a ?token= query string would leak the secret into request logs.
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
 
   if (!secret || token !== secret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -75,45 +93,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ skipped: true, reason: "all prices null" });
     }
 
-    // Fetch live India 10Y G-Sec yield from Trading Economics (no auth required)
-    let bondYield: number | null = null;
-    try {
-      const teRes = await fetch(
-        "https://tradingeconomics.com/india/government-bond-yield",
-        { signal: AbortSignal.timeout(8000), next: { revalidate: 0 } }
-      );
-      if (teRes.ok) {
-        const html = await teRes.text();
-        const match = html.match(/"value"\s*:\s*([0-9.]+)/);
-        if (match) {
-          const yieldPct = parseFloat(match[1]);
-          // Sanity check: India 10Y yield should be between 1% and 25%
-          if (isFinite(yieldPct) && yieldPct > 1 && yieldPct < 25) {
-            bondYield = Math.round(yieldPct * 10000) / 1000000; // e.g. 6.871 → 0.068710
-          }
-        }
-      }
-    } catch {}
-
-    // Fetch live USD/INR rate from Trading Economics (non-blocking; null on failure)
-    let usdInr: number | null = null;
-    try {
-      const teRes2 = await fetch(
-        "https://tradingeconomics.com/india/currency",
-        { signal: AbortSignal.timeout(8000), next: { revalidate: 0 } }
-      );
-      if (teRes2.ok) {
-        const html2 = await teRes2.text();
-        const match2 = html2.match(/"value"\s*:\s*([0-9.]+)/);
-        if (match2) {
-          const rate = parseFloat(match2[1]);
-          // Sanity check: USD/INR should be between 50 and 150
-          if (isFinite(rate) && rate > 50 && rate < 150) {
-            usdInr = Math.round(rate * 100) / 100; // e.g. 84.2543 → 84.25
-          }
-        }
-      }
-    } catch {}
+    // Live India 10Y G-Sec yield and USD/INR from Trading Economics (null on failure)
+    const yieldPct = await fetchTradingEconomics("india/government-bond-yield", "GIND10YR:IND");
+    // Sanity check: India 10Y yield should be between 1% and 25%
+    const bondYield = yieldPct != null && yieldPct > 1 && yieldPct < 25
+      ? Math.round(yieldPct * 10000) / 1000000 // e.g. 6.871 → 0.068710
+      : null;
+    const rate = await fetchTradingEconomics("india/currency", "USDINR:CUR");
+    // Sanity check: USD/INR should be between 50 and 150
+    const usdInr = rate != null && rate > 50 && rate < 150
+      ? Math.round(rate * 100) / 100 // e.g. 84.2543 → 84.25
+      : null;
 
     await redis.set("live-prices", { ...prices, bondYield, usdInr, marketOpen: true, asOf: now.toISOString() });
 

@@ -1,23 +1,25 @@
 name: Update EOD Data
 
 on:
+  # Primary trigger: cron-job.org calls the workflow_dispatch API at ~6:30 PM and
+  # ~8:00 PM IST on weekdays. GitHub's own schedule below is only a backup — it
+  # routinely fires 8–11 hours late. fetch-eod.py catches up every missed trading
+  # day in the last week, so a late or skipped run is harmless.
   schedule:
-    # Every 30 min, 6:00 PM–9:00 PM IST (12:30–15:30 UTC), Mon–Fri
-    # Script itself skips if clean niftyindices.com data already present;
-    # re-fetches if only Yahoo Finance approximation data exists.
-    - cron: "30 12 * * 1-5"
-    - cron: "0 13 * * 1-5"
     - cron: "30 13 * * 1-5"
-    - cron: "0 14 * * 1-5"
-    - cron: "30 14 * * 1-5"
-    - cron: "0 15 * * 1-5"
     - cron: "30 15 * * 1-5"
   workflow_dispatch:
     inputs:
       date:
-        description: "Date to fetch (YYYY-MM-DD). Leave blank for today."
+        description: "EOD date to fetch (YYYY-MM-DD). Leave blank to catch up all recent trading days."
         required: false
         default: ""
+
+# Late GitHub crons bunch up with the cron-job.org dispatches; run one at a time so
+# two jobs never race each other on the data commit.
+concurrency:
+  group: update-eod
+  cancel-in-progress: false
 
 jobs:
   update-data:
@@ -33,22 +35,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ runner.os }}-v1
-          restore-keys: |
-            playwright-chromium-${{ runner.os }}-
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
 
       - name: Install Python dependencies
-        run: pip install requests playwright
-
-      - name: Install Playwright Chromium
-        run: playwright install chromium --with-deps
+        run: pip install -r scripts/requirements.txt
 
       - name: Fetch EOD Daily Snapshot from niftyindices.com
+        id: eod
         run: |
           if [ -n "${{ github.event.inputs.date }}" ]; then
             python scripts/fetch-eod.py --date "${{ github.event.inputs.date }}"
@@ -56,21 +50,31 @@ jobs:
             python scripts/fetch-eod.py
           fi
 
-      - name: Fetch India 10Y bond yield and update byey.json
+      # The direct CSV almost always works; the browser fallback is installed only
+      # when the latest trading day is still missing or incomplete.
+      - name: Cache Playwright browsers
+        if: steps.eod.outputs.need_playwright == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-v1
+
+      - name: Retry EOD with Playwright fallback
+        if: steps.eod.outputs.need_playwright == 'true'
         run: |
+          pip install playwright
+          playwright install chromium --with-deps
           if [ -n "${{ github.event.inputs.date }}" ]; then
-            python scripts/fetch-byey.py --date "${{ github.event.inputs.date }}"
+            python scripts/fetch-eod.py --date "${{ github.event.inputs.date }}"
           else
-            python scripts/fetch-byey.py
+            python scripts/fetch-eod.py
           fi
 
-      - name: Fetch USD/INR rate and update usdinr.json
-        run: |
-          if [ -n "${{ github.event.inputs.date }}" ]; then
-            python scripts/fetch-usdinr.py --date "${{ github.event.inputs.date }}"
-          else
-            python scripts/fetch-usdinr.py
-          fi
+      - name: Fetch India 10Y bond yield and update byey.json
+        run: python scripts/fetch-byey.py
+
+      - name: Sync USD/INR closes into usdinr.json
+        run: python scripts/fetch-usdinr.py
 
       - name: Upload debug screenshot on failure
         if: failure()
@@ -89,8 +93,14 @@ jobs:
           if git diff --cached --quiet; then
             echo "No new data — skipping commit (market holiday or data not yet published)"
           else
-            git commit -m "chore: update EOD data $(date -u +%Y-%m-%d)"
+            git commit -m "chore: update EOD data $(TZ=Asia/Kolkata date +%Y-%m-%d)"
             git pull --rebase origin main
             git push
-            echo "Pushed updated historical.json + byey.json — Vercel will redeploy automatically."
+            echo "Pushed updated data — Vercel will redeploy automatically."
           fi
+
+      # Runs last so a missing calendar never blocks the data update, but still
+      # turns the run red (and emails the repo owner) from 1 January until the new
+      # year's NSE holidays are added to data/nse-holidays.json.
+      - name: Check NSE holiday calendar covers this year
+        run: python scripts/nse_calendar.py

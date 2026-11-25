@@ -72,10 +72,18 @@ const PRESETS = [
   { label: "4Y", months: 48 },
 ] as const;
 
+/**
+ * Calendar date `months` before fromDate, clamped to month end (31 Mar − 1M →
+ * 28 Feb). Pure date arithmetic: going through local-time Date + toISOString()
+ * shifted every preset a day early in IST.
+ */
 function shiftBack(fromDate: string, months: number): string {
-  const d = new Date(fromDate + "T00:00:00");
-  d.setMonth(d.getMonth() - months);
-  return d.toISOString().slice(0, 10);
+  const [y, m, d] = fromDate.split("-").map(Number);
+  const total = y * 12 + (m - 1) - months;
+  const ty = Math.floor(total / 12);
+  const tm = total - ty * 12; // 0–11
+  const lastDay = new Date(Date.UTC(ty, tm + 1, 0)).getUTCDate();
+  return `${ty}-${String(tm + 1).padStart(2, "0")}-${String(Math.min(d, lastDay)).padStart(2, "0")}`;
 }
 
 interface Props {
@@ -84,6 +92,12 @@ interface Props {
 
 type SortCol = "indexReturn" | "epsGrowth" | null;
 type SortDir = "asc" | "desc";
+
+function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: SortDir }) {
+  if (sortCol !== col)
+    return <span className="ml-0.5 text-zinc-300 dark:text-zinc-600">↕</span>;
+  return <span className="ml-0.5">{sortDir === "desc" ? "▼" : "▲"}</span>;
+}
 
 export function PeriodReturnsPanel({ historicalData }: Props) {
   const lastDate = historicalData.at(-1)?.date ?? new Date().toISOString().slice(0, 10);
@@ -186,12 +200,6 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
       return sortDir === "desc" ? bv - av : av - bv;
     });
   }, [startRow, endRow, sortCol, sortDir, avgMode, startPriceFrom, startPriceTo, endPriceFrom, endPriceTo, historicalData]);
-
-  const SortIcon = ({ col }: { col: SortCol }) => {
-    if (sortCol !== col)
-      return <span className="ml-0.5 text-zinc-300 dark:text-zinc-600">↕</span>;
-    return <span className="ml-0.5">{sortDir === "desc" ? "▼" : "▲"}</span>;
-  };
 
   const inputCls =
     "border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-600";
@@ -366,7 +374,7 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
                 className={cn(thCls, "cursor-pointer select-none hover:text-zinc-700 dark:hover:text-zinc-200")}
                 onClick={() => handleSort("indexReturn")}
               >
-                Return % <SortIcon col="indexReturn" />
+                Return % <SortIcon col="indexReturn" sortCol={sortCol} sortDir={sortDir} />
               </th>
               <th className={thCls}>{avgMode ? "Avg Start EPS" : "Start EPS"}</th>
               <th className={thCls}>{avgMode ? "Avg End EPS"   : "End EPS"}</th>
@@ -374,7 +382,7 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
                 className={cn(thCls, "cursor-pointer select-none hover:text-zinc-700 dark:hover:text-zinc-200")}
                 onClick={() => handleSort("epsGrowth")}
               >
-                EPS Growth % <SortIcon col="epsGrowth" />
+                EPS Growth % <SortIcon col="epsGrowth" sortCol={sortCol} sortDir={sortDir} />
               </th>
               {!showPE ? (
                 <th

@@ -1,8 +1,14 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect } from "react";
+import { useLocalStorageState } from "@/lib/useLocalStorageState";
 
 type Theme = "light" | "dark";
+
+const LS_KEY = "nifty-theme";
+const DEFAULT: Theme = "light";
+const parseTheme = (raw: string): Theme => (raw === "dark" ? "dark" : "light");
+const serializeTheme = (t: Theme) => t;
 
 const ThemeContext = createContext<{ theme: Theme; toggleTheme: () => void }>({
   theme: "light",
@@ -10,20 +16,15 @@ const ThemeContext = createContext<{ theme: Theme; toggleTheme: () => void }>({
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useLocalStorageState<Theme>(LS_KEY, DEFAULT, parseTheme, serializeTheme);
 
+  // Sync the DOM class from state
   useEffect(() => {
-    const stored = localStorage.getItem("nifty-theme") as Theme | null;
-    const initial = stored ?? "light";
-    setTheme(initial);
-    document.documentElement.classList.toggle("dark", initial === "dark");
-  }, []);
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
 
   const toggleTheme = () => {
-    const next = theme === "light" ? "dark" : "light";
-    setTheme(next);
-    localStorage.setItem("nifty-theme", next);
-    document.documentElement.classList.toggle("dark", next === "dark");
+    setTheme(theme === "light" ? "dark" : "light");
   };
 
   return (

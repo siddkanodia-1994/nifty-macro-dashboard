@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
+import { getOwnerKey } from "@/lib/owner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import {
-  parseFY,
   computeEPSGrowth,
   computeFYBondYield,
   computeNiftyPEAvg,
@@ -13,7 +13,9 @@ import {
   computeFinalScore,
   loadMacroScoreData,
   saveMacroScoreData,
-  resetMacroScoreData,
+  hasVisitorEdits,
+  setVisitorEdited,
+  isFYInProgress,
 } from "@/lib/macroScore";
 import type {
   HistoricalRow,
@@ -171,9 +173,9 @@ function EditCell({
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelProps) {
-  const [data, setData] = useState<MacroScoreData>(() =>
-    loadMacroScoreData(defaultJson as MacroScoreData)
-  );
+  // Start from the bundled defaults so server and client render the same markup;
+  // the saved copy is applied after mount.
+  const [data, setData] = useState<MacroScoreData>(defaultJson as MacroScoreData);
   const [showRubric, setShowRubric] = useState(false);
   const [showInlineRaw, setShowInlineRaw] = useState(false);
   const [ownerMode, setOwnerMode] = useState(false);
@@ -181,31 +183,37 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
   const cronSecret = useRef<string | null>(null);
   const userHasEdited = useRef(false);
   const redisSnapshot = useRef<MacroScoreData | null>(null);
+  const loaded = useRef(false);
+  const latestDate = historicalData.at(-1)?.date ?? "";
 
   function updateData(updater: (prev: MacroScoreData) => MacroScoreData) {
     userHasEdited.current = true;
+    if (!ownerMode) setVisitorEdited(true);
     setData(updater);
   }
 
   // Detect owner mode + fetch server data on mount
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const key = params.get("key");
+    const key = getOwnerKey();
     if (key) { cronSecret.current = key; setOwnerMode(true); }
 
     (async () => {
+      let published: MacroScoreData | null = null;
       try {
         const res = await fetch("/api/macro-score", { cache: "no-store" });
-        if (res.ok) {
-          const json = await res.json();
-          if (json) { redisSnapshot.current = json as MacroScoreData; setData(json as MacroScoreData); return; }
-        }
+        if (res.ok) published = await res.json();
       } catch {}
+      if (published) redisSnapshot.current = published;
+      // A visitor's own edits win over the published values; otherwise show the
+      // latest published version (falling back to the last copy saved here).
+      const local = loadMacroScoreData(defaultJson as MacroScoreData);
+      loaded.current = true;
+      setData(!key && hasVisitorEdits() ? local : published ?? local);
     })();
   }, []);
 
   // Persist to localStorage on every change
-  useEffect(() => { saveMacroScoreData(data); }, [data]);
+  useEffect(() => { if (loaded.current) saveMacroScoreData(data); }, [data]);
 
   // Debounced POST to Redis in owner mode
   useEffect(() => {
@@ -219,7 +227,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
             "Content-Type": "application/json",
             "Authorization": `Bearer ${cronSecret.current}`,
           },
-          body: JSON.stringify(data),
+          body: JSON.stringify({ ...data, updatedAt: new Date().toISOString() }),
         });
         setSaveStatus(res.ok ? "saved" : "error");
       } catch { setSaveStatus("error"); }
@@ -373,6 +381,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
     if (!confirm("Reset to the last saved version?")) return;
     const target = redisSnapshot.current ?? (defaultJson as MacroScoreData);
     userHasEdited.current = true;
+    if (!ownerMode) setVisitorEdited(false);
     setData(target);
     saveMacroScoreData(target);
   }
@@ -434,7 +443,9 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
         <div>
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Macro Score</h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            FY-wise macro health scoring. Click any cell to edit. Changes persist in your browser.
+            FY-wise macro health scoring. Click any cell to edit — your edits are kept in this browser until you reset.
+            {data.updatedAt && <> Published values last updated {formatDate(data.updatedAt.slice(0, 10))}.</>}
+            {" "}YTD columns are financial years still in progress.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -476,6 +487,9 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                   {years.map((y) => (
                     <th key={y.fy} className={cn(thCls, y.isEstimate && "text-blue-700 dark:text-blue-400")}>
                       {y.fy}
+                      {isFYInProgress(y.fy, latestDate) && (
+                        <span className="block text-[10px] font-normal text-amber-600 dark:text-amber-400" title="Financial year not finished — returns and averages are year-to-date">YTD</span>
+                      )}
                       {y.isEstimate ? (
                         ownerMode ? (
                           <div className="flex items-center justify-center gap-1 mt-0.5">
@@ -599,6 +613,9 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
                   {years.map((y) => (
                     <th key={y.fy} className={cn(thCls, y.isEstimate && "text-blue-700 dark:text-blue-400")}>
                       {y.fy}
+                      {isFYInProgress(y.fy, latestDate) && (
+                        <span className="block text-[10px] font-normal text-amber-600 dark:text-amber-400" title="Financial year not finished — returns and averages are year-to-date">YTD</span>
+                      )}
                     </th>
                   ))}
                   <th className={cn(thCls, "bg-zinc-50 dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700 w-[88px] min-w-[88px] max-w-[88px]")}>

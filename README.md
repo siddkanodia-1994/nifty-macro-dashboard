@@ -29,17 +29,10 @@ npm install
 pip install openpyxl requests
 ```
 
-### 2. Parse the Excel source data
-The Excel file (`20260128 Index Levels- Adjusted Data vF.xlsx`) should be in the **parent** directory of this project. Run:
-```bash
-python scripts/parse-excel.py
-```
-This writes `data/historical.json` with all 999+ trading days.
-
-To point at a different Excel path:
-```bash
-python scripts/parse-excel.py --excel /path/to/file.xlsx
-```
+### 2. Data
+`data/historical.json`, `byey.json` and `usdinr.json` are committed and kept current by
+GitHub Actions — nothing to generate. (The original Excel import scripts are in
+`scripts/archive/`.)
 
 ### 3. Run the dev server
 ```bash
@@ -58,56 +51,47 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## Daily EOD Data Updates
+## Daily Data Updates
 
-Data lives in `data/historical.json`. GitHub Actions fetches new EOD data from **niftyindices.com** every weekday at **4:00 PM IST** (10:30 UTC), commits the updated JSON, and pushes — triggering an automatic Vercel redeploy.
-
-### Setup
-1. Ensure **Actions** are enabled in your GitHub repo (Settings → Actions → Allow all).
-2. The workflow is at `.github/workflows/update-eod.yml` — no secrets needed.
-3. In Vercel project settings, confirm "Auto deploy on push to main" is enabled.
-
-### Manual trigger
-Go to your repo → **Actions** → **Update EOD Data** → **Run workflow**.
-Optionally specify a past date (YYYY-MM-DD) to backfill a missed trading day.
-
-### Manual local update
-```bash
-python scripts/fetch-eod.py                    # today
-python scripts/fetch-eod.py --date 2026-04-15  # specific date
-git add data/historical.json
-git commit -m "chore: update EOD data 2026-04-15"
-git push
-```
-
----
-
-## Data Sources
+`.github/workflows/update-eod.yml` fetches the day's data, commits any changes and
+pushes — Vercel redeploys automatically.
 
 | Data | Source | Script |
 |------|--------|--------|
-| Historical (Apr 2022 – Apr 2026) | Excel "Ace Formula" tab | `scripts/parse-excel.py` |
-| EOD updates (from Apr 15, 2026) | niftyindices.com | `scripts/fetch-eod.py` |
+| Index close / P/E / P/B (EOD) | niftyindices.com Daily Snapshot CSV (`/Daily_Snapshot/ind_close_all_DDMMYYYY.csv`), Playwright fallback | `scripts/fetch-eod.py` |
+| India 10Y yield → BY-EY | Trading Economics (current value, written only for the last completed session) | `scripts/fetch-byey.py` |
+| USD/INR daily close | Yahoo Finance chart API `USDINR=X` (re-syncs the last month every run) | `scripts/fetch-usdinr.py` |
+| Live prices (market hours) | NSE `allIndices` API via `/api/refresh-live-prices` → Upstash Redis | cron-job.org, every minute |
 
-### niftyindices.com API details
+**Triggers.** cron-job.org calls the `workflow_dispatch` API at ~6:30 PM and ~8:00 PM
+IST on weekdays. Two GitHub `schedule` crons are a backup only — GitHub routinely
+fires them 8–11 hours late. Runs never overlap (`concurrency: update-eod`).
 
-The EOD script POSTs to:
+**Catch-up.** With no `--date`, `fetch-eod.py` fetches every NSE trading day in the last
+7 days (IST) that is missing or incomplete, so a late or skipped run is harmless.
+
+**Holiday calendar.** `data/nse-holidays.json` is shared by the site (`lib/marketHours.ts`)
+and the scripts (`scripts/nse_calendar.py`). Add each new year from the NSE circular
+published in December — from 1 January the workflow fails (and GitHub emails you) until
+the current year is listed.
+
+**Monitoring.** `GET /api/health` returns 503 when the deployed EOD data is more than 6 h
+behind the last market close, or live prices are over 10 min old during market hours.
+cron-job.org polls it with failure notifications on.
+
+### Manual runs
+Repo → **Actions** → **Update EOD Data** → **Run workflow** (optionally with a date), or locally:
+```bash
+pip install -r scripts/requirements.txt
+python scripts/fetch-eod.py                    # catch up recent trading days
+python scripts/fetch-eod.py --date 2026-04-15  # one specific date
+python scripts/fetch-usdinr.py                 # re-sync USD/INR (last month)
 ```
-POST https://www.niftyindices.com/Backpage.aspx/getHistoricaldatatabletoString
-{"name": "NIFTY 50", "startDate": "15-Apr-2026", "endDate": "15-Apr-2026"}
-```
 
-The script first GETs the homepage to establish a session cookie, then POSTs for each index. Index name strings:
-
-| Key | niftyindices.com name |
-|-----|----------------------|
-| NIFTY_50 | `NIFTY 50` |
-| NIFTY_BANK | `NIFTY BANK` |
-| NIFTY_IT | `NIFTY IT` |
-| NIFTY_MIDCAP_150 | `Nifty Midcap 150` |
-| NIFTY_SMALLCAP_250 | `Nifty Smallcap 250` |
-
-> If niftyindices.com changes their API, verify current field names via your browser's Network tab on [niftyindices.com/reports/historical-data](https://www.niftyindices.com/reports/historical-data) and update `scripts/fetch-eod.py` accordingly.
+### Owner mode
+Open the site once with `?key=<CRON_SECRET>` to edit and publish projections, BY-EY
+calculator inputs and Macro Score values. The key is moved into the tab's
+`sessionStorage` and removed from the address bar.
 
 ---
 
@@ -159,10 +143,14 @@ lib/
   utils.ts              Formatters, constants
   calculations.ts       Pure stats (mean, SD, z-score, percentile, control lines)
 data/
-  historical.json       Generated by parse-excel.py; updated daily
+  historical.json       Index EOD history; updated daily
+  byey.json, usdinr.json  Bond yield / BY-EY spread and USD/INR history
+  nse-holidays.json     NSE trading holidays (site + scripts)
 scripts/
-  parse-excel.py        One-time Excel → JSON converter
-  fetch-eod.py          Daily EOD fetcher (GitHub Actions)
+  fetch-eod.py, fetch-byey.py, fetch-usdinr.py   Daily fetchers (GitHub Actions)
+  nse_calendar.py       IST / trading-day helpers; run directly to check the calendar
+  archive/              One-off historical scripts (not run)
 .github/workflows/
-  update-eod.yml        Cron at 10:30 UTC weekdays
+  update-eod.yml        Daily data update (dispatched by cron-job.org)
+  fetch-live-prices.yml Manual live-price refresh
 ```

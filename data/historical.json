@@ -55932,8 +55932,8 @@
       "close": 24398.45,
       "pe": null,
       "pb": null,
-      "impliedEPS": "#DIV/0!",
-      "impliedBV": "#DIV/0!"
+      "impliedEPS": null,
+      "impliedBV": null
     },
     "NIFTY_500": {
       "close": 20865.0,
@@ -56580,8 +56580,8 @@
       "close": 23796.05,
       "pe": null,
       "pb": null,
-      "impliedEPS": "#DIV/0!",
-      "impliedBV": "#DIV/0!"
+      "impliedEPS": null,
+      "impliedBV": null
     },
     "NIFTY_500": {
       "close": 20683.8,

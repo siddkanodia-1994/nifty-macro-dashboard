@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect } from "react";
+import { useLocalStorageState } from "@/lib/useLocalStorageState";
 
 export type FontFamilyKey = "geist" | "inter" | "arial" | "calibri";
 
@@ -18,6 +19,8 @@ interface FontFamilyState {
 
 const LS_KEY = "nifty-font-family-v2";
 const DEFAULT: FontFamilyKey = "calibri";
+const parseFontFamily = (raw: string) => FONT_OPTIONS.find((o) => o.key === raw)?.key;
+const serializeFontFamily = (f: FontFamilyKey) => f;
 
 const FontFamilyContext = createContext<FontFamilyState>({
   fontFamily: DEFAULT,
@@ -25,14 +28,7 @@ const FontFamilyContext = createContext<FontFamilyState>({
 });
 
 export function FontFamilyProvider({ children }: { children: React.ReactNode }) {
-  const [fontFamily, setFontFamilyState] = useState<FontFamilyKey>(DEFAULT);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(LS_KEY) as FontFamilyKey | null;
-      if (saved && FONT_OPTIONS.some((o) => o.key === saved)) setFontFamilyState(saved);
-    } catch {}
-  }, []);
+  const [fontFamily, setFontFamilyState] = useLocalStorageState(LS_KEY, DEFAULT, parseFontFamily, serializeFontFamily);
 
   useEffect(() => {
     const opt = FONT_OPTIONS.find((o) => o.key === fontFamily);
@@ -43,7 +39,6 @@ export function FontFamilyProvider({ children }: { children: React.ReactNode }) 
       el.style.removeProperty("--font-sans");
     }
     el.setAttribute("data-font", fontFamily);
-    localStorage.setItem(LS_KEY, fontFamily);
   }, [fontFamily]);
 
   function setFontFamily(f: FontFamilyKey) { setFontFamilyState(f); }

@@ -21,6 +21,11 @@ function findLastEPS(rows: HistoricalRow[], cutoff: string): number | null {
   return null;
 }
 
+/** True while the FY hasn't ended in the data yet (its figures are year-to-date). */
+export function isFYInProgress(fy: string, latestDate: string): boolean {
+  return parseFY(fy).endDate > latestDate;
+}
+
 export function computeEPSGrowth(rows: HistoricalRow[], fy: string): number | null {
   const num = parseInt(fy.slice(2), 10);
   const endYear = 2000 + num;
@@ -121,7 +126,16 @@ export function saveMacroScoreData(data: MacroScoreData): void {
   } catch {}
 }
 
-export function resetMacroScoreData(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(LS_KEY);
+// Set once a visitor edits; their local copy then wins over the published values.
+const EDITED_LS_KEY = "nifty-macro-score-edited-v1";
+
+export function hasVisitorEdits(): boolean {
+  try { return localStorage.getItem(EDITED_LS_KEY) === "1"; } catch { return false; }
+}
+
+export function setVisitorEdited(edited: boolean): void {
+  try {
+    if (edited) localStorage.setItem(EDITED_LS_KEY, "1");
+    else localStorage.removeItem(EDITED_LS_KEY);
+  } catch {}
 }

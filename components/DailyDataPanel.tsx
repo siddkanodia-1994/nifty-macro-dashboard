@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { TimeWindowSelector } from "@/components/TimeWindowSelector";
 import {
@@ -18,7 +18,6 @@ import {
   formatMetric,
   formatZScore,
   formatDate,
-  formatPct,
   zScoreColor,
   cn,
 } from "@/lib/utils";
@@ -38,8 +37,13 @@ export function DailyDataPanel({ historicalData, liveData }: DailyDataPanelProps
   const [newestFirst, setNewestFirst] = useState(true);
   const [page, setPage] = useState(1);
 
-  // Reset page when any selector changes
-  useEffect(() => { setPage(1); }, [selectedIndex, selectedMetric, timeWindow, newestFirst]);
+  // Reset page when any selector changes (adjust state during render, not in an effect)
+  const selectorKey = `${selectedIndex}|${selectedMetric}|${timeWindow}|${newestFirst}`;
+  const [prevSelectorKey, setPrevSelectorKey] = useState(selectorKey);
+  if (selectorKey !== prevSelectorKey) {
+    setPrevSelectorKey(selectorKey);
+    setPage(1);
+  }
 
   // Window rows for stat computation only
   const windowRows = useMemo(

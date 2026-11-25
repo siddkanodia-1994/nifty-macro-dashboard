@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
+import { fetchProjectionDefaults, invalidateProjectionDefaults } from "@/lib/projectionDefaults";
+import { getOwnerKey } from "@/lib/owner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/MetricCard";
 import { IndexChart } from "@/components/IndexChart";
@@ -243,19 +245,14 @@ export function BYEYPanel({
 
   // ── Detect owner mode synchronously ────────────────────────────────────────
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const key = params.get("key");
+    const key = getOwnerKey();
     if (key) { calcCronSecret.current = key; setCalcOwnerMode(true); }
   }, []);
 
   // ── Init: fetch Redis owner defaults, then apply visitor localStorage diff ─
   useEffect(() => {
     async function init() {
-      let redisData: Record<string, unknown> | null = null;
-      try {
-        const res = await fetch("/api/projection-defaults", { cache: "no-store" });
-        if (res.ok) redisData = await res.json();
-      } catch {}
+      const redisData = await fetchProjectionDefaults();
 
       const ownerSaved = redisData?.byeyCalc as { spreadOption?: string; bondYieldPct?: number; eps?: number } | null ?? null;
       const ownerOption: CalcSDOption = (ownerSaved?.spreadOption && CALC_SD_OPTIONS.some((o) => o.value === ownerSaved.spreadOption))
@@ -341,6 +338,7 @@ export function BYEYPanel({
             },
           }),
         });
+        if (res.ok) invalidateProjectionDefaults();
         setCalcSaveStatus(res.ok ? "saved" : "error");
       } catch {
         setCalcSaveStatus("error");

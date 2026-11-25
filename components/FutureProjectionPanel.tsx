@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { getOwnerKey } from "@/lib/owner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   INDEX_META,
@@ -14,6 +15,8 @@ import { EpsGrowthCard, type EpsGrowthState } from "@/components/EpsGrowthCard";
 import { BrokerageEstimatesCard, type BrokerageRow } from "@/components/BrokerageEstimatesCard";
 import { filterByWindow, extractValues, mean, stdDev, buildForwardRatioSeries } from "@/lib/calculations";
 import { useRatioMode } from "@/lib/ratioMode";
+import { fetchProjectionDefaults, invalidateProjectionDefaults } from "@/lib/projectionDefaults";
+import { latestValid } from "@/lib/utils";
 import type { HistoricalRow, IndexKey, TimeWindow } from "@/lib/types";
 
 type ProjectionPath = "pe_eps" | "pb_bv";
@@ -123,12 +126,10 @@ function sdToMultiple(option: SDOption, m: number, sd: number): number {
 }
 
 function buildDefaults(historicalData: HistoricalRow[]): ProjectionsMap {
-  const lastRow = historicalData[historicalData.length - 1];
   const defaults = {} as ProjectionsMap;
 
   for (const meta of INDEX_META) {
-    const m = lastRow?.[meta.key];
-    const pe = m?.pe ?? 20;
+    const pe = latestValid(historicalData, meta.key)?.pe ?? 20;
 
     defaults[meta.key] = {
       path: "pe_eps",
@@ -176,6 +177,9 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   manualGrowthCellsRef.current = manualGrowthCells;
   const userHasEdited = useRef(false);
   const epsGrowthEdited = useRef(false);
+  // Set only by user actions, so loading saved values never triggers a save that
+  // overwrites them with the initial defaults (spread 0, no manual cells).
+  const growthSettingsEdited = useRef(false);
   const cronSecret = useRef<string | null>(null);
   const visitorDiff = useRef<VisitorDiff>({});
   const isMounted = useRef(false);
@@ -185,8 +189,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
   // Detect owner mode immediately (synchronous, separate from async init)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const key = params.get("key");
+    const key = getOwnerKey();
     if (key) { cronSecret.current = key; setOwnerMode(true); }
     // Migrate: clear old v1 snapshot so it doesn't interfere
     try { localStorage.removeItem("nifty-projections-visitor-v1"); } catch {}
@@ -218,18 +221,17 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       let rawGrowthSpread: number | undefined;
       let rawManualGrowthCells: string[] | undefined;
       try {
-        const res = await fetch("/api/projection-defaults", { cache: "no-store" });
-        if (res.ok) {
-          const json = await res.json() as Record<string, unknown>;
-          if (json) {
-            rawEpsGrowth = json.epsGrowth as EpsGrowthPersisted | undefined;
-            rawGrowthSpread = json.growthSpread as number | undefined;
-            rawManualGrowthCells = json.manualGrowthCells as string[] | undefined;
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { epsGrowth: _epsGrowth, growthSpread: _gs, manualGrowthCells: _mgc, ...projectionOnly } = json;
-            kv = projectionOnly as ProjectionsMap;
-            setOwnerDefaults(kv);
-          }
+        const json = await fetchProjectionDefaults();
+        if (json) {
+          rawEpsGrowth = json.epsGrowth as EpsGrowthPersisted | undefined;
+          rawGrowthSpread = json.growthSpread as number | undefined;
+          rawManualGrowthCells = json.manualGrowthCells as string[] | undefined;
+          // byeyCalc belongs to the BY-EY panel; keeping it out of projections stops
+          // owner projection saves from re-posting a stale copy over newer BY-EY saves.
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { epsGrowth: _epsGrowth, growthSpread: _gs, manualGrowthCells: _mgc, byeyCalc: _bc, ...projectionOnly } = json;
+          kv = projectionOnly as ProjectionsMap;
+          setOwnerDefaults(kv);
         }
       } catch {}
 
@@ -314,9 +316,15 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         const newVal = externalGrowthPct[meta.key];
         if (newVal == null) continue;
         if (newVal === prevExternalGrowth.current[meta.key]) continue;
-        changed = true;
         const cur = next[meta.key];
-        if (!cur) continue;
+        // Echo of a value this panel already holds (e.g. pushed up on load): applying
+        // the spread here would overwrite saved bear/bull growth.
+        if (!cur || cur.base.growthPct === newVal) continue;
+        changed = true;
+        // Overview writes this edit to localStorage itself; mirror it in visitorDiff
+        // so this panel's next save doesn't write the old value back.
+        const d = visitorDiff.current[meta.key] ?? {};
+        visitorDiff.current = { ...visitorDiff.current, [meta.key]: { ...d, base: { ...(d.base ?? {}), growthPct: newVal } } };
         const spread = growthSpreadRef.current;
         const manual = manualGrowthCellsRef.current;
         next[meta.key] = {
@@ -330,11 +338,9 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
             : { ...cur.bull, growthPct: parseFloat((newVal + spread).toFixed(2)) },
         };
       }
-      if (!changed) return prev;
       prevExternalGrowth.current = { ...externalGrowthPct };
-      return next;
+      return changed ? next : prev;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalGrowthPct]);
 
   // Owner EPS Est. edits from Overview → update projections + trigger 600ms auto-save
@@ -375,7 +381,6 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       },
     };
     userHasEdited.current = true;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ownerEpsOverride, ownerMode]);
 
   // Persist only visitor's explicit override diff (not full state)
@@ -402,6 +407,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
           },
           body: JSON.stringify(projections),
         });
+        if (res.ok) invalidateProjectionDefaults();
         setSaveStatus(res.ok ? "saved" : "error");
       } catch {
         setSaveStatus("error");
@@ -440,7 +446,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
   // Auto-save growth spread + manual cells to Redis in owner mode (debounced 600ms)
   useEffect(() => {
-    if (!ownerMode || !cronSecret.current) return;
+    if (!ownerMode || !cronSecret.current || !growthSettingsEdited.current) return;
     const id = setTimeout(async () => {
       try {
         await fetch("/api/projection-defaults", {
@@ -458,7 +464,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
   // Persist growth spread + manual cells for visitors in localStorage
   useEffect(() => {
-    if (ownerMode) return;
+    if (ownerMode || !growthSettingsEdited.current) return;
     try {
       localStorage.setItem(GROWTH_SPREAD_LS_KEY, String(growthSpread));
       localStorage.setItem(MANUAL_GROWTH_LS_KEY, JSON.stringify([...manualGrowthCells]));
@@ -508,20 +514,19 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
   const isBankingSelected = BANKING_KEYS.has(selectedIndex);
 
-  const lastRow = historicalData[historicalData.length - 1] ?? null;
-
   // Compute Apr 30 and Latest base values for ALL indices (used by the EPS/BV growth card)
   const allBaseDefaults = useMemo(() => {
-    const year = new Date().getFullYear();
-    const apr30Target = `${year}-04-30`;
+    // Most recent 30 April on or before the latest data date (not the browser's
+    // calendar year, which points to a future date from January to April).
+    const latestDate = historicalData.at(-1)?.date ?? "";
+    const year = Number(latestDate.slice(0, 4));
+    const apr30Target = latestDate >= `${year}-04-30` ? `${year}-04-30` : `${year - 1}-04-30`;
     const apr30Row = historicalData.filter(r => r.date <= apr30Target).at(-1);
-    const latestRow = historicalData.at(-1);
     const result: Partial<Record<IndexKey, { apr30: number | null; latest: number | null }>> = {};
     for (const meta of INDEX_META) {
       const isPEPath = projections[meta.key]?.path === "pe_eps";
-      const field = isPEPath ? "impliedEPS" : "impliedBV";
       const apr30Metrics  = apr30Row?.[meta.key]  ?? null;
-      const latestMetrics = latestRow?.[meta.key] ?? null;
+      const latestMetrics = latestValid(historicalData, meta.key);
       result[meta.key] = {
         apr30:  apr30Metrics  ? (isPEPath ? apr30Metrics.impliedEPS  : apr30Metrics.impliedBV)  ?? null : null,
         latest: latestMetrics ? (isPEPath ? latestMetrics.impliedEPS : latestMetrics.impliedBV) ?? null : null,
@@ -532,25 +537,23 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
   // Current values for selected index
   const current = useMemo(() => {
-    if (!lastRow) return null;
-    const m = lastRow[selectedIndex];
+    const m = latestValid(historicalData, selectedIndex);
     if (!m) return null;
     const liveClose = liveData?.[selectedIndex] ?? null;
     const close = liveClose ?? m.close;
     const pe = liveClose && m.impliedEPS ? liveClose / m.impliedEPS : m.pe;
     const pb = liveClose && m.impliedBV  ? liveClose / m.impliedBV  : m.pb;
     return { close, pe, pb, impliedEPS: m.impliedEPS, impliedBV: m.impliedBV };
-  }, [lastRow, selectedIndex, liveData]);
+  }, [historicalData, selectedIndex, liveData]);
 
   const proj = projections[selectedIndex];
   const isLive = (liveData?.[selectedIndex] ?? null) != null;
 
   const switchPath = useCallback((newPath: ProjectionPath) => {
-    if (!lastRow) return;
-    const m = lastRow[selectedIndex];
+    const m = latestValid(historicalData, selectedIndex);
 
     // Compute period-based multiples for the new path
-    const windowRows = filterByWindow(historicalData, timeWindow);
+    const windowRows = filterByWindow(historicalData, BANKING_KEYS.has(selectedIndex) ? bankingWindow : timeWindow);
     const field = newPath === "pe_eps" ? "pe" : "pb";
     const vals = extractValues(windowRows, selectedIndex, field);
     const hasPeriod = vals.length >= 2;
@@ -612,7 +615,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       SCENARIOS.forEach((s) => next.delete(`${selectedIndex}_${s}`));
       return next;
     });
-  }, [lastRow, selectedIndex, historicalData, timeWindow]);
+  }, [selectedIndex, historicalData, timeWindow, bankingWindow]);
 
   const updateScenario = useCallback(
     (scenario: Scenario, field: keyof ScenarioRow, raw: string) => {
@@ -635,6 +638,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
         setManualCells((prev) => new Set(prev).add(`${selectedIndex}_${scenario}`));
       }
       if (field === "growthPct" && (scenario === "bear" || scenario === "bull")) {
+        growthSettingsEdited.current = true;
         setManualGrowthCells((prev) => new Set(prev).add(`${selectedIndex}_${scenario}`));
       }
       // Sync base growthPct back to Overview's EPS Est. column
@@ -664,11 +668,13 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
 
   const applySDToAllIndices = useCallback((scenario: Scenario, option: SDOption) => {
     setSDSelection((prev) => ({ ...prev, [scenario]: option }));
-    const windowRows = filterByWindow(historicalData, timeWindow);
+    const generalRows = filterByWindow(historicalData, timeWindow);
+    const bankingRows = filterByWindow(historicalData, bankingWindow);
     setProjections((prev) => {
       const next = { ...prev };
       for (const meta of INDEX_META) {
         const key = meta.key;
+        const windowRows = BANKING_KEYS.has(key) ? bankingRows : generalRows;
         const isPEPath = next[key].path === "pe_eps";
         let vals: number[];
         if (ratioMode === "FWD") {
@@ -696,7 +702,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
       for (const meta of INDEX_META) next.delete(`${meta.key}_${scenario}`);
       return next;
     });
-  }, [historicalData, timeWindow, ratioMode]);
+  }, [historicalData, timeWindow, bankingWindow, ratioMode]);
 
   const handleReset = useCallback(() => {
     try { localStorage.removeItem(VISITOR_STORAGE_KEY); } catch {}
@@ -707,13 +713,16 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
     visitorDiff.current = {};
     userHasEdited.current = false;
     epsGrowthEdited.current = false;
+    growthSettingsEdited.current = true; // explicit reset: owner mode saves spread 0
     setSDSelection(DEFAULT_SD);
     setManualCells(new Set());
     setGrowthSpread(0);
     setManualGrowthCells(new Set());
     setEpsGrowthMap({});
     setGlobalBaseSource("30 Apr");
-    const resetTo = ownerDefaults ?? buildDefaults(historicalData);
+    // Merge over built-in defaults: indices missing from Redis would otherwise be
+    // undefined and crash the panel.
+    const resetTo = { ...buildDefaults(historicalData), ...(ownerDefaults ?? {}) };
     setProjections(resetTo);
     // Sync reset growthPct values back to the shared state (and Overview EPS Est.)
     isSelfEditing.current = true;
@@ -725,6 +734,7 @@ export function FutureProjectionPanel({ historicalData, liveData, timeWindow, on
   }, [ownerDefaults, historicalData, onGrowthPctChange]);
 
   const handleSpreadChange = useCallback((newSpread: number) => {
+    growthSettingsEdited.current = true;
     setGrowthSpread(newSpread);
     setProjections(prev => {
       const next = { ...prev };

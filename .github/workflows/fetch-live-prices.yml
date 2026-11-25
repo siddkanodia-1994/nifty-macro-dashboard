@@ -1,29 +1,22 @@
-name: Fetch Live Prices (5-min fallback)
+name: Refresh Live Prices (manual)
+
+# Live prices are refreshed every minute by cron-job.org calling
+# /api/refresh-live-prices. GitHub's 5-minute schedule used to be the fallback,
+# but GitHub only ran it once or twice a day, always after market close, so it is
+# now manual-only. Staleness is caught by cron-job.org monitoring /api/health.
+#
+# Needs repository secret CRON_SECRET (same value as the Vercel env var).
 
 on:
-  schedule:
-    # Every 5 min, 3:00–10:59 UTC = 8:30 AM–4:29 PM IST, Mon–Fri
-    # Covers full market hours (9:15 AM–3:30 PM IST) with margin.
-    # Primary 1-min updates are handled by cron-job.org.
-    - cron: "*/5 3-10 * * 1-5"
   workflow_dispatch:
 
 jobs:
-  fetch:
+  refresh:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Fetch prices and write to Upstash Redis
-        run: node scripts/fetch-live-prices.mjs
+      - name: Trigger /api/refresh-live-prices
         env:
-          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
-          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+            https://nifty-macro-dashboard.vercel.app/api/refresh-live-prices

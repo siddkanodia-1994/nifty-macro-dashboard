@@ -1,52 +1,59 @@
 /**
- * Returns true if NSE market is currently open (9:15 AM – 3:30 PM IST, Mon–Fri).
- * Excludes weekends and the NSE trading holiday calendar below.
+ * NSE market-hours helpers (9:15 AM – 3:30 PM IST, Mon–Fri, excluding holidays).
  *
- * Update NSE_HOLIDAYS at the start of each year from the official NSE circular:
+ * Holidays live in data/nse-holidays.json, shared with the Python fetch scripts.
+ * Add each new year from the official NSE circular (published every December):
  * https://www.nseindia.com/resources/exchange-communication-holidays
+ * The EOD workflow fails from 1 January if the current year is missing.
  */
+import holidaysJson from "@/data/nse-holidays.json";
 
-// ISO "YYYY-MM-DD" strings (in IST) on which NSE is closed despite being a weekday.
-// Fixed-date holidays are reliable. Lunar/festival dates shift each year — verify
-// the approximate dates below against the official NSE circular before each year begins.
-const NSE_HOLIDAYS: Set<string> = new Set([
-  // ── 2026 ─────────────────────────────────────────────────────────────────
-  "2026-01-26", // Republic Day
-  "2026-02-16", // Mahashivratri          ← verify from NSE circular
-  "2026-02-19", // Chhatrapati Shivaji Maharaj Jayanti
-  "2026-03-03", // Holi                   ← verify from NSE circular
-  "2026-04-03", // Good Friday
-  "2026-04-14", // Dr. Baba Saheb Ambedkar Jayanti
-  "2026-05-01", // Maharashtra Day / May Day
-  "2026-08-18", // Ganesh Chaturthi       ← verify from NSE circular
-  "2026-10-02", // Gandhi Jayanti
-  "2026-10-09", // Diwali — Laxmi Puja    ← verify from NSE circular
-  "2026-10-10", // Diwali — Balipratipada ← verify from NSE circular
-  "2026-10-26", // Guru Nanak Jayanti     ← verify from NSE circular
-  "2026-12-25", // Christmas
-]);
+const NSE_HOLIDAYS = new Set(Object.keys(holidaysJson).filter((k) => !k.startsWith("_")));
+
+const IST_OFFSET_MS = 330 * 60 * 1000;
+const OPEN_MIN  = 9 * 60 + 15;  // 9:15 AM IST
+const CLOSE_MIN = 15 * 60 + 30; // 3:30 PM IST
+
+/** Live quotes older than this during market hours are treated as stale. */
+export const LIVE_STALE_MS = 10 * 60 * 1000;
+
+/** IST calendar date "YYYY-MM-DD" for an instant. */
+export function istDate(now: Date = new Date()): string {
+  return new Date(now.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function istMinutes(now: Date): number {
+  const ist = new Date(now.getTime() + IST_OFFSET_MS);
+  return ist.getUTCHours() * 60 + ist.getUTCMinutes();
+}
+
+/** True for an NSE trading day ("YYYY-MM-DD", read as a plain calendar date). */
+export function isTradingDay(date: string): boolean {
+  const day = new Date(date + "T00:00:00Z").getUTCDay();
+  return day >= 1 && day <= 5 && !NSE_HOLIDAYS.has(date);
+}
+
+function prevDay(date: string): string {
+  const d = new Date(date + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
 
 export function isMarketOpen(now: Date = new Date()): boolean {
-  const utcHour    = now.getUTCHours();
-  const utcMinute  = now.getUTCMinutes();
-  const utcMinutes = utcHour * 60 + utcMinute;
+  const mins = istMinutes(now);
+  return isTradingDay(istDate(now)) && mins >= OPEN_MIN && mins <= CLOSE_MIN;
+}
 
-  // IST = UTC + 5:30 = UTC + 330 minutes
-  const istTotalMinutes = utcMinutes + 330;
-  // Normalise to [0, 1440)
-  const istMinutes = istTotalMinutes % 1440;
+/** The trading day before `date` ("YYYY-MM-DD"). */
+export function previousTradingDay(date: string): string {
+  let d = date;
+  do d = prevDay(d); while (!isTradingDay(d));
+  return d;
+}
 
-  // Compute IST day-of-week (0=Sun, 1=Mon … 6=Sat)
-  const utcDay = now.getUTCDay();
-  const istDay = istTotalMinutes >= 1440 ? (utcDay + 1) % 7 : utcDay;
-
-  const isWeekday   = istDay >= 1 && istDay <= 5;
-  const afterOpen   = istMinutes >= 9 * 60 + 15;   // >= 9:15 AM IST
-  const beforeClose = istMinutes <= 15 * 60 + 30;  // <= 3:30 PM IST
-
-  if (!isWeekday || !afterOpen || !beforeClose) return false;
-
-  // Derive the IST calendar date and check against the holiday list
-  const istDate = new Date(now.getTime() + 330 * 60 * 1000).toISOString().slice(0, 10);
-  return !NSE_HOLIDAYS.has(istDate);
+/** Most recent trading day whose 3:30 PM IST close has already happened. */
+export function lastCompletedSession(now: Date = new Date()): string {
+  const d = istDate(now);
+  if (isTradingDay(d) && istMinutes(now) > CLOSE_MIN) return d;
+  return previousTradingDay(d);
 }

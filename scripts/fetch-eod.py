@@ -18,9 +18,10 @@ will retry. No Yahoo Finance fallback (approximated PE/PB is not acceptable).
 Usage:
     python scripts/fetch-eod.py [--date YYYY-MM-DD]
 
-If --date is omitted, every weekday in the last 7 days (IST) that lacks clean
-data is fetched, so a cron run that fires late (after UTC midnight) or fails
-outright is caught up by the next one.
+If --date is omitted, every NSE trading day in the last 7 days (IST) that lacks
+complete data is fetched, so a cron run that fires late (after UTC midnight) or
+fails outright is caught up by the next one. A row is complete when every index
+that had a close on the previous stored date has one too.
 Called by GitHub Actions from 12:30 UTC (6:00 PM IST) on weekdays.
 """
 
@@ -34,8 +35,11 @@ import os
 import sys
 import argparse
 import time
-from datetime import datetime, date, timedelta, timezone
+import importlib.util
+from datetime import datetime, date, timedelta
 from typing import Optional
+
+from nse_calendar import is_trading_day, last_completed_session, now_ist
 
 try:
     import requests
@@ -198,6 +202,9 @@ def fetch_all_daily_reports(target_date: date) -> dict:
 
 # ─── Strategy 2: Playwright (Daily Reports page) ─────────────────────────────
 
+PLAYWRIGHT_AVAILABLE = importlib.util.find_spec("playwright") is not None
+
+
 def fetch_all_playwright(target_date: date) -> dict:
     print("Strategy 2: Playwright browser (Daily Reports)…")
     try:
@@ -258,26 +265,47 @@ def fetch_all_playwright(target_date: date) -> dict:
 
 # niftyindices.com dates its reports in IST. GitHub's cron often fires hours late
 # (past UTC midnight), so the runner's date.today() can skip a trading day.
-IST = timezone(timedelta(hours=5, minutes=30))
 LOOKBACK_DAYS = 7
 
 
-def is_clean(row: dict) -> bool:
-    n50 = row.get("NIFTY_50") or {}
-    n50_close = n50.get("close") if isinstance(n50, dict) else None
-    n500 = row.get("NIFTY_500") or {}
-    n500_close = n500.get("close") if isinstance(n500, dict) else None
-    return (n50_close is not None and round(n50_close, 2) == n50_close
-            and n500_close is not None)
+def _close(row: dict, key: str) -> Optional[float]:
+    m = row.get(key)
+    return m.get("close") if isinstance(m, dict) else None
+
+
+def required_keys(rows: list[dict], target_iso: str) -> list[str]:
+    """Indices that had a close on the previous stored date — a new row must have them all."""
+    prev = next((r for r in reversed(rows) if r["date"] < target_iso), None)
+    if prev is None:
+        return ["NIFTY_50", "NIFTY_500"]
+    return [k for k in TARGET_KEYS if _close(prev, k) is not None]
+
+
+def is_clean(row: dict, required: list[str]) -> bool:
+    n50_close = _close(row, "NIFTY_50")
+    # A non-2dp NIFTY 50 close marks an old Yahoo Finance approximation.
+    if n50_close is None or round(n50_close, 2) != n50_close:
+        return False
+    return all(_close(row, k) is not None for k in required)
 
 
 def default_target_dates(rows: list[dict]) -> list[date]:
-    """Weekdays in the last LOOKBACK_DAYS (IST) without clean data, oldest first.
-    Holidays stay in the list but cost only one CSV request each (it returns nothing)."""
-    today_ist = datetime.now(IST).date()
-    clean = {r["date"] for r in rows if is_clean(r)}
-    days = (today_ist - timedelta(days=i) for i in range(LOOKBACK_DAYS, -1, -1))
-    return [d for d in days if d.weekday() < 5 and d.isoformat() not in clean]
+    """Completed NSE sessions in the last LOOKBACK_DAYS (IST) without complete data, oldest first.
+    Today is excluded until its 3:30 PM close — there's no snapshot to fetch before then."""
+    last_session = last_completed_session(now_ist())
+    by_date = {r["date"]: r for r in rows}
+    days = (last_session - timedelta(days=i) for i in range(LOOKBACK_DAYS, -1, -1))
+    return [d for d in days
+            if is_trading_day(d)
+            and not (d.isoformat() in by_date
+                     and is_clean(by_date[d.isoformat()], required_keys(rows, d.isoformat())))]
+
+
+def set_github_output(name: str, value: str) -> None:
+    path = os.environ.get("GITHUB_OUTPUT")
+    if path:
+        with open(path, "a") as f:
+            f.write(f"{name}={value}\n")
 
 
 def fetch_row(target_date: date, extra_data: dict, use_playwright: bool) -> Optional[dict]:
@@ -287,7 +315,7 @@ def fetch_row(target_date: date, extra_data: dict, use_playwright: bool) -> Opti
 
     # ── Strategy 2: Playwright (for any remaining) ────────────────────────────
     still_missing = missing_keys(results)
-    if still_missing and use_playwright:
+    if still_missing and use_playwright and PLAYWRIGHT_AVAILABLE:
         print(f"\n{len(still_missing)} indices missing — trying Playwright…")
         pw = fetch_all_playwright(target_date)
         for k, v in pw.items():
@@ -315,7 +343,7 @@ def fetch_row(target_date: date, extra_data: dict, use_playwright: bool) -> Opti
 def main():
     parser = argparse.ArgumentParser(description="Fetch EOD data → historical.json")
     parser.add_argument("--date", default=None,
-                        help="Date to fetch (YYYY-MM-DD). Defaults to every recent weekday "
+                        help="Date to fetch (YYYY-MM-DD). Defaults to every recent trading day "
                              f"(last {LOOKBACK_DAYS} days, IST) still missing clean data.")
     args = parser.parse_args()
 
@@ -331,7 +359,7 @@ def main():
     else:
         targets = default_target_dates(rows)
         if not targets:
-            print(f"All weekdays in the last {LOOKBACK_DAYS} days (IST) have clean data — nothing to do.")
+            print(f"All completed trading days in the last {LOOKBACK_DAYS} days (IST) have complete data — nothing to do.")
             return
 
     changed = False
@@ -342,7 +370,7 @@ def main():
         existing = next((r for r in rows if r["date"] == target_iso), None)
         extra_data: dict = {}
         if existing:
-            if is_clean(existing):
+            if is_clean(existing, required_keys(rows, target_iso)):
                 print(f"Date {target_iso} already has clean niftyindices.com data — nothing to do.")
                 continue
             for k, v in existing.items():
@@ -352,7 +380,12 @@ def main():
 
         # Playwright clicks the newest report links on the page, so it can only
         # ever help the most recent target date.
-        new_row = fetch_row(target_date, extra_data, use_playwright=(i == len(targets) - 1))
+        is_latest = i == len(targets) - 1
+        new_row = fetch_row(target_date, extra_data, use_playwright=is_latest)
+        if is_latest and not PLAYWRIGHT_AVAILABLE and (
+                new_row is None or not is_clean(new_row, required_keys(rows, target_iso))):
+            # CI installs Playwright and re-runs only when this flag is set.
+            set_github_output("need_playwright", "true")
         if new_row is None:
             continue
         rows = [r for r in rows if r["date"] != target_iso]

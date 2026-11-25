@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect } from "react";
+import { useLocalStorageState } from "@/lib/useLocalStorageState";
 
 export type NumPreset = "S" | "M" | "L" | "XL";
 export type NumScaleValue = NumPreset | "custom";
@@ -17,6 +18,14 @@ interface NumScaleState {
 const LS_KEY = "nifty-num-scale";
 const DEFAULT: NumPreset = "M";
 
+type Stored = { preset: NumScaleValue; customPx: number };
+const DEFAULT_STORED: Stored = { preset: DEFAULT, customPx: NUM_PRESET_PX[DEFAULT] };
+function parseStored(raw: string): Stored {
+  const { preset: p, customPx: c } = JSON.parse(raw);
+  return { preset: p || DEFAULT, customPx: typeof c === "number" ? c : NUM_PRESET_PX[DEFAULT] };
+}
+const serializeStored = (s: Stored) => JSON.stringify(s);
+
 const NumScaleContext = createContext<NumScaleState>({
   preset: DEFAULT,
   customPx: NUM_PRESET_PX[DEFAULT],
@@ -25,18 +34,7 @@ const NumScaleContext = createContext<NumScaleState>({
 });
 
 export function NumScaleProvider({ children }: { children: React.ReactNode }) {
-  const [preset, setPresetState] = useState<NumScaleValue>(DEFAULT);
-  const [customPx, setCustomPxState] = useState(NUM_PRESET_PX[DEFAULT]);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(LS_KEY);
-      if (!saved) return;
-      const { preset: p, customPx: c } = JSON.parse(saved);
-      if (p) setPresetState(p);
-      if (typeof c === "number") setCustomPxState(c);
-    } catch {}
-  }, []);
+  const [{ preset, customPx }, setStored] = useLocalStorageState(LS_KEY, DEFAULT_STORED, parseStored, serializeStored);
 
   useEffect(() => {
     const el = document.documentElement;
@@ -57,14 +55,12 @@ export function NumScaleProvider({ children }: { children: React.ReactNode }) {
       el.style.removeProperty("--num-px-sm");
       el.style.removeProperty("--num-px-xs");
     }
-    localStorage.setItem(LS_KEY, JSON.stringify({ preset, customPx }));
   }, [preset, customPx]);
 
-  function setPreset(p: NumPreset) { setPresetState(p); }
+  function setPreset(p: NumPreset) { setStored((prev) => ({ ...prev, preset: p })); }
   function setCustomPx(px: number) {
     const clamped = Math.min(28, Math.max(10, Math.round(px)));
-    setCustomPxState(clamped);
-    setPresetState("custom");
+    setStored({ preset: "custom", customPx: clamped });
   }
 
   return (

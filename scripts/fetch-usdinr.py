@@ -2,313 +2,110 @@
 """
 fetch-usdinr.py
 
-Fetches USD/INR closing exchange rate and appends missing rows to data/usdinr.json.
+Syncs USD/INR daily closing rates into data/usdinr.json from the Yahoo Finance v8
+chart API (ticker USDINR=X), which returns dated daily closes.
 
-Data sources:
-  - Daily cron (no flags): investing.com via Playwright (~22 most recent trading days)
-  - One-time backfill (--from-date): Yahoo Finance v8 API via requests (full history)
+Every run re-syncs the last month: missing weekdays are added and any stored rate
+that differs from Yahoo's close is corrected. Weekends and the still-open current
+UTC day are never written. (The old investing.com scrape blocked CI runners, and its
+Trading Economics fallback copied one undated live quote across several days.)
 
 Usage:
-    python scripts/fetch-usdinr.py                        # today (Playwright)
-    python scripts/fetch-usdinr.py --date 2026-04-14      # specific date (Playwright)
-    python scripts/fetch-usdinr.py --backfill 10          # last 10 calendar days (Playwright)
-    python scripts/fetch-usdinr.py --from-date 2022-04-01 # full backfill via Yahoo Finance
+    python scripts/fetch-usdinr.py                         # re-sync the last month
+    python scripts/fetch-usdinr.py --from-date 2022-04-01  # re-sync from a date
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
-import argparse
-import time
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta, timezone
+
+import requests
 
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 USDINR_PATH  = os.path.join(PROJECT_ROOT, "data", "usdinr.json")
 
-INVESTING_URL = "https://in.investing.com/currencies/usd-inr-historical-data"
-TE_URL        = "https://tradingeconomics.com/india/currency"
+YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/USDINR=X"
 
 
-def fetch_usdinr_te() -> float | None:
-    """
-    Fallback: fetch the current USD/INR rate from Trading Economics via HTTP.
-    Returns rate as float (e.g. 84.25) or None on failure.
-    Same source used by the live prices API (/api/refresh-live-prices).
-    """
-    import urllib.request
-    import re
-    req = urllib.request.Request(
-        TE_URL,
-        headers={"User-Agent": "Mozilla/5.0 (compatible; fetch-usdinr/1.0)"},
+def fetch_usdinr_yahoo(from_date: str) -> dict[str, float]:
+    """{ISO_date: close} for completed weekday bars from from_date onward."""
+    from_ts = int(datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+    to_ts   = int(datetime.now(timezone.utc).timestamp())
+    resp = requests.get(
+        YAHOO_URL,
+        params={"period1": from_ts, "period2": to_ts, "interval": "1d"},
+        headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                 "Accept": "application/json"},
+        timeout=30,
     )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            html = resp.read().decode("utf-8", errors="ignore")
-        match = re.search(r'"value"\s*:\s*([0-9.]+)', html)
-        if match:
-            rate = float(match.group(1))
-            if 50 < rate < 150:
-                return round(rate * 100) / 100   # e.g. 84.2543 → 84.25
-    except Exception as e:
-        print(f"  WARNING: Trading Economics fallback failed: {e}")
-    return None
+    resp.raise_for_status()
+    result = resp.json().get("chart", {}).get("result") or []
+    if not result:
+        return {}
 
-
-def parse_investing_date(raw: str) -> str | None:
-    """Try multiple date formats investing.com uses for currency pages."""
-    raw = raw.strip()
-    for fmt in ("%b %d, %Y", "%m/%d/%Y", "%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(raw, fmt).date().isoformat()
-        except ValueError:
+    # Yahoo dates each daily bar at 00:00 UTC; today's bar is still trading.
+    today_utc = datetime.now(timezone.utc).date()
+    timestamps = result[0].get("timestamp", [])
+    closes     = result[0].get("indicators", {}).get("quote", [{}])[0].get("close", [])
+    rate_map: dict[str, float] = {}
+    for ts, close in zip(timestamps, closes):
+        d = datetime.fromtimestamp(ts, timezone.utc).date()
+        if close is None or d >= today_utc or d.weekday() >= 5:
             continue
-    return None
-
-
-def fetch_usdinr_playwright() -> dict[str, float]:
-    """
-    Scrape USD/INR historical data from investing.com via Playwright.
-    Returns {ISO_date: rate}; typically covers the last ~22 trading days.
-
-    Column layout (investing.com currency historical table):
-        col[0] = date string  (various formats)
-        col[1] = close price  (e.g. "84.25")
-    """
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        print("ERROR: playwright not installed. Run: pip install playwright && playwright install chromium")
-        sys.exit(1)
-
-    rate_map: dict[str, float] = {}
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-        page.set_extra_http_headers({
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
-            ),
-            "Accept-Language": "en-US,en;q=0.9",
-        })
-
-        try:
-            page.goto(INVESTING_URL, timeout=90_000, wait_until="domcontentloaded")
-            page.wait_for_selector("table tr td", timeout=45_000, state="attached")
-            page.wait_for_timeout(1500)
-        except Exception as e:
-            print(f"WARNING: Playwright page load failed: {e}")
-            browser.close()
-            return {}
-
-        rows = page.query_selector_all("table tr")
-        for row in rows:
-            cells = [c.inner_text().strip() for c in row.query_selector_all("td")]
-            if len(cells) < 2:
-                continue
-            try:
-                d_str = parse_investing_date(cells[0])
-                if not d_str:
-                    continue
-                raw_val = cells[1].replace(",", "").replace(" ", "").strip()
-                rate = round(float(raw_val), 4)
-                if rate > 0:
-                    rate_map[d_str] = rate
-            except (ValueError, IndexError):
-                continue
-
-        browser.close()
-
+        rate_map[d.isoformat()] = round(float(close), 4)
     return rate_map
 
 
-def fetch_usdinr_yahoo(from_date: str, to_date: str | None = None) -> dict[str, float]:
-    """
-    Fetch USD/INR historical daily closing rates from Yahoo Finance v8 API.
-    Ticker: USDINR=X  (raw INR per 1 USD, e.g. 84.25)
-    Returns {ISO_date: rate}.
-    """
-    import requests
-
-    if to_date is None:
-        to_date = date.today().isoformat()
-
-    from_dt = datetime.strptime(from_date, "%Y-%m-%d")
-    to_dt   = datetime.strptime(to_date,   "%Y-%m-%d") + timedelta(days=1)
-    p1 = int(from_dt.timestamp())
-    p2 = int(to_dt.timestamp())
-
-    url = (
-        f"https://query1.finance.yahoo.com/v8/finance/chart/USDINR%3DX"
-        f"?period1={p1}&period2={p2}&interval=1d&includeAdjustedClose=true"
-    )
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        "Accept": "application/json",
-    }
-
-    rate_map: dict[str, float] = {}
-    try:
-        resp = requests.get(url, headers=headers, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        result = data.get("chart", {}).get("result", [])
-        if not result:
-            print(f"  WARNING: Yahoo Finance returned empty result for USDINR=X")
-            return {}
-        timestamps = result[0].get("timestamp", [])
-        closes     = result[0].get("indicators", {}).get("quote", [{}])[0].get("close", [])
-        for ts, close in zip(timestamps, closes):
-            if close is None:
-                continue
-            d_str = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d")
-            rate_map[d_str] = round(float(close), 4)
-    except Exception as e:
-        print(f"  WARNING: Yahoo Finance fetch failed: {e}")
-
-    return rate_map
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Fetch USD/INR closing rate and append rows to usdinr.json"
-    )
-    parser.add_argument("--date",      default=None,
-                        help="Specific date to fetch (YYYY-MM-DD)")
-    parser.add_argument("--backfill",  type=int, default=0,
-                        help="Fetch last N calendar days (0 = today only)")
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Sync USD/INR daily closes into usdinr.json")
     parser.add_argument("--from-date", default=None, dest="from_date",
-                        help="Backfill from this date to today via Yahoo Finance (YYYY-MM-DD)")
+                        help="Re-sync from this date (YYYY-MM-DD). Default: last 35 days.")
     args = parser.parse_args()
+    from_date = args.from_date or (date.today() - timedelta(days=35)).isoformat()
 
-    # Load existing data
-    if os.path.exists(USDINR_PATH):
-        with open(USDINR_PATH) as f:
-            usdinr_data: list[dict] = json.load(f)
-    else:
-        usdinr_data = []
+    print(f"Fetching USD/INR closes from Yahoo Finance (USDINR=X) since {from_date}...")
+    try:
+        rate_map = fetch_usdinr_yahoo(from_date)
+    except Exception as e:
+        print(f"  WARNING: Yahoo Finance fetch failed: {e} — leaving usdinr.json unchanged.")
+        return 0
+    if not rate_map:
+        print("  No data returned — leaving usdinr.json unchanged.")
+        return 0
+    print(f"  Received {len(rate_map)} dates: {min(rate_map)} → {max(rate_map)}")
 
-    existing_dates = {r["date"] for r in usdinr_data}
+    with open(USDINR_PATH) as f:
+        rows: dict[str, dict] = {r["date"]: r for r in json.load(f)}
 
-    # ── Path A: one-time historical backfill via Yahoo Finance ──────────────
-    if args.from_date:
-        print(f"Fetching USD/INR history from Yahoo Finance (USDINR=X): {args.from_date} → today...")
-        rate_map = fetch_usdinr_yahoo(args.from_date)
-        if not rate_map:
-            print("  No data returned from Yahoo Finance — aborting.")
-            sys.exit(1)
-        print(f"  Received {len(rate_map)} dates: {min(rate_map)} → {max(rate_map)}")
-        target_dates = sorted(rate_map.keys())
-        added = 0
-        for d_str in target_dates:
-            if d_str in existing_dates:
-                continue
-            usdinr_data.append({"date": d_str, "rate": rate_map[d_str]})
-            existing_dates.add(d_str)
+    added = corrected = 0
+    for d_str, rate in sorted(rate_map.items()):
+        old = rows.get(d_str)
+        if old is None:
             added += 1
-        if added == 0:
-            print("No new rows added.")
-            sys.exit(0)
-        usdinr_data.sort(key=lambda r: r["date"])
-        with open(USDINR_PATH, "w") as f:
-            json.dump(usdinr_data, f, indent=2)
-        last = usdinr_data[-1]
-        print(f"\nWritten {added} new row(s) → {USDINR_PATH}")
-        print(f"Date range: {usdinr_data[0]['date']} → {last['date']}")
-        print(f"Last row: rate={last['rate']}")
-        return
-
-    # ── Path B: daily cron or short backfill via Playwright ─────────────────
-    if args.backfill > 0:
-        today = date.today()
-        target_dates = [
-            (today - timedelta(days=i)).isoformat()
-            for i in range(args.backfill, -1, -1)
-        ]
-    elif args.date:
-        target_dates = [args.date]
-    else:
-        target_dates = [date.today().isoformat()]
-
-    print(f"Fetching USD/INR rates from investing.com (Playwright)...")
-    rate_map = fetch_usdinr_playwright()
-
-    if rate_map:
-        print(f"  Received {len(rate_map)} dates: {min(rate_map)} → {max(rate_map)}")
-    else:
-        print("  No USD/INR data from investing.com — will try Trading Economics fallback for recent dates.")
-
-    # On default daily runs, auto-backfill any recently missed dates.
-    # Gaps are detected from usdinr.json itself (not from rate_map) so we catch
-    # misses even when Playwright returns an empty result.
-    if not args.date and args.backfill == 0:
-        cutoff = (date.today() - timedelta(days=35)).isoformat()
-        missed = sorted(d for d in existing_dates if False)  # seed empty list
-        # Dates present in rate_map but not in usdinr.json
-        missed_from_map = sorted(d for d in rate_map if d >= cutoff and d not in existing_dates)
-        # Dates between last known entry and today that are absent from usdinr.json
-        if usdinr_data:
-            last_known = max(existing_dates)
-            check = (date.fromisoformat(last_known) + timedelta(days=1))
-            today_dt = date.today()
-            while check <= today_dt:
-                d_str = check.isoformat()
-                if d_str not in existing_dates and d_str not in missed_from_map:
-                    missed_from_map.append(d_str)
-                check += timedelta(days=1)
-            missed_from_map = sorted(set(missed_from_map))
-        if missed_from_map:
-            print(f"  Auto-backfill: {len(missed_from_map)} missed date(s) detected: {missed_from_map}")
-        target_dates = missed_from_map + target_dates
-
-    # Trading Economics fallback: fetched once, reused for all recent missing dates.
-    te_rate: float | None = None
-    te_fetched = False
-    recent_cutoff = (date.today() - timedelta(days=7)).isoformat()
-
-    added = 0
-    for target_date_str in target_dates:
-        if target_date_str in existing_dates:
-            print(f"  {target_date_str}: already in usdinr.json — skip")
+            print(f"  {d_str}: added rate={rate}")
+        elif old.get("rate") != rate:
+            corrected += 1
+            print(f"  {d_str}: corrected {old.get('rate')} → {rate}")
+        else:
             continue
-        rate = rate_map.get(target_date_str)
+        rows[d_str] = {"date": d_str, "rate": rate}
 
-        # Fall back to Trading Economics for recent dates not in Playwright result
-        if rate is None and target_date_str >= recent_cutoff:
-            if not te_fetched:
-                print("  investing.com missing recent date(s) — trying Trading Economics fallback...")
-                te_rate = fetch_usdinr_te()
-                te_fetched = True
-            if te_rate is not None:
-                rate = te_rate
-                print(f"  {target_date_str}: using Trading Economics fallback rate={rate}")
+    if added == 0 and corrected == 0:
+        print("usdinr.json already matches Yahoo — no changes.")
+        return 0
 
-        if rate is None:
-            print(f"  {target_date_str}: rate not available from investing.com or Trading Economics — skip")
-            continue
-        usdinr_data.append({"date": target_date_str, "rate": rate})
-        existing_dates.add(target_date_str)
-        added += 1
-        print(f"  {target_date_str}: rate={rate}")
-
-    if added == 0:
-        print("No new rows added.")
-        sys.exit(0)
-
-    usdinr_data.sort(key=lambda r: r["date"])
+    out = [rows[d] for d in sorted(rows)]
     with open(USDINR_PATH, "w") as f:
-        json.dump(usdinr_data, f, indent=2)
-
-    last = usdinr_data[-1]
-    print(f"\nWritten {added} new row(s) → {USDINR_PATH}")
-    print(f"Date range: {usdinr_data[0]['date']} → {last['date']}")
-    print(f"Last row: rate={last['rate']}")
+        json.dump(out, f, indent=2)
+    print(f"\nWritten {added} new and {corrected} corrected row(s) → {USDINR_PATH}")
+    print(f"Last row: {out[-1]}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
