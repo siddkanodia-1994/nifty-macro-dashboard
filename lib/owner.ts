@@ -4,6 +4,8 @@
  * doesn't linger in the URL, history entries or anything shared from the page.
  * Client-only — returns null during server rendering.
  */
+import { useSyncExternalStore } from "react";
+
 const STORAGE_KEY = "nifty-owner-key";
 
 let cached: string | null | undefined;
@@ -23,4 +25,14 @@ export function getOwnerKey(): string | null {
     try { cached = sessionStorage.getItem(STORAGE_KEY); } catch { cached = null; }
   }
   return cached;
+}
+
+const noopSubscribe = () => () => {};
+
+/**
+ * True in the owner's tab. Server render and hydration see false, then the real
+ * value is applied, so markup never mismatches.
+ */
+export function useIsOwner(): boolean {
+  return useSyncExternalStore(noopSubscribe, () => getOwnerKey() != null, () => false);
 }

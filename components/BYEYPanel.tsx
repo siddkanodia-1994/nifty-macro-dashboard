@@ -19,9 +19,9 @@ import {
   zScore,
   percentileRank,
 } from "@/lib/calculations";
-import { INDEX_META, formatPct, formatPrice, formatRatio, formatZScore, formatPercentile, formatDate, zScoreColor, cn } from "@/lib/utils";
+import { INDEX_META, formatPct, formatPrice, formatRatio, formatZScore, formatPercentile, formatDate, zScoreColor, cn, latestValid } from "@/lib/utils";
 import { useRatioMode } from "@/lib/ratioMode";
-import type { BYEYRow, HistoricalRow, IndexKey, IndexMetrics, TimeWindow, WindowStats, ControlLines } from "@/lib/types";
+import type { BYEYRow, HistoricalRow, IndexKey, TimeWindow, WindowStats, ControlLines } from "@/lib/types";
 import { Eye, EyeOff } from "lucide-react";
 
 const BYEY_MAJOR_INDICES = INDEX_META.filter((m) =>
@@ -116,12 +116,11 @@ export function BYEYPanel({
   // Last row of the active index's series (most recent)
   const lastByeyRow = activeByeyData[activeByeyData.length - 1] ?? null;
 
-  // Implied EPS from latest historical row for the selected index
-  const prevImpliedEPS = useMemo(() => {
-    if (historicalData.length === 0) return null;
-    const m = historicalData[historicalData.length - 1][selectedByeyIndex] as IndexMetrics | null;
-    return m?.impliedEPS ?? null;
-  }, [historicalData, selectedByeyIndex]);
+  // Implied EPS from the latest historical row with data for the selected index
+  const prevImpliedEPS = useMemo(
+    () => latestValid(historicalData, selectedByeyIndex)?.impliedEPS ?? null,
+    [historicalData, selectedByeyIndex]
+  );
 
   // Forward PE series for the selected index (FWD mode only)
   const fwdSeries = useMemo(() => {

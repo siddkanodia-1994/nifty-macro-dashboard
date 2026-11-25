@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
-import { getOwnerKey } from "@/lib/owner";
+import { useIsOwner } from "@/lib/owner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { IndexOverview } from "@/components/IndexOverview";
 import { INDEX_META } from "@/lib/utils";
@@ -53,12 +53,7 @@ export function IndexTabs({ history, byeyData, usdinrData }: IndexTabsProps) {
   const [sharedGrowthPct, setSharedGrowthPct] = useState<Partial<Record<IndexKey, number>>>({});
   const [ownerEpsOverride, setOwnerEpsOverride] = useState<{ key: IndexKey; base: number; ts: number } | null>(null);
   const growthPctInitialized = useRef(false);
-  const isOwnerMode = useRef(false);
-
-  // Detect owner mode synchronously on mount (mirrors FutureProjectionPanel)
-  useEffect(() => {
-    if (getOwnerKey()) isOwnerMode.current = true;
-  }, []);
+  const isOwner = useIsOwner();
 
   useEffect(() => {
     (async () => {
@@ -100,8 +95,8 @@ export function IndexTabs({ history, byeyData, usdinrData }: IndexTabsProps) {
   // Overview edits → visual sync + signal FutureProjectionPanel to save (owner mode only)
   const handleOverviewEpsChange = useCallback((key: IndexKey, val: number) => {
     setSharedGrowthPct(prev => ({ ...prev, [key]: val }));
-    if (isOwnerMode.current) setOwnerEpsOverride({ key, base: val, ts: Date.now() });
-  }, []);
+    if (isOwner) setOwnerEpsOverride({ key, base: val, ts: Date.now() });
+  }, [isOwner]);
 
   // FutureProjectionPanel edits → visual sync only (FPP owns its own save)
   const handleFutureProjectionGrowthChange = useCallback((key: IndexKey, val: number) => {
@@ -266,7 +261,8 @@ export function IndexTabs({ history, byeyData, usdinrData }: IndexTabsProps) {
 
       {/* ── Tab 2: Future Projection ── */}
       <TabsContent value="FUTURE_PROJECTION" keepMounted>
-        {visited.has("FUTURE_PROJECTION") && <FutureProjectionPanel
+        {/* Always mounted for the owner: it's what publishes Overview's EPS Est. edits to Redis */}
+        {(visited.has("FUTURE_PROJECTION") || isOwner) && <FutureProjectionPanel
           historicalData={historicalData}
           liveData={liveData}
           timeWindow={overviewTimeWindow}

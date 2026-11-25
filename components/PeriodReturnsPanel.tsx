@@ -141,6 +141,8 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
   const effEndPriceFrom = endPriceFrom >= lastDate ? latestDate : endPriceFrom;
   const effEndPriceTo   = endPriceTo   >= lastDate ? latestDate : endPriceTo;
   const liveEnd    = liveDate != null && !avgMode && effEndDate === liveDate;
+  // Indices without a live quote fall back to their last EOD close.
+  const eodFallbackCount = liveDate ? INDEX_META.filter((m) => livePrices?.[m.key] == null).length : 0;
   const liveAvgEnd = liveDate != null && avgMode && effEndPriceTo === liveDate;
 
   function handleAvgToggle() {
@@ -333,7 +335,10 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
                 className={inputCls}
               />
               {liveEnd ? (
-                <span className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Using: live price · {liveTime} IST</span>
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  Using: live price · {liveTime} IST
+                  {eodFallbackCount > 0 && <span className="text-zinc-400"> (last close for {eodFallbackCount} without a live quote)</span>}
+                </span>
               ) : endRow && (
                 <span className="text-xs text-zinc-400 mt-0.5">Using: {formatDate(endRow.date)}</span>
               )}

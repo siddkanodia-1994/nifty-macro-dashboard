@@ -20,6 +20,7 @@ import {
   formatDate,
   zScoreColor,
   cn,
+  latestValid,
 } from "@/lib/utils";
 import type { HistoricalRow, IndexKey, MetricKey, TimeWindow } from "@/lib/types";
 
@@ -53,20 +54,20 @@ export function DailyDataPanel({ historicalData, liveData }: DailyDataPanelProps
 
   // Current value (live-aware) for stats card
   const currentValue = useMemo(() => {
-    const lastRow = historicalData[historicalData.length - 1];
-    if (!lastRow) return null;
+    // Latest row with data for this index (a missed fetch leaves nulls in the last row)
+    const m = latestValid(historicalData, selectedIndex);
+    if (!m) return null;
     if (selectedMetric === "close") {
-      return liveData?.[selectedIndex] ?? lastRow[selectedIndex]?.close ?? null;
+      return liveData?.[selectedIndex] ?? m.close;
     }
     const liveClose = liveData?.[selectedIndex];
-    if (liveClose != null && lastRow[selectedIndex]) {
-      const m = lastRow[selectedIndex];
+    if (liveClose != null) {
       if (selectedMetric === "pe" && m.impliedEPS)
         return liveClose / m.impliedEPS;
       if (selectedMetric === "pb" && m.impliedBV)
         return liveClose / m.impliedBV;
     }
-    return lastRow[selectedIndex]?.[selectedMetric] ?? null;
+    return m[selectedMetric] ?? null;
   }, [historicalData, selectedIndex, selectedMetric, liveData]);
 
   // Window statistics for summary strip

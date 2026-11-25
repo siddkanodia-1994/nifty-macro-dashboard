@@ -6,8 +6,8 @@ Syncs USD/INR daily closing rates into data/usdinr.json from the Yahoo Finance v
 chart API (ticker USDINR=X), which returns dated daily closes.
 
 Every run re-syncs the last month: missing weekdays are added and any stored rate
-that differs from Yahoo's close is corrected. Weekends and the still-open current
-UTC day are never written. (The old investing.com scrape blocked CI runners, and its
+that differs from Yahoo's close is corrected. Bars are dated in the exchange's time
+zone (London); weekends and the still-open current day are never written. (The old investing.com scrape blocked CI runners, and its
 Trading Economics fallback copied one undated live quote across several days.)
 
 Usage:
@@ -22,6 +22,7 @@ import json
 import os
 import sys
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -48,14 +49,17 @@ def fetch_usdinr_yahoo(from_date: str) -> dict[str, float]:
     if not result:
         return {}
 
-    # Yahoo dates each daily bar at 00:00 UTC; today's bar is still trading.
-    today_utc = datetime.now(timezone.utc).date()
+    # Yahoo stamps each FX daily bar at midnight in the exchange's time zone (London),
+    # which is 23:00 UTC the day before during UK summer time — so dates must be
+    # read in that zone, not UTC. Today's bar is still trading.
+    tz = ZoneInfo(result[0].get("meta", {}).get("exchangeTimezoneName") or "Europe/London")
+    today_local = datetime.now(tz).date()
     timestamps = result[0].get("timestamp", [])
     closes     = result[0].get("indicators", {}).get("quote", [{}])[0].get("close", [])
     rate_map: dict[str, float] = {}
     for ts, close in zip(timestamps, closes):
-        d = datetime.fromtimestamp(ts, timezone.utc).date()
-        if close is None or d >= today_utc or d.weekday() >= 5:
+        d = datetime.fromtimestamp(ts, tz).date()
+        if close is None or d >= today_local or d.weekday() >= 5:
             continue
         rate_map[d.isoformat()] = round(float(close), 4)
     return rate_map
