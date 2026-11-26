@@ -13671,5 +13671,14 @@
     "bondYield": 0.07169,
     "spread": 0.024139,
     "source": "tradingeconomics"
+  },
+  {
+    "date": "2026-11-26",
+    "close": 25884.5,
+    "pe": 21.08,
+    "ey": 0.047438,
+    "bondYield": 0.07239,
+    "spread": 0.024952,
+    "source": "tradingeconomics"
   }
 ]
