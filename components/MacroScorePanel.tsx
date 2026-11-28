@@ -184,11 +184,18 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
   const userHasEdited = useRef(false);
   const redisSnapshot = useRef<MacroScoreData | null>(null);
   const loaded = useRef(false);
+  // Render the table only once the saved/published copy is applied (no flash of the
+  // bundled defaults), and tell visitors when they're looking at their own edits.
+  const [ready, setReady] = useState(false);
+  const [viewingOwnEdits, setViewingOwnEdits] = useState(false);
   const latestDate = historicalData.at(-1)?.date ?? "";
 
   function updateData(updater: (prev: MacroScoreData) => MacroScoreData) {
     userHasEdited.current = true;
-    if (!ownerMode) setVisitorEdited(true);
+    if (!ownerMode) {
+      setVisitorEdited(true);
+      setViewingOwnEdits(true);
+    }
     setData(updater);
   }
 
@@ -200,7 +207,8 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
     (async () => {
       let published: MacroScoreData | null = null;
       try {
-        const res = await fetch("/api/macro-score", { cache: "no-store" });
+        // Timeout so a hung request can't leave the panel on "Loading…"
+        const res = await fetch("/api/macro-score", { cache: "no-store", signal: AbortSignal.timeout(8000) });
         if (res.ok) published = await res.json();
       } catch {}
       if (published) redisSnapshot.current = published;
@@ -208,7 +216,10 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
       // latest published version (falling back to the last copy saved here).
       const local = loadMacroScoreData(defaultJson as MacroScoreData);
       loaded.current = true;
-      setData(!key && hasVisitorEdits() ? local : published ?? local);
+      const useOwnEdits = !key && hasVisitorEdits();
+      setData(useOwnEdits ? local : published ?? local);
+      setViewingOwnEdits(useOwnEdits);
+      setReady(true);
     })();
   }, []);
 
@@ -381,7 +392,10 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
     if (!confirm("Reset to the last saved version?")) return;
     const target = redisSnapshot.current ?? (defaultJson as MacroScoreData);
     userHasEdited.current = true;
-    if (!ownerMode) setVisitorEdited(false);
+    if (!ownerMode) {
+      setVisitorEdited(false);
+      setViewingOwnEdits(false);
+    }
     setData(target);
     saveMacroScoreData(target);
   }
@@ -436,6 +450,10 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
   const thCls = "px-2 py-1.5 text-center text-xs font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap w-[72px] min-w-[72px] max-w-[72px] border-r border-zinc-200 dark:border-zinc-700";
   const separatorRow = "border-t-2 border-zinc-300 dark:border-zinc-600";
 
+  if (!ready) {
+    return <div className="py-16 text-center text-xs text-zinc-500">Loading macro score…</div>;
+  }
+
   return (
     <div className="space-y-5 pt-2">
       {/* ── Header ── */}
@@ -444,7 +462,7 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Macro Score</h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
             FY-wise macro health scoring. Click any cell to edit — your edits are kept in this browser until you reset.
-            {data.updatedAt && <> Published values last updated {formatDate(data.updatedAt.slice(0, 10))}.</>}
+            {data.updatedAt && !viewingOwnEdits && <> Published values last updated {formatDate(data.updatedAt.slice(0, 10))}.</>}
             {" "}YTD columns are financial years still in progress.
           </p>
         </div>
@@ -470,6 +488,12 @@ export function MacroScorePanel({ historicalData, byeyData }: MacroScorePanelPro
           </button>
         </div>
       </div>
+
+      {viewingOwnEdits && (
+        <p className="text-xs px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+          You&apos;re viewing your own edited copy — newer published values won&apos;t appear until you click &ldquo;Reset to saved&rdquo;.
+        </p>
+      )}
 
       {/* ── Card 1: Raw Data ── */}
       <Card className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-sm">

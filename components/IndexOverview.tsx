@@ -215,6 +215,17 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
   // Previous close for "Day Chg": only meaningful if the stored close is from the
   // trading day right before the live quote's session (not two+ sessions old).
   const prevSessionDate = liveAsOf ? previousTradingDay(istDate(new Date(liveAsOf))) : null;
+  // That session's stored row — found by date, so Day Chg still works in the evening
+  // after today's EOD row has been added on top of it.
+  const prevSessionRow = useMemo(() => {
+    if (!prevSessionDate) return null;
+    for (let i = historicalData.length - 1; i >= 0; i--) {
+      const d = historicalData[i].date;
+      if (d === prevSessionDate) return historicalData[i];
+      if (d < prevSessionDate) break;
+    }
+    return null;
+  }, [historicalData, prevSessionDate]);
 
   const windowRows = useMemo(
     () => filterByWindow(historicalData, timeWindow),
@@ -321,7 +332,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
         ? ((pbTargetPrice - close) / close) * 100 : null;
 
       // % change vs previous trading day's EOD close (liveData retained post-market)
-      const prevClose = histEntry?.date === prevSessionDate ? hist?.close ?? null : null;
+      const prevClose = prevSessionRow?.[key]?.close ?? null;
       const changePct = isLive && liveClose != null && prevClose != null && prevClose !== 0
         ? ((liveClose - prevClose) / prevClose) * 100
         : null;
@@ -329,7 +340,7 @@ export function IndexOverview({ historicalData, byeyData, liveBondYield, liveDat
       return { meta, key, close, isLive, pe: currentPE, peMean, peSD, peZ, peTarget, peTargetPrice, peUpside, pb: currentPB, pbMean, pbSD, pbZ, pbTarget, pbTargetPrice, pbUpside, changePct };
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [windowRows, historicalData, liveData, prevSessionDate, multipleTarget, forwardMode, forwardBases, ratioMode, fwdSeriesMap, epsGrowthPct]);
+  }, [windowRows, historicalData, liveData, prevSessionRow, multipleTarget, forwardMode, forwardBases, ratioMode, fwdSeriesMap, epsGrowthPct]);
 
   const sortedStats = useMemo(() => {
     if (!sortCol || !sortDir) return stats;

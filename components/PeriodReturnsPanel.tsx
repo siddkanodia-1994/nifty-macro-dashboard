@@ -105,14 +105,17 @@ function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; s
 export function PeriodReturnsPanel({ historicalData }: Props) {
   const lastDate = historicalData.at(-1)?.date ?? new Date().toISOString().slice(0, 10);
 
-  // While the market is open, periods that run to the latest day end at the live
-  // price, dated today (IST) — so presets like 1M mean "1 month to right now".
+  // Periods that run to the latest day end at today's quote (IST) whenever one is newer
+  // than the stored EOD data: the live price while the market is open, then today's
+  // closing quote after 3:30 PM until the evening EOD update lands — so presets like 1M
+  // mean "1 month to now" and don't jump back a day at the close.
   const { prices: livePrices, marketOpen, asOf } = useLivePrices();
   const liveDate = useMemo(() => {
-    if (!marketOpen || !livePrices || !asOf) return null;
+    if (!livePrices || !asOf) return null;
     const d = istDate(new Date(asOf));
     return d > lastDate ? d : null;
-  }, [marketOpen, livePrices, asOf, lastDate]);
+  }, [livePrices, asOf, lastDate]);
+  const liveLabel = marketOpen ? "live price" : "today's close";
   const latestDate = liveDate ?? lastDate;
   const liveTime = liveDate && asOf
     ? new Date(asOf).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false })
@@ -125,6 +128,9 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
   // Normal mode
   const [startDate, setStartDate] = useState(defaultStart);
   const [endDate,   setEndDate]   = useState(lastDate);
+  // The end date tracks the latest day (today's quote when there is one) until the user
+  // picks an earlier date — so the last EOD date can still be chosen deliberately.
+  const [endFollowsLatest, setEndFollowsLatest] = useState(true);
   const [sortCol,   setSortCol]   = useState<SortCol>(null);
   const [sortDir,   setSortDir]   = useState<SortDir>("desc");
   const [showPE,    setShowPE]    = useState(false);
@@ -137,7 +143,7 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
   const [endPriceTo,     setEndPriceTo]     = useState(lastDate);
 
   // End values set to the latest EOD day follow the live day while the market is open.
-  const effEndDate      = endDate      >= lastDate ? latestDate : endDate;
+  const effEndDate      = endFollowsLatest ? latestDate : endDate;
   const effEndPriceFrom = endPriceFrom >= lastDate ? latestDate : endPriceFrom;
   const effEndPriceTo   = endPriceTo   >= lastDate ? latestDate : endPriceTo;
   const liveEnd    = liveDate != null && !avgMode && effEndDate === liveDate;
@@ -302,7 +308,7 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
                 />
               </div>
               <span className="text-xs text-zinc-400 mt-0.5">
-                {endPeriodDays > 0 ? `${endPeriodDays} trading days avg${liveAvgEnd ? ` (incl. live ${liveTime})` : ""}` : "—"}
+                {endPeriodDays > 0 ? `${endPeriodDays} trading days avg${liveAvgEnd ? ` (incl. ${liveLabel} ${liveTime})` : ""}` : "—"}
               </span>
             </div>
           </>
@@ -331,12 +337,15 @@ export function PeriodReturnsPanel({ historicalData }: Props) {
                 value={effEndDate}
                 min={startDate}
                 max={latestDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setEndFollowsLatest(e.target.value >= latestDate);
+                }}
                 className={inputCls}
               />
               {liveEnd ? (
                 <span className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
-                  Using: live price · {liveTime} IST
+                  Using: {liveLabel} · {liveTime} IST
                   {eodFallbackCount > 0 && <span className="text-zinc-400"> (last close for {eodFallbackCount} without a live quote)</span>}
                 </span>
               ) : endRow && (
